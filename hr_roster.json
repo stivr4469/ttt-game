@@ -1,0 +1,80 @@
+{
+  "company": "Marineso",
+  "last_updated": "2026-05-22",
+  "employees": [
+    {
+      "email": "alex.dev@marineso.com",
+      "name": "Alex Developer",
+      "role": "Engineering Lead",
+      "department": "Engineering",
+      "hire_date": "2024-01-15",
+      "employment_type": "full_time",
+      "status": "active",
+      "training_completed": true,
+      "training_date": "2024-02-10",
+      "notes": ""
+    },
+    {
+      "email": "maria.hr@marineso.com",
+      "name": "Maria HR",
+      "role": "HR Manager",
+      "department": "HR",
+      "hire_date": "2024-03-01",
+      "employment_type": "full_time",
+      "status": "active",
+      "training_completed": false,
+      "training_date": null,
+      "notes": "Security awareness training overdue"
+    },
+    {
+      "email": "ivan.devops@marineso.com",
+      "name": "Ivan DevOps",
+      "role": "DevOps Engineer",
+      "department": "Engineering",
+      "hire_date": "2024-06-01",
+      "employment_type": "full_time",
+      "status": "active",
+      "training_completed": true,
+      "training_date": "2024-06-28",
+      "notes": ""
+    },
+    {
+      "email": "sobeda4838@marineso.com",
+      "name": "Sobeda Admin",
+      "role": "System Administrator",
+      "department": "IT",
+      "hire_date": "2023-05-01",
+      "employment_type": "full_time",
+      "status": "terminated",
+      "termination_date": "2026-03-15",
+      "training_completed": true,
+      "training_date": "2023-06-01",
+      "notes": "TERMINATED — access should have been revoked on 2026-03-15"
+    },
+    {
+      "email": "contractor.frontend@marineso.com",
+      "name": "Frontend Contractor",
+      "role": "Frontend Developer",
+      "department": "Engineering",
+      "hire_date": "2025-09-01",
+      "employment_type": "contractor",
+      "contract_end_date": "2026-02-28",
+      "status": "active",
+      "training_completed": true,
+      "training_date": "2025-09-05",
+      "notes": "Contract expired 2026-02-28 — access not revoked"
+    },
+    {
+      "email": "test.nomfa@marineso.com",
+      "name": "Test NoMFA User",
+      "role": "QA Engineer",
+      "department": "QA",
+      "hire_date": "2026-04-01",
+      "employment_type": "full_time",
+      "status": "active",
+      "training_completed": false,
+      "training_date": null,
+      "notes": "New hire — 51 days without training (limit 30 days)"
+    }
+  ]
+}

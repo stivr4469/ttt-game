@@ -1,0 +1,174 @@
+{
+  "remediations": {
+    "CC6.3": {
+      "control_code": "CC6.3",
+      "jira_key": "SEC-7930",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-7930",
+      "finding": "Role-Based Access and Least Privilege",
+      "priority": "High",
+      "created_at": "2026-05-22T18:04:51.114568+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.2": {
+      "control_code": "CC6.2",
+      "jira_key": "SEC-4332",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-4332",
+      "finding": "Registration and Authorization of New Users",
+      "priority": "Critical",
+      "created_at": "2026-05-22T18:04:51.116986+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.1": {
+      "control_code": "CC6.1",
+      "jira_key": "SEC-5757",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-5757",
+      "finding": "Logical Access Security Software and Architectures",
+      "priority": "Critical",
+      "created_at": "2026-05-22T18:04:51.121361+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.7": {
+      "control_code": "CC6.7",
+      "jira_key": "SEC-5955",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-5955",
+      "finding": "Restriction and Protection of Information During Transmission",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.126460+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC7.1": {
+      "control_code": "CC7.1",
+      "jira_key": "SEC-3348",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-3348",
+      "finding": "Detection and Monitoring of Configuration Changes and New Vulnerabilities",
+      "priority": "High",
+      "created_at": "2026-05-22T18:04:51.132409+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC7.2": {
+      "control_code": "CC7.2",
+      "jira_key": "SEC-8572",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-8572",
+      "finding": "Monitoring for Anomalies Indicative of Malicious Acts or Errors",
+      "priority": "High",
+      "created_at": "2026-05-22T18:04:51.135964+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC8.1": {
+      "control_code": "CC8.1",
+      "jira_key": "SEC-8806",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-8806",
+      "finding": "Authorization, Design, Development, Testing, and Implementation of Changes",
+      "priority": "High",
+      "created_at": "2026-05-22T18:04:51.140034+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC3.4": {
+      "control_code": "CC3.4",
+      "jira_key": "SEC-5379",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-5379",
+      "finding": "Assessment of Changes Affecting Internal Control",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.141113+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC2.2": {
+      "control_code": "CC2.2",
+      "jira_key": "SEC-8854",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-8854",
+      "finding": "Internal Communication of Objectives and Responsibilities",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.141559+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.4": {
+      "control_code": "CC6.4",
+      "jira_key": "SEC-9273",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-9273",
+      "finding": "Physical Access Restrictions to Facilities and Protected Assets",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.142780+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC1.1": {
+      "control_code": "CC1.1",
+      "jira_key": "SEC-1414",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-1414",
+      "finding": "Commitment to Integrity and Ethical Values",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.144557+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC1.4": {
+      "control_code": "CC1.4",
+      "jira_key": "SEC-2114",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-2114",
+      "finding": "Commitment to Attract, Develop, and Retain Competent Individuals",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.145860+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC9.1": {
+      "control_code": "CC9.1",
+      "jira_key": "SEC-7110",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-7110",
+      "finding": "Risk Mitigation for Business Disruptions",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.146679+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC5.3": {
+      "control_code": "CC5.3",
+      "jira_key": "SEC-4923",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-4923",
+      "finding": "Deployment of Controls through Policies and Procedures",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.147296+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.8": {
+      "control_code": "CC6.8",
+      "jira_key": "SEC-7420",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-7420",
+      "finding": "Controls to Prevent or Detect Malware on System Components",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.148068+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC7.5": {
+      "control_code": "CC7.5",
+      "jira_key": "SEC-5545",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-5545",
+      "finding": "Recovery from Security Incidents",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.149016+00:00",
+      "status": "open",
+      "mock": true
+    },
+    "CC6.6": {
+      "control_code": "CC6.6",
+      "jira_key": "SEC-6012",
+      "jira_url": "https://mock-jira.example.com/browse/SEC-6012",
+      "finding": "Prevention and Detection of Unauthorized or Malicious Software",
+      "priority": "Medium",
+      "created_at": "2026-05-22T18:04:51.149899+00:00",
+      "status": "open",
+      "mock": true
+    }
+  }
+}

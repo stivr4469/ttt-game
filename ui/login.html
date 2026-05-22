@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Login — SOC 2 Compliance Sandbox</title>
+<style>
+  :root {
+    --bg:       #080d1a;
+    --s1:       #0d1426;
+    --s2:       #111b2e;
+    --s3:       #162035;
+    --border:   #1e2d4a;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #3b82f6;
+    --accent2:  #60a5fa;
+    --fail:     #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { 
+    background: var(--bg); 
+    color: var(--text); 
+    font-family: 'Inter', system-ui, sans-serif; 
+    display: flex; 
+    align-items: center; 
+    justify-content: center; 
+    height: 100vh;
+  }
+  .login-card {
+    background: var(--s1);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 40px;
+    width: 100%;
+    max-width: 400px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  }
+  .header { text-align: center; margin-bottom: 30px; }
+  .header .logo { font-size: 40px; margin-bottom: 10px; display: block; }
+  .header h1 { font-size: 20px; font-weight: 700; }
+  .header p { font-size: 14px; color: var(--muted); margin-top: 5px; }
+
+  .form-group { margin-bottom: 20px; }
+  .label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
+  .input {
+    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; transition: border .15s;
+  }
+  .input:focus { border-color: var(--accent); }
+
+  .btn {
+    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 8px;
+    padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .15s;
+  }
+  .btn:hover { background: var(--accent2); }
+  
+  .error { color: var(--fail); font-size: 13px; margin-top: 15px; text-align: center; display: none; }
+
+  .demo-table {
+    margin-top: 40px;
+    width: 100%;
+    font-size: 11px;
+    border-collapse: collapse;
+    color: var(--muted);
+  }
+  .demo-table th { text-align: left; padding: 4px; border-bottom: 1px solid var(--border); }
+  .demo-table td { padding: 6px 4px; cursor: pointer; }
+  .demo-table tr:hover td { color: var(--text); }
+</style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="header">
+    <span class="logo">🛡️</span>
+    <h1>Sign In</h1>
+    <p>Compliance Sandbox Auditor</p>
+  </div>
+
+  <form id="loginForm">
+    <div class="form-group">
+      <label class="label">Email</label>
+      <input type="email" name="email" class="input" placeholder="admin@acme.com" required>
+    </div>
+    <div class="form-group">
+      <label class="label">Password</label>
+      <input type="password" name="password" class="input" placeholder="••••••••" required>
+    </div>
+    <button type="submit" class="btn">Sign In</button>
+  </form>
+
+  <div id="errorMsg" class="error">Invalid credentials</div>
+
+  <table class="demo-table">
+    <thead>
+      <tr><th>Role</th><th>Email</th><th>Password</th></tr>
+    </thead>
+    <tbody>
+      <tr onclick="fill('admin@acme.com', 'admin123')"><td>Admin</td><td>admin@acme.com</td><td>admin123</td></tr>
+      <tr onclick="fill('auditor@acme.com', 'audit123')"><td>Auditor</td><td>auditor@acme.com</td><td>audit123</td></tr>
+      <tr onclick="fill('scanner@acme.com', 'scan123')"><td>Scanner</td><td>scanner@acme.com</td><td>scan123</td></tr>
+      <tr onclick="fill('viewer@acme.com', 'view123')"><td>Viewer</td><td>viewer@acme.com</td><td>view123</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<script>
+  const form = document.getElementById('loginForm');
+  const error = document.getElementById('errorMsg');
+
+  function fill(e, p) {
+    form.email.value = e;
+    form.password.value = p;
+  }
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    error.style.display = 'none';
+    
+    const body = new FormData(form);
+    try {
+      const r = await fetch('/api/auth/login', { method: 'POST', body });
+      if (r.ok) {
+        window.location.href = '/';
+      } else {
+        error.style.display = 'block';
+      }
+    } catch (err) {
+      error.textContent = 'Server connection error';
+      error.style.display = 'block';
+    }
+  };
+</script>
+
+</body>
+</html>

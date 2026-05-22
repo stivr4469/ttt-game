@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quarterly Access Review — Q2 2026</title>
+<style>
+  :root {
+    --bg:      #080d1a;
+    --s1:      #0d1426;
+    --s2:      #111b2e;
+    --s3:      #162035;
+    --border:  #1e2d4a;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --accent:  #3b82f6;
+    --accent2: #60a5fa;
+    --pass:    #22c55e;
+    --fail:    #ef4444;
+    --warn:    #f59e0b;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif; font-size: 14px;
+  }
+
+  header {
+    height: 56px; display: flex; align-items: center; gap: 12px;
+    padding: 0 24px; background: var(--s1); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .logo { font-size: 20px; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+  header a {
+    margin-left: auto; color: var(--muted); text-decoration: none;
+    font-size: 13px; padding: 5px 12px; border: 1px solid var(--border);
+    border-radius: 6px; transition: color .15s, border-color .15s;
+  }
+  header a:hover { color: var(--text); border-color: var(--accent); }
+
+  main { max-width: 1200px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  .section-title {
+    font-size: 20px; font-weight: 700; margin-bottom: 6px;
+  }
+  .section-sub {
+    color: var(--muted); font-size: 13px; margin-bottom: 24px;
+  }
+
+  /* ── Progress ── */
+  .progress-wrap {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 24px;
+  }
+  .progress-header { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 13px; }
+  .progress-header .label { color: var(--muted); }
+  .progress-header .count { font-weight: 600; }
+  .progress-bar-bg {
+    height: 8px; background: var(--s3); border-radius: 99px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    transition: width .4s ease;
+  }
+  .progress-stats { display: flex; gap: 24px; margin-top: 14px; flex-wrap: wrap; }
+  .stat-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); }
+  .stat-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; margin-bottom: 24px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 12px 14px; text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
+    background: var(--s2); border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--s2); }
+  tbody tr.decided-approve { background: rgba(34,197,94,.06); }
+  tbody tr.decided-revoke  { background: rgba(239,68,68,.06); }
+  tbody tr.decided-escalate { background: rgba(245,158,11,.06); }
+  td { padding: 12px 14px; vertical-align: middle; }
+
+  .badge-level {
+    display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;
+  }
+  .badge-level.admin  { background: rgba(239,68,68,.18); color: #fca5a5; }
+  .badge-level.write  { background: rgba(245,158,11,.18); color: #fcd34d; }
+  .badge-level.read   { background: rgba(34,197,94,.15); color: #86efac; }
+
+  .mfa-yes { color: var(--pass); font-weight: 600; }
+  .mfa-no  { color: var(--fail); font-weight: 600; }
+
+  .dormant { color: var(--warn); font-weight: 600; }
+
+  .systems-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .sys-tag {
+    background: var(--s3); border: 1px solid var(--border); border-radius: 4px;
+    padding: 1px 6px; font-size: 11px; color: var(--muted);
+  }
+
+  .btn-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-action {
+    padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600;
+    border: none; cursor: pointer; transition: opacity .15s, transform .1s;
+    white-space: nowrap;
+  }
+  .btn-action:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+  .btn-action:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+  .btn-approve  { background: rgba(34,197,94,.2); color: var(--pass); border: 1px solid rgba(34,197,94,.3); }
+  .btn-revoke   { background: rgba(239,68,68,.2); color: var(--fail); border: 1px solid rgba(239,68,68,.3); }
+  .btn-escalate { background: rgba(245,158,11,.2); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
+
+  .decision-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 6px; font-size: 12px; font-weight: 600;
+  }
+  .decision-badge.approve  { background: rgba(34,197,94,.2); color: var(--pass); }
+  .decision-badge.revoke   { background: rgba(239,68,68,.2); color: var(--fail); }
+  .decision-badge.escalate { background: rgba(245,158,11,.2); color: var(--warn); }
+
+  /* ── Submit ── */
+  .submit-section {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; display: flex; align-items: center; justify-content: space-between;
+    flex-wrap: wrap; gap: 16px;
+  }
+  .submit-info { font-size: 13px; color: var(--muted); }
+  .submit-info strong { color: var(--text); }
+  .btn-submit {
+    padding: 10px 28px; border-radius: 8px; font-size: 14px; font-weight: 700;
+    background: var(--accent); color: #fff; border: none; cursor: pointer;
+    transition: background .15s, opacity .15s, transform .1s;
+  }
+  .btn-submit:hover:not(:disabled) { background: var(--accent2); transform: translateY(-1px); }
+  .btn-submit:disabled { opacity: .35; cursor: not-allowed; transform: none; }
+
+  /* ── Toast ── */
+  #toast {
+    position: fixed; bottom: 28px; right: 28px; min-width: 260px;
+    background: var(--s2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px 18px; font-size: 13px; box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    transform: translateY(120%); opacity: 0;
+    transition: transform .25s ease, opacity .25s ease; z-index: 100;
+  }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--pass); color: var(--pass); }
+  #toast.error   { border-color: var(--fail); color: var(--fail); }
+  #toast.info    { border-color: var(--accent); color: var(--accent2); }
+
+  .result-box {
+    background: var(--s2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 16px 20px; margin-top: 20px; font-size: 13px; display: none;
+  }
+  .result-box.visible { display: block; }
+  .result-box h3 { margin-bottom: 10px; font-size: 15px; color: var(--pass); }
+  .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 10px; }
+  .result-stat { background: var(--s3); border-radius: 8px; padding: 12px; text-align: center; }
+  .result-stat .rs-val { font-size: 22px; font-weight: 700; }
+  .result-stat .rs-lbl { font-size: 11px; color: var(--muted); margin-top: 3px; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">🔐</span>
+  <h1>Quarterly Access Review — Q2 2026</h1>
+  <a href="/">← Dashboard</a>
+</header>
+
+<main>
+  <div class="section-title">User Access Review</div>
+  <div class="section-sub">Review each user's access rights and submit quarterly certification to Evidence Tracker (CC6.2, CC6.5)</div>
+
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <span class="label">Review Progress</span>
+      <span class="count" id="progress-text">0 / 0 reviewed</span>
+    </div>
+    <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill" style="width:0%"></div></div>
+    <div class="progress-stats">
+      <div class="stat-item"><div class="stat-dot" style="background:var(--pass)"></div><span id="cnt-approved">0 approved</span></div>
+      <div class="stat-item"><div class="stat-dot" style="background:var(--fail)"></div><span id="cnt-revoked">0 revoked</span></div>
+      <div class="stat-item"><div class="stat-dot" style="background:var(--warn)"></div><span id="cnt-escalated">0 escalated</span></div>
+      <div class="stat-item"><div class="stat-dot" style="background:var(--muted)"></div><span id="cnt-pending">0 pending</span></div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Role</th>
+          <th>Department</th>
+          <th>Access Level</th>
+          <th>Last Login</th>
+          <th>MFA</th>
+          <th>Systems</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="users-tbody">
+        <tr><td colspan="9" style="text-align:center;color:var(--muted);padding:32px;">Loading...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="submit-section">
+    <div class="submit-info">
+      <strong>Submit Review</strong> — finalizes the quarterly certification and creates evidence in the tracker.<br>
+      All users must be reviewed before submitting.
+    </div>
+    <button class="btn-submit" id="btn-submit" disabled onclick="submitReview()">Submit Review</button>
+  </div>
+
+  <div class="result-box" id="result-box">
+    <h3>Review Submitted Successfully</h3>
+    <div id="result-details"></div>
+    <div class="result-grid" id="result-grid"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+const REVIEWER_EMAIL = "manager@acme.com";
+const TODAY = new Date();
+
+let allUsers = [];
+const localDecisions = {};
+
+function daysSince(dateStr) {
+  const d = new Date(dateStr);
+  return Math.floor((TODAY - d) / 86400000);
+}
+
+function showToast(msg, type = "info", duration = 3500) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.className = ""; }, duration);
+}
+
+function updateProgress() {
+  const total = allUsers.length;
+  const reviewed = Object.keys(localDecisions).length;
+  const approved = Object.values(localDecisions).filter(d => d === "approve").length;
+  const revoked = Object.values(localDecisions).filter(d => d === "revoke").length;
+  const escalated = Object.values(localDecisions).filter(d => d === "escalate").length;
+  const pending = total - reviewed;
+
+  document.getElementById("progress-text").textContent = `${reviewed} / ${total} reviewed`;
+  document.getElementById("progress-fill").style.width = total ? `${(reviewed / total) * 100}%` : "0%";
+  document.getElementById("cnt-approved").textContent = `${approved} approved`;
+  document.getElementById("cnt-revoked").textContent = `${revoked} revoked`;
+  document.getElementById("cnt-escalated").textContent = `${escalated} escalated`;
+  document.getElementById("cnt-pending").textContent = `${pending} pending`;
+
+  document.getElementById("btn-submit").disabled = (pending > 0);
+}
+
+function renderRow(user) {
+  const dormant = daysSince(user.last_login) > 90;
+  const existingDecision = localDecisions[user.id] || (user.status !== "pending" ? user.status : null);
+
+  const levelClass = user.access_level === "admin" ? "admin" : user.access_level === "write" ? "write" : "read";
+  const sysTags = user.systems.map(s => `<span class="sys-tag">${s}</span>`).join("");
+  const loginCell = dormant
+    ? `<span class="dormant" title="${daysSince(user.last_login)} days ago">${user.last_login} ⚠</span>`
+    : user.last_login;
+
+  let actionsHtml;
+  if (existingDecision) {
+    const icons = { approve: "✅", revoke: "❌", escalate: "⚠" };
+    const labels = { approve: "Approved", revoke: "Revoked", escalate: "Escalated" };
+    actionsHtml = `<span class="decision-badge ${existingDecision}">${icons[existingDecision]} ${labels[existingDecision]}</span>`;
+  } else {
+    actionsHtml = `
+      <div class="btn-group">
+        <button class="btn-action btn-approve" onclick="decide('${user.id}','approve')">✅ Approve</button>
+        <button class="btn-action btn-revoke"  onclick="decide('${user.id}','revoke')">❌ Revoke</button>
+        <button class="btn-action btn-escalate" onclick="decide('${user.id}','escalate')">⚠ Escalate</button>
+      </div>`;
+  }
+
+  const rowClass = existingDecision ? `decided-${existingDecision}` : "";
+
+  return `
+    <tr id="row-${user.id}" class="${rowClass}">
+      <td><strong>${user.name}</strong></td>
+      <td style="color:var(--muted)">${user.email}</td>
+      <td>${user.role}</td>
+      <td>${user.department}</td>
+      <td><span class="badge-level ${levelClass}">${user.access_level}</span></td>
+      <td>${loginCell}</td>
+      <td class="${user.mfa_enabled ? 'mfa-yes' : 'mfa-no'}">${user.mfa_enabled ? "✓ Yes" : "✗ No"}</td>
+      <td><div class="systems-list">${sysTags}</div></td>
+      <td id="actions-${user.id}">${actionsHtml}</td>
+    </tr>`;
+}
+
+async function loadUsers() {
+  try {
+    const r = await fetch("/api/access-review/users");
+    const data = await r.json();
+    allUsers = data.users;
+
+    allUsers.forEach(u => {
+      if (u.status && u.status !== "pending") {
+        localDecisions[u.id] = u.status;
+      }
+    });
+
+    document.getElementById("users-tbody").innerHTML = allUsers.map(renderRow).join("");
+    updateProgress();
+  } catch (e) {
+    showToast("Failed to load users: " + e.message, "error");
+  }
+}
+
+async function decide(userId, decision) {
+  try {
+    const r = await fetch("/api/access-review/decision", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, decision, reviewer: REVIEWER_EMAIL, reason: "" }),
+    });
+    if (!r.ok) throw new Error(await r.text());
+
+    localDecisions[userId] = decision;
+
+    const user = allUsers.find(u => u.id === userId);
+    const icons = { approve: "✅", revoke: "❌", escalate: "⚠" };
+    const labels = { approve: "Approved", revoke: "Revoked", escalate: "Escalated" };
+
+    const actionsCell = document.getElementById(`actions-${userId}`);
+    actionsCell.innerHTML = `<span class="decision-badge ${decision}">${icons[decision]} ${labels[decision]}</span>`;
+
+    const row = document.getElementById(`row-${userId}`);
+    row.className = `decided-${decision}`;
+
+    updateProgress();
+    showToast(`${user ? user.name : userId}: ${labels[decision]}`, "success", 2500);
+  } catch (e) {
+    showToast("Error saving decision: " + e.message, "error");
+  }
+}
+
+async function submitReview() {
+  const btn = document.getElementById("btn-submit");
+  btn.disabled = true;
+  btn.textContent = "Submitting...";
+
+  try {
+    const r = await fetch("/api/access-review/submit", { method: "POST" });
+    if (!r.ok) throw new Error(await r.text());
+    const data = await r.json();
+
+    showToast("Review submitted and evidence created!", "success", 5000);
+
+    const box = document.getElementById("result-box");
+    box.classList.add("visible");
+
+    const s = data.summary;
+    document.getElementById("result-details").innerHTML =
+      `<div style="color:var(--muted);margin-bottom:8px">Evidence IDs: <strong style="color:var(--text)">${data.evidence_ids.filter(Boolean).join(", ") || "—"}</strong></div>`;
+
+    document.getElementById("result-grid").innerHTML = [
+      { val: s.total, lbl: "Total Users" },
+      { val: s.approved, lbl: "Approved" },
+      { val: s.revoked, lbl: "Revoked" },
+      { val: s.escalated, lbl: "Escalated" },
+      { val: s.pending, lbl: "Pending" },
+    ].map(item => `
+      <div class="result-stat">
+        <div class="rs-val">${item.val}</div>
+        <div class="rs-lbl">${item.lbl}</div>
+      </div>`).join("");
+
+    btn.textContent = "Submitted ✓";
+  } catch (e) {
+    showToast("Submit failed: " + e.message, "error");
+    btn.disabled = false;
+    btn.textContent = "Submit Review";
+  }
+}
+
+loadUsers();
+</script>
+</body>
+</html>

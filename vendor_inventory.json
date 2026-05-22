@@ -1,0 +1,44 @@
+{
+  "vendors": [
+    {
+      "name": "AWS",
+      "category": "cloud_infrastructure",
+      "data_processed": ["customer_data", "logs", "backups"],
+      "soc2_certified": true,
+      "contract_review_date": "2024-01-15",
+      "risk_level": null
+    },
+    {
+      "name": "GitHub",
+      "category": "source_control",
+      "data_processed": ["source_code", "secrets_if_leaked"],
+      "soc2_certified": true,
+      "contract_review_date": "2024-03-01",
+      "risk_level": null
+    },
+    {
+      "name": "Okta",
+      "category": "identity_provider",
+      "data_processed": ["employee_identities", "access_logs"],
+      "soc2_certified": true,
+      "contract_review_date": "2024-02-10",
+      "risk_level": null
+    },
+    {
+      "name": "Slack",
+      "category": "communication",
+      "data_processed": ["internal_communications", "sensitive_discussions"],
+      "soc2_certified": true,
+      "contract_review_date": "2023-11-01",
+      "risk_level": null
+    },
+    {
+      "name": "OpenRouter",
+      "category": "ai_api",
+      "data_processed": ["prompts", "compliance_data"],
+      "soc2_certified": false,
+      "contract_review_date": null,
+      "risk_level": null
+    }
+  ]
+}

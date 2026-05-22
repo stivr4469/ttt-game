@@ -1,7 +1,21 @@
-# SOC 2 Compliance Sandbox — Code Ownership
-# All changes require review from security owner
-* @stivr4469
+# CODEOWNERS — все изменения требуют ревью от Security или Engineering Lead
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 
-# Policy documents require CISO approval
-/policies/ @stivr4469
-*.md @stivr4469
+# По умолчанию — владелец всего репозитория
+*                          @stivr4469
+
+# Файлы с политиками и compliance — Security Team
+policies/                  @stivr4469
+*.md                       @stivr4469
+ROADMAP.md                 @stivr4469
+
+# Инфраструктура и CI/CD — Engineering Lead
+.github/                   @stivr4469
+docker-compose.yml         @stivr4469
+requirements.txt           @stivr4469
+seed_infrastructure.py     @stivr4469
+
+# Агенты и сканер — Security Team + Engineering
+scanner.py                 @stivr4469
+*_agent.py                 @stivr4469
+*_client.py                @stivr4469

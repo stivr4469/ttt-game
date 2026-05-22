@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Auditor Portal — Compliance Sandbox</title>
+<style>
+  :root {
+    --bg:       #080d1a;
+    --s1:       #0d1426;
+    --s2:       #111b2e;
+    --s3:       #162035;
+    --border:   #1e2d4a;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #3b82f6;
+    --accent2:  #60a5fa;
+    --pass:     #22c55e;
+    --fail:     #ef4444;
+    --warn:     #f59e0b;
+    --header-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  header {
+    height: var(--header-h); display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; background: var(--s1); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header h1 { font-size: 15px; font-weight: 700; flex: 1; display: flex; align-items: center; gap: 10px; }
+  header .summary { font-size: 12px; color: var(--muted); background: var(--s2); padding: 4px 12px; border-radius: 20px; }
+  .btn-back { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; }
+  .btn-back:hover { background: var(--s2); color: var(--text); }
+
+  main { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
+  .filter-btn {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 14px; color: var(--muted); font-size: 12px; cursor: pointer;
+  }
+  .filter-btn.active { border-color: var(--accent); color: var(--accent2); background: rgba(59,130,246,.1); }
+
+  .controls-list { display: flex; flex-direction: column; gap: 12px; }
+  .control-card { background: var(--s1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .control-header { 
+    padding: 16px 20px; display: grid; grid-template-columns: 80px 1fr 100px 100px 40px; 
+    align-items: center; gap: 15px; cursor: pointer; transition: background .15s;
+  }
+  .control-header:hover { background: var(--s2); }
+  .code { font-family: monospace; font-weight: 700; color: var(--accent2); }
+  .title { font-weight: 500; }
+  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-align: center; }
+  .badge.PASS { color: var(--pass); background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); }
+  .badge.FAIL { color: var(--fail); background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); }
+  .count { font-size: 12px; color: var(--muted); }
+  .chevron { transition: transform .2s; color: var(--muted); text-align: center; }
+  .expanded .chevron { transform: rotate(180deg); }
+
+  .control-details { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border); background: #0a1121; }
+  .expanded + .control-details { display: block; }
+
+  h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 20px 0 10px; letter-spacing: .5px; }
+
+  /* Evidence List */
+  .evidence-grid { display: flex; flex-direction: column; gap: 8px; }
+  .evidence-item { background: var(--s3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
+  .ev-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .ev-meta { font-size: 11px; color: var(--muted); display: flex; gap: 15px; }
+
+  /* Comments */
+  .comment-item { background: rgba(59,130,246,.03); border: 1px solid rgba(59,130,246,.1); border-radius: 8px; padding: 12px; margin-bottom: 8px; position: relative; }
+  .comment-text { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
+  .comment-footer { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+  .sev-observation { border-left: 4px solid var(--accent); }
+  .sev-finding     { border-left: 4px solid var(--warn); }
+  .sev-exception   { border-left: 4px solid var(--fail); }
+
+  /* Comment Form */
+  .comment-form { background: var(--s2); border-radius: 8px; padding: 16px; margin-top: 20px; }
+  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
+  textarea { 
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; 
+    padding: 10px; color: var(--text); font-family: inherit; font-size: 13px; resize: vertical; min-height: 60px;
+    outline: none; margin-bottom: 10px;
+  }
+  textarea:focus { border-color: var(--accent); }
+  select, input { 
+    background: var(--bg); border: 1px solid var(--border); color: var(--text); 
+    padding: 6px 10px; border-radius: 6px; font-size: 12px; outline: none;
+  }
+  .submit-btn { 
+    background: var(--accent); color: #fff; border: none; padding: 8px 16px; 
+    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+  }
+  .submit-btn:hover { background: var(--accent2); }
+
+  .empty { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; font-style: italic; }
+
+  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+  .spinner { width: 30px; height: 30px; border: 3px solid var(--s3); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1><span>🔍</span> Auditor Portal</h1>
+  <div class="summary" id="summaryHeader">Loading summary...</div>
+  <a href="/" class="btn-back">← Dashboard</a>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button class="filter-btn active" onclick="setFilter('all', this)">All Controls</button>
+    <button class="filter-btn" onclick="setFilter('findings', this)">With Findings/Exceptions</button>
+    <button class="filter-btn" onclick="setFilter('comments', this)">With Comments</button>
+  </div>
+
+  <div class="controls-list" id="controlsList">
+    <!-- Controls injected here -->
+  </div>
+</main>
+
+<div id="loading" class="loading-overlay"><div class="spinner"></div></div>
+
+<script>
+  let controls = [];
+  let currentFilter = 'all';
+
+  async function init() {
+    await fetchSummary();
+    await fetchControls();
+    document.getElementById('loading').style.display = 'none';
+  }
+
+  async function fetchSummary() {
+    const r = await fetch('/api/auditor/summary');
+    const data = await r.json();
+    document.getElementById('summaryHeader').textContent = 
+      `${data.controls_reviewed} reviewed | ${data.findings_count} findings | ${data.exceptions_count} exceptions`;
+  }
+
+  async function fetchControls() {
+    const r = await fetch('/api/auditor/controls');
+    controls = await r.json();
+    renderControls();
+  }
+
+  function renderControls() {
+    const list = document.getElementById('controlsList');
+    list.innerHTML = '';
+
+    const filtered = controls.filter(c => {
+      if (currentFilter === 'findings') return c.comment_count > 0; // Simplified for demo
+      if (currentFilter === 'comments') return c.comment_count > 0;
+      return true;
+    });
+
+    filtered.forEach(c => {
+      const card = document.createElement('div');
+      card.className = 'control-card';
+      card.innerHTML = `
+        <div class="control-header" onclick="toggleControl('${c.control_code}', this)">
+          <span class="code">${c.control_code}</span>
+          <span class="title">${c.control_code} Control</span>
+          <span class="badge ${c.status}">${c.status}</span>
+          <span class="count">${c.evidence_count} evidence</span>
+          <span class="chevron">▼</span>
+        </div>
+        <div class="control-details" id="details-${c.control_code}">
+          <div id="content-${c.control_code}"><div class="spinner" style="margin:20px auto; display:block;"></div></div>
+        </div>
+      `;
+      list.appendChild(card);
+    });
+  }
+
+  function setFilter(f, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentFilter = f;
+    renderControls();
+  }
+
+  async function toggleControl(code, el) {
+    const isExpanded = el.classList.toggle('expanded');
+    if (isExpanded) {
+      await loadControlDetails(code);
+    }
+  }
+
+  async function loadControlDetails(code) {
+    const container = document.getElementById(`content-${code}`);
+    
+    // Fetch evidence and comments in parallel
+    const [evRes, commRes] = await Promise.all([
+      fetch(`/api/auditor/controls/${code}/evidence`),
+      fetch(`/api/auditor/comments/${code}`)
+    ]);
+    
+    const { evidence } = await evRes.json();
+    const comments = await commRes.json();
+
+    let html = `
+      <h3>Auditor Comments</h3>
+      <div class="comments-list" id="comments-list-${code}">
+        ${comments.length ? comments.map(renderComment).join('') : '<div class="empty">No auditor notes for this control.</div>'}
+      </div>
+
+      <div class="comment-form">
+        <form onsubmit="submitComment(event, '${code}')">
+          <textarea name="comment" placeholder="Add auditor observation, finding or exception..." required></textarea>
+          <div class="form-row">
+            <select name="severity">
+              <option value="observation">Observation (Low)</option>
+              <option value="finding">Finding (Medium)</option>
+              <option value="exception">Exception (High/Critical)</option>
+            </select>
+            <input type="text" name="auditor_name" placeholder="Auditor Name" required>
+            <button type="submit" class="submit-btn">Post Comment</button>
+          </div>
+        </form>
+      </div>
+
+      <h3>Collected Evidence</h3>
+      <div class="evidence-grid">
+        ${evidence.length ? evidence.map(ev => `
+          <div class="evidence-item">
+            <div class="ev-title">${ev.title}</div>
+            <div class="ev-meta">
+              <span>Source: <b>${ev.source}</b></span>
+              <span>Collected: ${ev.collected_at.slice(0, 16).replace('T', ' ')}</span>
+            </div>
+          </div>
+        `).join('') : '<div class="empty">No technical evidence collected yet.</div>'}
+      </div>
+    `;
+    container.innerHTML = html;
+  }
+
+  function renderComment(c) {
+    return `
+      <div class="comment-item sev-${c.severity}">
+        <div class="comment-text">${c.comment}</div>
+        <div class="comment-footer">
+          <span><b>${c.severity.toUpperCase()}</b> by ${c.auditor_name}</span>
+          <span>${c.created_at.slice(0, 16).replace('T', ' ')}</span>
+        </div>
+      </div>
+    `;
+  }
+
+  async function submitComment(e, code) {
+    e.preventDefault();
+    const form = e.target;
+    const btn = form.querySelector('button');
+    btn.disabled = true;
+
+    const payload = {
+      control_code: code,
+      comment: form.comment.value,
+      severity: form.severity.value,
+      auditor_name: form.auditor_name.value
+    };
+
+    try {
+      const r = await fetch('/api/auditor/comments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (r.ok) {
+        form.reset();
+        await loadControlDetails(code);
+        fetchSummary(); // Update global header
+        // Update local count in main list (optional, requires re-fetching or local state)
+      }
+    } catch (err) {
+      alert('Failed to save comment');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  init();
+</script>
+
+</body>
+</html>

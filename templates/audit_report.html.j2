@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SOC 2 Type II Compliance Report — {{ company_name }}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --color-pass:        #16a34a;
+      --color-fail:        #dc2626;
+      --color-not-started: #d97706;
+      --color-bg:          #ffffff;
+      --color-surface:     #f8fafc;
+      --color-border:      #e2e8f0;
+      --color-text:        #1e293b;
+      --color-muted:       #64748b;
+      --color-header-bg:   #0f172a;
+      --color-header-fg:   #f1f5f9;
+      --color-accent:      #1d4ed8;
+    }
+
+    body {
+      font-family: 'Segoe UI', Arial, Helvetica, sans-serif;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--color-text);
+      background: var(--color-bg);
+      padding: 32px 40px;
+    }
+
+    /* ── Cover header ────────────────────────────────────── */
+    .report-header {
+      background: var(--color-header-bg);
+      color: var(--color-header-fg);
+      border-radius: 8px;
+      padding: 32px 40px;
+      margin-bottom: 32px;
+    }
+    .report-header h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .report-header .meta {
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .report-header .meta span { margin-right: 24px; }
+
+    /* ── Section titles ──────────────────────────────────── */
+    .section-title {
+      font-size: 14px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--color-accent);
+      border-bottom: 2px solid var(--color-border);
+      padding-bottom: 6px;
+      margin-bottom: 16px;
+      margin-top: 32px;
+    }
+
+    /* ── Summary cards ───────────────────────────────────── */
+    .summary-grid {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .summary-card {
+      flex: 1;
+      min-width: 120px;
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      padding: 20px 24px;
+      text-align: center;
+    }
+    .summary-card .label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--color-muted);
+      margin-bottom: 6px;
+    }
+    .summary-card .value {
+      font-size: 36px;
+      font-weight: 800;
+      line-height: 1;
+    }
+    .summary-card.pass  .value { color: var(--color-pass); }
+    .summary-card.fail  .value { color: var(--color-fail); }
+    .summary-card.ns    .value { color: var(--color-not-started); }
+    .summary-card.total .value { color: var(--color-text); }
+    .compliance-bar-wrap {
+      margin-top: 16px;
+      margin-bottom: 32px;
+    }
+    .compliance-bar-label {
+      font-size: 12px;
+      color: var(--color-muted);
+      margin-bottom: 4px;
+    }
+    .compliance-bar-label strong { color: var(--color-text); }
+    .compliance-bar {
+      height: 10px;
+      background: var(--color-border);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .compliance-bar-fill {
+      height: 100%;
+      background: var(--color-pass);
+      border-radius: 999px;
+      width: {{ summary.compliance_pct }}%;
+    }
+
+    /* ── Tables ──────────────────────────────────────────── */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    thead th {
+      background: var(--color-header-bg);
+      color: var(--color-header-fg);
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 10px 12px;
+      text-align: left;
+    }
+    thead th:first-child { border-radius: 6px 0 0 0; }
+    thead th:last-child  { border-radius: 0 6px 0 0; }
+    tbody tr:nth-child(even) { background: var(--color-surface); }
+    tbody td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--color-border);
+      vertical-align: top;
+    }
+
+    /* ── Status badges ───────────────────────────────────── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-pass        { background: #dcfce7; color: #15803d; }
+    .badge-fail        { background: #fee2e2; color: #b91c1c; }
+    .badge-not_started { background: #fef3c7; color: #b45309; }
+    .badge-unknown     { background: #f1f5f9; color: #475569; }
+
+    /* ── Per-control evidence block ──────────────────────── */
+    .control-block {
+      margin-bottom: 28px;
+      border: 1px solid var(--color-border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    .control-block-header {
+      background: var(--color-surface);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid var(--color-border);
+    }
+    .control-block-header .code {
+      font-weight: 700;
+      font-size: 13px;
+      color: var(--color-accent);
+      white-space: nowrap;
+    }
+    .control-block-header .title {
+      font-size: 13px;
+      font-weight: 600;
+      flex: 1;
+    }
+    .control-block-body { padding: 0; }
+    .no-evidence {
+      padding: 12px 16px;
+      color: var(--color-muted);
+      font-style: italic;
+      font-size: 12px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    .report-footer {
+      margin-top: 48px;
+      border-top: 1px solid var(--color-border);
+      padding-top: 12px;
+      font-size: 11px;
+      color: var(--color-muted);
+      text-align: center;
+    }
+
+    /* ── Print styles ────────────────────────────────────── */
+    @media print {
+      body { padding: 16px 20px; font-size: 11px; }
+      .report-header { border-radius: 0; }
+      .section-title { margin-top: 24px; }
+      .control-block { page-break-inside: avoid; }
+      .controls-table-section { page-break-before: always; }
+      .evidence-section { page-break-before: always; }
+      .summary-grid { page-break-inside: avoid; }
+      @page {
+        margin: 15mm 12mm;
+        size: A4;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="report-header">
+  <h1>SOC 2 Type II Compliance Report &mdash; {{ company_name }}</h1>
+  <div class="meta">
+    <span>Generated: {{ generated_at }}</span>
+    <span>Total controls: {{ summary.total }}</span>
+    <span>Compliance: {{ summary.compliance_pct }}%</span>
+  </div>
+</div>
+
+<!-- Summary section -->
+<div class="section-title">Executive Summary</div>
+<div class="summary-grid">
+  <div class="summary-card pass">
+    <div class="label">Pass</div>
+    <div class="value">{{ summary.pass }}</div>
+  </div>
+  <div class="summary-card fail">
+    <div class="label">Fail</div>
+    <div class="value">{{ summary.fail }}</div>
+  </div>
+  <div class="summary-card ns">
+    <div class="label">Not Started</div>
+    <div class="value">{{ summary.not_started }}</div>
+  </div>
+  <div class="summary-card total">
+    <div class="label">Total</div>
+    <div class="value">{{ summary.total }}</div>
+  </div>
+</div>
+<div class="compliance-bar-wrap">
+  <div class="compliance-bar-label">
+    Overall compliance: <strong>{{ summary.compliance_pct }}%</strong>
+  </div>
+  <div class="compliance-bar">
+    <div class="compliance-bar-fill"></div>
+  </div>
+</div>
+
+<!-- Controls overview table -->
+<div class="controls-table-section">
+  <div class="section-title">Controls Overview</div>
+  {% if controls %}
+  <table>
+    <thead>
+      <tr>
+        <th style="width:10%">Code</th>
+        <th style="width:45%">Title</th>
+        <th style="width:15%">Status</th>
+        <th style="width:15%">Evidence Items</th>
+        <th style="width:15%">Description (excerpt)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for ctrl in controls %}
+      <tr>
+        <td><strong>{{ ctrl.code }}</strong></td>
+        <td>{{ ctrl.title }}</td>
+        <td>
+          <span class="badge badge-{{ ctrl.status | lower | replace(' ', '_') }}">
+            {{ ctrl.status }}
+          </span>
+        </td>
+        <td>{{ ctrl.evidence | length }}</td>
+        <td>{{ ctrl.description[:80] }}{% if ctrl.description | length > 80 %}&hellip;{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p style="color: var(--color-muted); font-style: italic; padding: 16px 0;">
+    No controls found. Evidence Tracker may be unavailable.
+  </p>
+  {% endif %}
+</div>
+
+<!-- Per-control evidence detail -->
+<div class="evidence-section">
+  <div class="section-title">Evidence Detail</div>
+  {% if controls %}
+    {% for ctrl in controls %}
+    <div class="control-block">
+      <div class="control-block-header">
+        <span class="code">{{ ctrl.code }}</span>
+        <span class="title">{{ ctrl.title }}</span>
+        <span class="badge badge-{{ ctrl.status | lower | replace(' ', '_') }}">{{ ctrl.status }}</span>
+      </div>
+      <div class="control-block-body">
+        {% if ctrl.evidence %}
+        <table>
+          <thead>
+            <tr>
+              <th style="width:30%">Title</th>
+              <th style="width:20%">Source</th>
+              <th style="width:18%">Collected At</th>
+              <th style="width:14%">SHA-256 (8)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ev in ctrl.evidence %}
+            <tr>
+              <td>{{ ev.title }}</td>
+              <td>{{ ev.source }}</td>
+              <td>{{ ev.collected_at[:19] if ev.collected_at else '—' }}</td>
+              <td><code>{{ ev.sha256_hash[:8] if ev.sha256_hash else '—' }}</code></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="no-evidence">No evidence collected for this control.</div>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+  <p style="color: var(--color-muted); font-style: italic; padding: 16px 0;">
+    No evidence data available.
+  </p>
+  {% endif %}
+</div>
+
+<div class="report-footer">
+  Generated by Compliance Sandbox Auditor &bull; {{ company_name }} &bull; {{ generated_at }}
+</div>
+
+</body>
+</html>

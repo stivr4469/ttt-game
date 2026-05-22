@@ -1,0 +1,44 @@
+services:
+  localstack:
+    container_name: localstack_sandbox
+    image: localstack/localstack:3.5.0
+    ports:
+      - "4566:4566"
+    environment:
+      - SERVICES=
+      - DEBUG=0
+      - DEFAULT_REGION=us-east-1
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - /var/run/docker.sock:/var/run/docker.sock
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  celery_worker:
+    build: .
+    command: celery -A celery_app worker --loglevel=info --concurrency=2
+    environment:
+      - REDIS_URL=redis://redis:6379/0
+      - EVIDENCE_TRACKER_URL=http://evidence-tracker:8000
+    depends_on:
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    working_dir: /app
+
+volumes:
+  localstack_data:

@@ -1,0 +1,148 @@
+{
+  "version": "1.0",
+  "frameworks": {
+    "soc2": "SOC 2 Type II (AICPA Trust Services Criteria)",
+    "iso27001": "ISO/IEC 27001:2022"
+  },
+  "services": {
+    "aws": {
+      "display_name": "Amazon Web Services",
+      "category": "cloud_infrastructure",
+      "agent": "scanner.py",
+      "source_label": "AWS_CLI",
+      "env_vars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_DEFAULT_REGION"],
+      "optional_env": ["AWS_ENDPOINT_URL"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.3", "CC6.6", "CC6.7", "CC7.1", "CC7.2", "CC3.4", "CC8.1"],
+        "iso27001": ["A.8.1", "A.8.3", "A.8.22", "A.8.23"]
+      }
+    },
+    "github": {
+      "display_name": "GitHub",
+      "category": "source_control",
+      "agent": "github_agent.py",
+      "source_label": "GITHUB",
+      "env_vars": ["GITHUB_TOKEN", "GITHUB_REPO"],
+      "controls": {
+        "soc2": ["CC4.2", "CC5.3", "CC6.4", "CC6.8", "CC7.3", "CC7.5", "CC8.1"],
+        "iso27001": ["A.8.4", "A.8.32", "A.8.8"]
+      }
+    },
+    "okta": {
+      "display_name": "Okta",
+      "category": "identity_provider",
+      "agent": "okta_client.py",
+      "source_label": "OKTA",
+      "env_vars": ["OKTA_DOMAIN", "OKTA_API_TOKEN"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.2", "CC6.3"],
+        "iso27001": ["A.5.16", "A.5.17", "A.5.18"]
+      }
+    },
+    "slack": {
+      "display_name": "Slack",
+      "category": "communication",
+      "agent": null,
+      "source_label": "MANUAL",
+      "env_vars": ["SLACK_WEBHOOK_URL"],
+      "controls": {
+        "soc2": ["CC2.2"],
+        "iso27001": ["A.6.8"]
+      }
+    },
+    "gcp": {
+      "display_name": "Google Cloud Platform",
+      "category": "cloud_infrastructure",
+      "agent": "gcp_agent.py",
+      "source_label": "GCP",
+      "env_vars": ["GOOGLE_APPLICATION_CREDENTIALS", "GCP_PROJECT_ID"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.3", "CC6.6", "CC6.7", "CC7.1", "CC7.2"],
+        "iso27001": ["A.8.1", "A.8.3", "A.8.22"]
+      },
+      "status": "not_implemented"
+    },
+    "azure": {
+      "display_name": "Microsoft Azure",
+      "category": "cloud_infrastructure",
+      "agent": "azure_agent.py",
+      "source_label": "AZURE",
+      "env_vars": ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.3", "CC6.6", "CC6.7", "CC7.1"],
+        "iso27001": ["A.8.1", "A.8.3", "A.8.22"]
+      },
+      "status": "not_implemented"
+    },
+    "gitlab": {
+      "display_name": "GitLab",
+      "category": "source_control",
+      "agent": "gitlab_agent.py",
+      "source_label": "GITLAB",
+      "env_vars": ["GITLAB_TOKEN", "GITLAB_PROJECT_ID"],
+      "controls": {
+        "soc2": ["CC4.2", "CC5.3", "CC6.4", "CC8.1"],
+        "iso27001": ["A.8.4", "A.8.32"]
+      },
+      "status": "not_implemented"
+    },
+    "azure_ad": {
+      "display_name": "Azure Active Directory / Entra ID",
+      "category": "identity_provider",
+      "agent": "azure_ad_agent.py",
+      "source_label": "AZURE_AD",
+      "env_vars": ["AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.2", "CC6.3"],
+        "iso27001": ["A.5.16", "A.5.17", "A.5.18"]
+      },
+      "status": "not_implemented"
+    },
+    "google_workspace": {
+      "display_name": "Google Workspace",
+      "category": "identity_provider",
+      "agent": "google_workspace_agent.py",
+      "source_label": "GOOGLE_WORKSPACE",
+      "env_vars": ["GOOGLE_WORKSPACE_CREDENTIALS", "GOOGLE_WORKSPACE_DOMAIN"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.2", "CC6.3", "CC2.2"],
+        "iso27001": ["A.5.16", "A.5.17", "A.6.8"]
+      },
+      "status": "not_implemented"
+    },
+    "snowflake": {
+      "display_name": "Snowflake",
+      "category": "data_warehouse",
+      "agent": "snowflake_agent.py",
+      "source_label": "SNOWFLAKE",
+      "env_vars": ["SNOWFLAKE_ACCOUNT", "SNOWFLAKE_USER", "SNOWFLAKE_PASSWORD"],
+      "controls": {
+        "soc2": ["CC6.1", "CC6.3", "CC6.7"],
+        "iso27001": ["A.5.16", "A.5.18", "A.8.24"]
+      },
+      "status": "not_implemented"
+    }
+  },
+  "categories": {
+    "cloud_infrastructure": {
+      "description": "Cloud platforms (AWS, GCP, Azure)",
+      "typical_soc2_controls": ["CC6.6", "CC6.7", "CC7.1", "CC7.2"]
+    },
+    "source_control": {
+      "description": "Code repositories and CI/CD",
+      "typical_soc2_controls": ["CC5.3", "CC8.1", "CC4.2"]
+    },
+    "identity_provider": {
+      "description": "SSO, MFA, user lifecycle",
+      "typical_soc2_controls": ["CC6.1", "CC6.2", "CC6.3"]
+    },
+    "communication": {
+      "description": "Internal messaging platforms",
+      "typical_soc2_controls": ["CC2.2"]
+    },
+    "data_warehouse": {
+      "description": "Data storage and analytics",
+      "typical_soc2_controls": ["CC6.1", "CC6.3", "CC6.7"]
+    }
+  }
+}
