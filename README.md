@@ -1,44 +1,52 @@
-# Sandbox Auditor
+# soc2-sandbox
 
-Этот проект эмулирует облачную инфраструктуру в LocalStack и сканирует её на соответствие SOC 2, отправляя результаты в Evidence Tracker.
+A simple two-player Tic-Tac-Toe game implemented in Python.
 
-## Порядок запуска
+## Features
 
-1. **Поднять LocalStack**
-   ```bash
-   cd sandbox-auditor
-   docker compose up -d
-   ```
+- Two-player mode (X and O)
+- Win detection (rows, columns, diagonals)
+- Draw detection
+- Board state display after each move
+- Input validation and error handling
 
-2. **Поднять Evidence Tracker** (если ещё не запущен)
-   ```bash
-   cd ../evidence-tracker
-   docker compose up -d
-   cd ../sandbox-auditor
-   ```
+## Requirements
 
-3. **Установить зависимости**
-   ```bash
-   pip install -r requirements.txt
-   ```
+- Python 3.9+
 
-4. **Создать SOC2 Framework и Controls в Evidence Tracker**
-   ```bash
-   python controls_seed.py
-   ```
+## How to play
 
-5. **Создать уязвимую инфраструктуру в LocalStack**
-   ```bash
-   python seed_infrastructure.py
-   ```
+```bash
+python game.py
+```
 
-6. **Запустить сканер**
-   ```bash
-   python scanner.py
-   ```
+Players take turns entering a position (1-9):
 
-## Проверка результатов
+```
+ 1 | 2 | 3
+-----------
+ 4 | 5 | 6
+-----------
+ 7 | 8 | 9
+```
 
-- **Evidence Tracker UI**: http://localhost:8000/docs
-- **Список доказательств**: GET http://localhost:8000/api/v1/evidence/ (должно быть минимум 4 записи о нарушениях)
-- **Статус контролей**: GET http://localhost:8000/api/v1/controls/ (статусы FAIL у CC6.1, CC6.3, CC7.2, CC8.1)
+## Project structure
+
+```
+.
+├── game.py          # Main game loop
+├── board.py         # Board logic and rendering
+├── player.py        # Player class
+├── utils.py         # Helper functions
+└── tests/           # Unit tests
+```
+
+## Running tests
+
+```bash
+python -m pytest tests/
+```
+
+## License
+
+MIT
