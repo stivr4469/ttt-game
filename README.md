@@ -1,4 +1,4 @@
-# soc2-sandbox
+# Tic-Tac-Toe
 
 A simple two-player Tic-Tac-Toe game implemented in Python.
 
