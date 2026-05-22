@@ -145,6 +145,44 @@ def main(controls_map: dict | None = None):
                 )
                 evidence_client.update_control_status(controls_map["CC6.2"], "FAIL")
                 print(f"[FAIL] CC6.2 — Okta user '{login}' is STAGED (not authorized)")
+        # Okta password policy (Vanta check — CC6.1)
+        print("Scanning Okta password policy (CC6.1)...")
+        try:
+            import requests as _req
+            pol_resp = _req.get(
+                f"https://{OKTA_DOMAIN}/api/v1/policies?type=PASSWORD",
+                headers={"Authorization": f"SSWS {OKTA_API_TOKEN}", "Accept": "application/json"},
+                timeout=10,
+            )
+            policies_okta = pol_resp.json() if pol_resp.status_code == 200 else []
+            if isinstance(policies_okta, list) and policies_okta:
+                default_pol = policies_okta[0]
+                settings = default_pol.get("settings", {}).get("password", {}).get("complexity", {})
+                min_len = settings.get("minLength", 0)
+                has_upper = settings.get("useUppercase", False)
+                has_number = settings.get("useNumber", False)
+                issues = []
+                if min_len < 8:
+                    issues.append(f"minLength={min_len}<8")
+                if not has_upper:
+                    issues.append("NoUppercase")
+                if not has_number:
+                    issues.append("NoNumber")
+                if issues:
+                    findings_count += 1
+                    results["CC6.1"] = "FAIL"
+                    evidence_client.create_evidence(
+                        control_id=controls_map["CC6.1"],
+                        title=f"[Okta] Weak password policy: {', '.join(issues)}",
+                        content=json.dumps({"finding": f"Okta password policy weak: {issues}", "control": "CC6.1", "severity": "HIGH"}),
+                        source="OKTA",
+                    )
+                    evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+                    print(f"[FAIL] CC6.1 — Okta password policy: {issues}")
+                else:
+                    print(f"[PASS] CC6.1 — Okta password policy OK (minLen={min_len})")
+        except Exception as e:
+            log.warning("Okta password policy check failed", extra={"error": str(e)})
     else:
         print("[WARN] OKTA_DOMAIN or OKTA_API_TOKEN not set — skipping Okta scan")
 
@@ -270,6 +308,93 @@ def main(controls_map: dict | None = None):
             evidence_client.create_evidence(control_id=controls_map["CC6.2"], title=f"Unapproved IAM user: {user_name}", content=content, source="AWS_CLI")
             evidence_client.update_control_status(controls_map["CC6.2"], "FAIL")
             print(f"[FAIL] CC6.2 — IAM user '{user_name}' has no approved tag")
+
+    # Step 4b: Vanta-style дополнительные IAM-чеки (CC6.1)
+    print("Scanning IAM — root account, password policy (Vanta checks)...")
+
+    # Root account MFA
+    try:
+        summary = iam.get_account_summary().get("SummaryMap", {})
+        if summary.get("AccountMFAEnabled", 0) == 0:
+            findings_count += 1
+            results["CC6.1"] = "FAIL"
+            evidence_client.create_evidence(
+                control_id=controls_map["CC6.1"],
+                title="[IAM] Root account MFA not enabled",
+                content=json.dumps({"finding": "AWS root account has no MFA device", "control": "CC6.1", "severity": "CRITICAL"}),
+                source="AWS_CLI",
+            )
+            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            print("[FAIL] CC6.1 — Root account MFA disabled (CRITICAL)")
+        else:
+            print("[PASS] CC6.1 — Root account MFA enabled")
+    except Exception as e:
+        log.warning("Root MFA check skipped (LocalStack)", extra={"error": str(e)})
+
+    # IAM password policy
+    try:
+        pwd = iam.get_account_password_policy().get("PasswordPolicy", {})
+        issues = []
+        if pwd.get("MinimumPasswordLength", 0) < 12:
+            issues.append(f"MinLength={pwd.get('MinimumPasswordLength')}")
+        if not pwd.get("RequireUppercaseCharacters"):
+            issues.append("NoUppercase")
+        if not pwd.get("RequireNumbers"):
+            issues.append("NoNumbers")
+        if not pwd.get("RequireSymbols"):
+            issues.append("NoSymbols")
+        if pwd.get("MaxPasswordAge", 999) > 90:
+            issues.append(f"MaxAge={pwd.get('MaxPasswordAge')}d")
+        if issues:
+            findings_count += 1
+            results["CC6.1"] = "FAIL"
+            evidence_client.create_evidence(
+                control_id=controls_map["CC6.1"],
+                title=f"[IAM] Weak password policy: {', '.join(issues)}",
+                content=json.dumps({"finding": f"Password policy issues: {issues}", "policy": pwd, "control": "CC6.1", "severity": "HIGH"}),
+                source="AWS_CLI",
+            )
+            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            print(f"[FAIL] CC6.1 — IAM password policy weak: {issues}")
+        else:
+            print(f"[PASS] CC6.1 — IAM password policy meets requirements")
+    except botocore.exceptions.ClientError as e:
+        if "NoSuchEntity" in str(e):
+            findings_count += 1
+            results["CC6.1"] = "FAIL"
+            evidence_client.create_evidence(
+                control_id=controls_map["CC6.1"],
+                title="[IAM] No account password policy set",
+                content=json.dumps({"finding": "No IAM password policy configured", "control": "CC6.1", "severity": "HIGH"}),
+                source="AWS_CLI",
+            )
+            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            print("[FAIL] CC6.1 — No IAM password policy configured")
+        else:
+            log.warning("Password policy check skipped", extra={"error": str(e)})
+
+    # S3 encryption at rest (CC6.7)
+    print("Scanning S3 — encryption at rest (Vanta check, CC6.7)...")
+    s3 = get_boto3_client("s3")
+    for bucket in s3.list_buckets().get("Buckets", []):
+        bname = bucket["Name"]
+        try:
+            enc = s3.get_bucket_encryption(Bucket=bname)
+            rules = enc.get("ServerSideEncryptionConfiguration", {}).get("Rules", [])
+            if not rules:
+                raise Exception("No encryption rules")
+            print(f"[PASS] CC6.7 — S3 '{bname}' encrypted at rest")
+        except Exception:
+            findings_count += 1
+            results["CC6.7"] = "FAIL"
+            evidence_client.create_evidence(
+                control_id=controls_map["CC6.7"],
+                title=f"[S3] No server-side encryption: {bname}",
+                content=json.dumps({"bucket": bname, "finding": "S3 bucket has no default encryption", "control": "CC6.7", "severity": "HIGH"}),
+                source="AWS_CLI",
+            )
+            evidence_client.update_control_status(controls_map["CC6.7"], "FAIL")
+            print(f"[FAIL] CC6.7 — S3 '{bname}' has no server-side encryption")
 
     # Step 5: CloudTrail (CC7.1, CC7.2)
     print("Scanning CloudTrail...")

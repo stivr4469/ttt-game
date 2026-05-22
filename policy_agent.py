@@ -424,6 +424,91 @@ POLICY_CONTROLS: Dict[str, Dict] = {
             "Review Cycle": "Annual programme review; immediate review triggered by vendor security incident, breach notification, or material change to sub-processors",
         },
     },
+    # ── Vanta-style дополнительные политики ──────────────────────────────────
+    "CC6.1": {
+        "title": "Access Control Policy",
+        "description": "Logical access security — who can access what, how access is granted and revoked",
+        "audience": "All employees, IT, Security, HR",
+        "sections": {
+            "Purpose": "Define how access to systems and data is granted, reviewed, and revoked per SOC 2 CC6.1",
+            "Scope": "All systems: AWS, Okta, GitHub, Slack, production databases; all employee and contractor accounts",
+            "Access Provisioning": [
+                "Access requests submitted via ticketing system with manager approval",
+                "New hire access provisioned within 1 business day of Okta activation",
+                "Least-privilege principle: minimum access required for job function",
+                "Privileged access (admin, root) requires CISO written approval and dual sign-off",
+            ],
+            "Authentication Requirements": [
+                "MFA mandatory for all accounts (Okta TOTP or hardware key)",
+                "Password minimum: 12 characters, complexity enabled, no reuse of last 12",
+                "AWS root account: MFA hardware key required; access keys permanently disabled",
+                "Service accounts: rotate credentials every 90 days; no interactive login",
+            ],
+            "Access Reviews": "Quarterly access review by managers; annual privileged-access review by CISO; results documented in evidence tracker",
+            "Access Revocation": "Terminated employees: Okta deactivated within 2 hours of HR notification; AWS keys revoked immediately; GitHub access removed same day",
+            "Remote Access": "VPN required for non-SaaS internal resources; zero-trust principles applied; session timeout 8 hours",
+            "Responsibilities": "HR triggers provisioning/deprovisioning; IT executes; CISO audits quarterly",
+            "Enforcement": "Unauthorized access attempts logged and alerted via CloudTrail + SIEM; policy violations escalated per Disciplinary Policy",
+            "Review Cycle": "Annual; triggered by security incident, personnel change, or audit finding",
+        },
+    },
+    "CC6.5": {
+        "title": "Asset Management Policy",
+        "description": "Inventory, classification, and secure disposal of physical and digital assets",
+        "audience": "All employees, IT, Facilities",
+        "sections": {
+            "Purpose": "Maintain accurate asset inventory and ensure secure handling throughout asset lifecycle per SOC 2 CC6.5",
+            "Scope": "All company-owned and personal devices used for company work; all cloud resources (AWS, SaaS subscriptions); data assets",
+            "Asset Inventory": [
+                "All hardware registered in MDM (Jamf for macOS, Intune for Windows) within 24 hours of issue",
+                "Cloud assets tagged with owner, environment (prod/staging/dev), and data classification",
+                "SaaS subscriptions inventoried in vendor management system with owner and data-access level",
+            ],
+            "Asset Classification": [
+                "Confidential: customer PII, audit evidence, credentials → encrypted at rest and in transit, access logged",
+                "Internal: source code, internal docs → access restricted to employees; MFA required",
+                "Public: marketing materials, open-source code → no restriction",
+            ],
+            "Endpoint Security": [
+                "FileVault (macOS) / BitLocker (Windows) full-disk encryption mandatory",
+                "EDR agent (CrowdStrike Falcon / Microsoft Defender) installed and reporting",
+                "OS patched within 14 days of critical CVE; verified by MDM compliance report",
+                "Screen lock: maximum 5 minutes inactivity timeout enforced by MDM policy",
+            ],
+            "Secure Disposal": "Hard drives wiped to NIST 800-88 standard before disposal; certificate retained 3 years; cloud resources deleted via Terraform destroy with audit log",
+            "Lost or Stolen Devices": "Immediate report to IT; remote wipe initiated within 1 hour via MDM; incident documented per Incident Response Policy",
+            "Responsibilities": "IT owns hardware lifecycle; Engineering owns cloud resources; CISO owns classification scheme",
+            "Review Cycle": "Asset inventory reviewed quarterly; policy annually",
+        },
+    },
+    "CC5.2": {
+        "title": "Information Security Policy",
+        "description": "Umbrella information security policy covering all controls and employee obligations",
+        "audience": "All employees, contractors, board",
+        "sections": {
+            "Purpose": "Establish the overarching information security framework protecting Marineso assets and customer data per SOC 2 CC5.2",
+            "Scope": "All employees, contractors, and third parties with access to Marineso systems or data; all environments (production, staging, development)",
+            "Security Principles": [
+                "Confidentiality: data accessed only by authorised personnel with legitimate need",
+                "Integrity: data modified only through authorised, audited processes",
+                "Availability: systems maintained to meet defined SLAs and RTO/RPO targets",
+                "Least privilege and separation of duties enforced for all roles",
+            ],
+            "Mandatory Controls": [
+                "MFA on all user accounts (enforced via Okta)",
+                "Full-disk encryption on all endpoints (enforced via MDM)",
+                "Secrets managed via environment variables or secrets manager — never hardcoded",
+                "All production changes reviewed via pull request with at least 1 approver",
+                "Annual security awareness training completed before system access granted",
+            ],
+            "Risk Management": "Annual risk assessment; risks rated by likelihood × impact; HIGH risks remediated within 30 days; risk register reviewed quarterly by CISO",
+            "Acceptable Use": "Company systems used for business purposes; personal use incidental and permitted if it does not introduce security risk; no circumvention of controls",
+            "Incident Reporting": "All suspected incidents reported to security@marineso.com within 1 hour of discovery; see Incident Response Policy for full procedure",
+            "Compliance": "Policy reviewed annually and after material changes; all employees sign acknowledgement; violations subject to disciplinary action",
+            "Responsibilities": "CISO owns the policy; all employees are responsible for compliance; managers ensure team adherence",
+            "Review Cycle": "Annual; after significant incident, regulatory change, or business model change",
+        },
+    },
 }
 
 # 9 контролей, закрываемых только через governance-документы

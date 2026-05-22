@@ -36,9 +36,9 @@ GITHUB_CONTROLS = {
     "CC7.5": "Breach Disclosure — security advisories process",
 }
 
-def _days_ago(iso: Optional[str]) -> Optional[int]:
+def _days_ago(iso: Optional[str]) -> int:
     if not iso:
-        return None
+        return 9999
     dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
     return (datetime.now(timezone.utc) - dt).days
 
@@ -77,6 +77,7 @@ class GitHubAgent:
                 source="GITHUB",
             )
             self.client.update_control_status(ctrl_id, "PASS")
+        self.results[code] = "PASS"
         print(f"  ✅ [{code}] {title}")
 
     # ──────────────────────────────────────────
@@ -93,7 +94,7 @@ class GitHubAgent:
                        "HIGH")
             return
 
-        recent_runs = [r for r in runs if (_days_ago(r.get("created_at")) or 999) <= CI_STALE_DAYS]
+        recent_runs = [r for r in runs if _days_ago(r.get("created_at")) <= CI_STALE_DAYS]
         failed_runs = [r for r in recent_runs if r.get("conclusion") == "failure"]
 
         if not recent_runs:
