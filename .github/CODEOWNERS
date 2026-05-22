@@ -1,0 +1,7 @@
+# SOC 2 Compliance Sandbox — Code Ownership
+# All changes require review from security owner
+* @stivr4469
+
+# Policy documents require CISO approval
+/policies/ @stivr4469
+*.md @stivr4469
