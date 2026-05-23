@@ -125,8 +125,15 @@ class PolicyLifecycleManager:
         title: str,
         content: str,
         created_by: str,
+        via_ai_advisor: bool = False,
     ) -> PolicyRecord:
-        """Создать черновик политики (начальный статус: draft)."""
+        """
+        Создать черновик политики (начальный статус: draft).
+
+        Если via_ai_advisor=True — draft создан через AIAdvisor.draft_policy().
+        Статус всегда DRAFT; переход в APPROVED возможен только через approve()
+        и только с явным human-approver.
+        """
         now = _now_iso()
         record = PolicyRecord(
             id=f"POL-{uuid.uuid4().hex[:8].upper()}",
@@ -147,8 +154,47 @@ class PolicyLifecycleManager:
         records = _load_policies()
         records.append(asdict(record))
         _save_policies(records)
-        log.info(f"Создан черновик политики {record.id} для контрола {control_code}")
+        source_label = "via AIAdvisor" if via_ai_advisor else "напрямую"
+        log.info(
+            "Создан черновик политики %s для контрола %s (%s)",
+            record.id, control_code, source_label,
+        )
         return record
+
+    def create_draft_from_ai_advisor(
+        self,
+        control_id: str,
+        control_code: str,
+        title: str,
+        ai_content: str,
+    ) -> PolicyRecord:
+        """
+        Создать черновик через AIAdvisor.
+
+        Обёртка, явно документирующая что контент сгенерирован AI.
+        Статус всегда DRAFT — только человек (admin) может перевести в APPROVED.
+
+        Импортирует AIAdvisor и логирует факт создания через AI.
+        """
+        from ai_advisor import get_ai_advisor
+        advisor = get_ai_advisor()
+        # Логируем через advisor (он сам вызовет AIDecisionLogger)
+        advice = advisor.draft_policy(
+            control_id=control_id,
+            control_title=title,
+        )
+        # Используем переданный контент (уже сгенерирован вызывающим кодом),
+        # или контент от advisor если не передан явно
+        content = ai_content or advice.suggestion
+        created_by = f"ai:advisor ({advice.confidence:.2f})"
+        return self.create_draft(
+            control_id=control_id,
+            control_code=control_code,
+            title=title,
+            content=content,
+            created_by=created_by,
+            via_ai_advisor=True,
+        )
 
     def get_by_id(self, policy_id: str) -> Optional[PolicyRecord]:
         """Получить политику по ID."""
@@ -240,6 +286,10 @@ class PolicyLifecycleManager:
 
         # Обновить статус контроля в Evidence Tracker
         self._update_control_status(record.control_id, "PASS", policy_id)
+
+        # Детерминированная переоценка контроля через ComplianceEngine
+        # (только логируем — не блокируем approve при ошибке)
+        self._reevaluate_control_via_engine(record.control_id, policy_id)
 
         return record
 
@@ -376,4 +426,37 @@ class PolicyLifecycleManager:
             log.error(
                 f"Не удалось обновить статус контроля {control_id} → {status}: {exc}. "
                 f"Политика {policy_id} одобрена, но контрол нужно обновить вручную."
+            )
+
+    def _reevaluate_control_via_engine(
+        self, control_id: str, policy_id: str
+    ) -> None:
+        """
+        Детерминированная переоценка контроля через ComplianceEngine после approve.
+
+        Вызывается при смене статуса Evidence (approve политики).
+        Не блокирует approve при ошибке — только логирует вердикт.
+        ComplianceEngine не вызывает AI.
+        """
+        try:
+            from compliance_engine import get_compliance_engine
+            from evidence_client import EvidenceClient
+
+            client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="policy_lifecycle")
+            evidence = client.get_evidence(control_id=control_id, limit=50)
+
+            engine = get_compliance_engine()
+            verdict = engine.evaluate_control(control_id, evidence)
+
+            log.info(
+                "ComplianceEngine re-evaluation после approve %s: "
+                "control=%s → %s (confidence=%.2f)",
+                policy_id, control_id, verdict.status.value, verdict.confidence,
+            )
+        except Exception as exc:
+            # Не блокируем approve при ошибке переоценки
+            log.warning(
+                "ComplianceEngine re-evaluation не удалась для %s: %s. "
+                "Approve %s завершён успешно.",
+                control_id, exc, policy_id,
             )

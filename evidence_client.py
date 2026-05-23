@@ -1,12 +1,23 @@
 """
 HTTP-клиент для Evidence Tracker API.
 Retry с exponential backoff, явные таймауты, API-ключ, structured logging.
+
+DB Mode (опциональный):
+  Если DATABASE_URL задан в окружении, методы create_evidence/get_evidence
+  используют EvidenceRepository из db_repository.py вместо HTTP-запросов.
+  Это позволяет работать без внешнего Evidence Tracker сервиса.
+
+  Включить: DATABASE_URL=sqlite+aiosqlite:///./compliance.db
+  Backward compat: если DATABASE_URL не задан, работает как раньше (HTTP).
 """
 
+import asyncio
 import os
 import time
-import requests
 from typing import Any, Dict, List, Optional
+
+import requests
+
 from log_config import get_logger
 
 log = get_logger(__name__)
@@ -20,20 +31,38 @@ class EvidenceClientError(RuntimeError):
     pass
 
 
+def _run_async(coro: Any) -> Any:
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Уже в async контексте (например FastAPI) — создаём задачу через run_coroutine_threadsafe
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
 class EvidenceClient:
     def __init__(self, base_url: str, agent_name: str = "default", timeout: int = _DEFAULT_TIMEOUT):
         self.base_url = base_url.rstrip("/")
         self.timeout  = timeout
-        
+
         # Сначала пробует {AGENT_NAME}_API_KEY, потом EVIDENCE_API_KEY как fallback
         env_var = f"{agent_name.upper()}_API_KEY"
         api_key = os.getenv(env_var) or os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
-        
+
         self._session = requests.Session()
         self._session.headers.update({
             "X-API-Key":    api_key,
             "Content-Type": "application/json",
         })
+
+        # DB mode: активен если DATABASE_URL задан явно
+        self._db_mode: bool = bool(os.getenv("DATABASE_URL", ""))
 
     def _request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
@@ -96,15 +125,84 @@ class EvidenceClient:
         # Обрезаем до лимита сервера (100 KB) чтобы не получить 422
         if len(content) > 99_000:
             content = content[:99_000] + "…[truncated]"
+        title_safe = title[:490]   # лимит сервера 500
+
+        # DB mode: используем репозиторий напрямую
+        if self._db_mode:
+            return _run_async(self._create_evidence_db(control_id, title_safe, content, source))
+
         return self._request("POST", "/api/v1/evidence/", json={
             "control_id": control_id,
-            "title":      title[:490],   # лимит сервера 500
+            "title":      title_safe,
             "content":    content,
             "source":     source,
         })
 
+    async def _create_evidence_db(
+        self,
+        control_id: str,
+        title: str,
+        content: str,
+        source: str,
+    ) -> Dict[str, Any]:
+        """Создаёт доказательство через EvidenceRepository (DB mode)."""
+        from database import AsyncSessionLocal
+        from db_repository import EvidenceRepository
+
+        async with AsyncSessionLocal() as session:
+            repo = EvidenceRepository(session)
+            ev = await repo.create(
+                control_id=control_id,
+                title=title,
+                content=content,
+                source=source,
+            )
+            await session.commit()
+            log.info(
+                "Evidence сохранено в БД",
+                extra={"id": ev.id, "control_id": control_id, "source": source},
+            )
+            return {
+                "id": ev.id,
+                "control_id": ev.control_id,
+                "title": ev.title,
+                "source": ev.source,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            }
+
     def get_evidence(self, control_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
+        # DB mode: получаем из репозитория
+        if self._db_mode:
+            return _run_async(self._get_evidence_db(control_id, limit))
+
         params: Dict[str, Any] = {"limit": limit}
         if control_id:
             params["control_id"] = control_id
         return self._request("GET", "/api/v1/evidence/", params=params)
+
+    async def _get_evidence_db(
+        self,
+        control_id: Optional[str],
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """Получает доказательства из БД (DB mode)."""
+        from database import AsyncSessionLocal
+        from db_repository import EvidenceRepository
+
+        async with AsyncSessionLocal() as session:
+            repo = EvidenceRepository(session)
+            if control_id:
+                items = await repo.list_by_control(control_id, limit=limit)
+            else:
+                items = await repo.list_all(limit=limit)
+            return [
+                {
+                    "id": ev.id,
+                    "control_id": ev.control_id,
+                    "title": ev.title,
+                    "source": ev.source,
+                    "confidence_score": ev.confidence_score,
+                    "created_at": ev.created_at.isoformat() if ev.created_at else None,
+                }
+                for ev in items
+            ]

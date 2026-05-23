@@ -258,6 +258,45 @@ python3 -m pytest tests/ -v
 
 ---
 
+## Фаза 10 — Architectural Convergence 🔄 IN PROGRESS
+
+> Цель: устранить domain fragmentation. Перейти от «мощных изолированных модулей» к единой semantic system.
+> Каждый агент после выполнения задачи обязательно прогоняет:
+> **"Run full senior code review. Refactor weak parts. Optimize architecture. Add missing production features."**
+
+| # | Проблема | Задача | Агент | Статус |
+|---|---|---|---|---|
+| P1 | JSON persistence | PostgreSQL migration — все JSON-хранилища → SQLAlchemy models | `db_agent` | ⏳ |
+| P2 | Domain fragmentation | Unified compliance graph: Control↔Risk↔Evidence↔Asset↔Vendor | `graph_agent` | ⏳ |
+| P3 | Нет event bus | Compliance Event Bus: каждое изменение Control/Evidence → событие | `event_agent` | ⏳ |
+| P4 | Нет state engine | Authoritative State Engine: единый источник истины compliance-state | `state_agent` | ⏳ |
+| P5 | Нет asset model | Asset Model: Device, CloudAccount, Repo, DB, Employee как first-class | `asset_agent` | ⏳ |
+| P6 | Слабый governance | Governance Graph: approval chains, delegated authority, attestations | `gov_agent` | ⏳ |
+| P7 | AI = authority | Deterministic Authority Layer: AI только советует, engine решает | `authority_agent` | ⏳ |
+| P8 | Нет ontology | Compliance Ontology: machine-readable YAML semantics для каждого CC | `ontology_agent` | ⏳ |
+| P9 | Нет replay | Event Sourcing + Replay Engine: replayable compliance timeline | `replay_agent` | ⏳ |
+| P10 | UI вспомогательный | Enterprise Workflow UX: auditor/review/evidence/governance workflows | `ui_agent` | ⏳ |
+
+### Промпт для каждого агента (self-review после задачи)
+
+```
+Run full senior code review.
+Refactor weak parts.
+Optimize architecture.
+Add missing production features.
+```
+
+### Порядок выполнения
+
+```
+Блок A (параллельно): P1 (PostgreSQL) + P8 (Ontology) + P7 (Authority)
+Блок B (после A):     P2 (Graph) + P3 (Event Bus) + P5 (Asset Model)
+Блок C (после B):     P4 (State Engine) + P6 (Governance) + P9 (Replay)
+Блок D (финал):       P10 (UI)
+```
+
+---
+
 ## Фаза 9 — Intelligence & Beyond Vanta ✅ DONE
 
 > Цель: превзойти Vanta по техническим возможностям. Эти фичи недоступны в Vanta/Drata из коробки.

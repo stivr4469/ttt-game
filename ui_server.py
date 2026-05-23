@@ -176,6 +176,7 @@ from vendor_risk_routes import router as vendor_risk_router
 from policy_lifecycle_routes import router as policy_lifecycle_router
 from evidence_confidence_routes import router as evidence_confidence_router
 from decision_log_routes import router as decision_log_router
+from compliance_engine_routes import router as compliance_engine_router
 app.include_router(access_review_router)
 app.include_router(auditor_router)
 app.include_router(timeline_router)
@@ -200,6 +201,7 @@ app.include_router(vendor_risk_router)
 app.include_router(policy_lifecycle_router)
 app.include_router(evidence_confidence_router)
 app.include_router(decision_log_router)
+app.include_router(compliance_engine_router)
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
 async def require_auth(access_token: str | None = Cookie(None)):

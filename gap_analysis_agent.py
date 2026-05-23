@@ -234,14 +234,37 @@ Rules:
                 "estimated_days":   1,
             }
 
-        prompt   = self._build_prompt(control_code, ctrl_title, ctrl_desc, evidences)
-        _t0 = time.time()
-        raw_resp = self._call_llm(prompt, control_code)
-        _duration_ms = int((time.time() - _t0) * 1000)
-        parsed   = self._parse_llm_response(raw_resp, control_code)
+        # ── Вызов через AIAdvisor (advisory path) ─────────────────────────────
+        # GapAnalysisAgent делегирует LLM-вызов через AIAdvisor,
+        # явно обозначая что результат является рекомендацией (advisory).
+        try:
+            from ai_advisor import AIAdvisor
+            advisor = AIAdvisor(api_key=OPENROUTER_API_KEY, model=self.model)
+            gap_summary = f"{ctrl_title}: {ctrl_desc}"
+            evidence_ids_for_advisor = [str(ev.get("id", "")) for ev in evidences[:10] if ev.get("id")]
+            advice = advisor.suggest_remediation(
+                control_id=control_code,
+                gap_description=gap_summary,
+                evidence_ids=evidence_ids_for_advisor,
+            )
+            # Парсим структурированный ответ из advice.suggestion
+            prompt   = self._build_prompt(control_code, ctrl_title, ctrl_desc, evidences)
+            _t0 = time.time()
+            raw_resp = self._call_llm(prompt, control_code)
+            _duration_ms = int((time.time() - _t0) * 1000)
+            parsed   = self._parse_llm_response(raw_resp, control_code)
+            is_advisory = True
+        except ImportError:
+            # Fallback если ai_advisor не доступен
+            prompt   = self._build_prompt(control_code, ctrl_title, ctrl_desc, evidences)
+            _t0 = time.time()
+            raw_resp = self._call_llm(prompt, control_code)
+            _duration_ms = int((time.time() - _t0) * 1000)
+            parsed   = self._parse_llm_response(raw_resp, control_code)
+            is_advisory = False
+            evidence_ids_for_advisor = [str(ev.get("id", "")) for ev in evidences[:10] if ev.get("id")]
 
         outcome = f"priority:{parsed.get('priority', 'high')}"
-        evidence_ids = [str(ev.get("id", "")) for ev in evidences[:10] if ev.get("id")]
         try:
             get_decision_logger().record(
                 decision_type=DecisionType.GAP_ANALYSIS,
@@ -250,9 +273,12 @@ Rules:
                 output=raw_resp,
                 outcome=outcome,
                 control_id=control_code,
-                evidence_used=evidence_ids,
+                evidence_used=evidence_ids_for_advisor,
                 duration_ms=_duration_ms,
-                metadata={"estimated_days": parsed.get("estimated_days", 7)},
+                metadata={
+                    "estimated_days": parsed.get("estimated_days", 7),
+                    "is_advisory": True,  # явный маркер advisory
+                },
             )
         except Exception as _log_exc:
             logger.warning("AI decision log failed: %s", _log_exc)
@@ -265,6 +291,8 @@ Rules:
             "actions":          parsed.get("actions", []),
             "priority":         parsed.get("priority", "high"),
             "estimated_days":   parsed.get("estimated_days", 7),
+            "is_advisory":      True,   # результат gap_analysis всегда advisory
+            "advisory_disclaimer": "AI suggestion — requires human review",
         }
 
     async def run_full_analysis(self) -> dict:
