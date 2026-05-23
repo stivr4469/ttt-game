@@ -127,16 +127,41 @@ class EvidenceClient:
             content = content[:99_000] + "…[truncated]"
         title_safe = title[:490]   # лимит сервера 500
 
-        # DB mode: используем репозиторий напрямую
+        # DB mode: используем репозиторий напрямую (публикация события внутри метода)
         if self._db_mode:
             return _run_async(self._create_evidence_db(control_id, title_safe, content, source))
 
-        return self._request("POST", "/api/v1/evidence/", json={
+        # HTTP mode: отправляем запрос, затем публикуем событие
+        result = self._request("POST", "/api/v1/evidence/", json={
             "control_id": control_id,
             "title":      title_safe,
             "content":    content,
             "source":     source,
         })
+        # Публикуем EVIDENCE_ADDED (best-effort)
+        try:
+            from event_bus import get_event_bus, ComplianceEvent, ComplianceEventType
+            bus = get_event_bus()
+            ev_event = ComplianceEvent.create(
+                event_type=ComplianceEventType.EVIDENCE_ADDED,
+                entity_type="evidence",
+                entity_id=str(result.get("id", "unknown")),
+                actor=f"agent:{source}",
+                payload={
+                    "control_id": control_id,
+                    "title":      title_safe,
+                    "source":     source,
+                    "created_at": result.get("created_at"),
+                },
+                severity="info",
+            )
+            bus.publish(ev_event)
+        except Exception as _bus_exc:
+            log.debug(
+                "evidence_client: не удалось опубликовать EVIDENCE_ADDED",
+                extra={"error": str(_bus_exc)},
+            )
+        return result
 
     async def _create_evidence_db(
         self,
@@ -162,13 +187,39 @@ class EvidenceClient:
                 "Evidence сохранено в БД",
                 extra={"id": ev.id, "control_id": control_id, "source": source},
             )
-            return {
+            result = {
                 "id": ev.id,
                 "control_id": ev.control_id,
                 "title": ev.title,
                 "source": ev.source,
                 "created_at": ev.created_at.isoformat() if ev.created_at else None,
             }
+
+        # Публикуем EVIDENCE_ADDED в EventBus (best-effort)
+        try:
+            from event_bus import get_event_bus, ComplianceEvent, ComplianceEventType
+            bus = get_event_bus()
+            ev_event = ComplianceEvent.create(
+                event_type=ComplianceEventType.EVIDENCE_ADDED,
+                entity_type="evidence",
+                entity_id=result["id"],
+                actor=f"agent:{source}",
+                payload={
+                    "control_id": control_id,
+                    "title":      title,
+                    "source":     source,
+                    "created_at": result.get("created_at"),
+                },
+                severity="info",
+            )
+            bus.publish(ev_event)
+        except Exception as _bus_exc:
+            log.debug(
+                "evidence_client: не удалось опубликовать EVIDENCE_ADDED (DB mode)",
+                extra={"error": str(_bus_exc)},
+            )
+
+        return result
 
     def get_evidence(self, control_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
         # DB mode: получаем из репозитория

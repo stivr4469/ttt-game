@@ -177,6 +177,9 @@ from policy_lifecycle_routes import router as policy_lifecycle_router
 from evidence_confidence_routes import router as evidence_confidence_router
 from decision_log_routes import router as decision_log_router
 from compliance_engine_routes import router as compliance_engine_router
+from graph_routes import router as graph_router
+from asset_routes import router as asset_router
+from event_routes import router as event_router
 app.include_router(access_review_router)
 app.include_router(auditor_router)
 app.include_router(timeline_router)
@@ -202,6 +205,9 @@ app.include_router(policy_lifecycle_router)
 app.include_router(evidence_confidence_router)
 app.include_router(decision_log_router)
 app.include_router(compliance_engine_router)
+app.include_router(graph_router)
+app.include_router(asset_router)
+app.include_router(event_router)
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
 async def require_auth(access_token: str | None = Cookie(None)):

@@ -266,15 +266,15 @@ python3 -m pytest tests/ -v
 
 | # | Проблема | Задача | Агент | Статус |
 |---|---|---|---|---|
-| P1 | JSON persistence | PostgreSQL migration — все JSON-хранилища → SQLAlchemy models | `db_agent` | ⏳ |
-| P2 | Domain fragmentation | Unified compliance graph: Control↔Risk↔Evidence↔Asset↔Vendor | `graph_agent` | ⏳ |
-| P3 | Нет event bus | Compliance Event Bus: каждое изменение Control/Evidence → событие | `event_agent` | ⏳ |
-| P4 | Нет state engine | Authoritative State Engine: единый источник истины compliance-state | `state_agent` | ⏳ |
-| P5 | Нет asset model | Asset Model: Device, CloudAccount, Repo, DB, Employee как first-class | `asset_agent` | ⏳ |
-| P6 | Слабый governance | Governance Graph: approval chains, delegated authority, attestations | `gov_agent` | ⏳ |
-| P7 | AI = authority | Deterministic Authority Layer: AI только советует, engine решает | `authority_agent` | ⏳ |
-| P8 | Нет ontology | Compliance Ontology: machine-readable YAML semantics для каждого CC | `ontology_agent` | ⏳ |
-| P9 | Нет replay | Event Sourcing + Replay Engine: replayable compliance timeline | `replay_agent` | ⏳ |
+| P1 | JSON persistence | PostgreSQL migration — все JSON-хранилища → SQLAlchemy models | `db_agent` | ✅ DONE |
+| P2 | Domain fragmentation | Unified compliance graph: Control↔Risk↔Evidence↔Asset↔Vendor | `graph_agent` | ✅ DONE |
+| P3 | Нет event bus | Compliance Event Bus: каждое изменение Control/Evidence → событие | `event_agent` | ✅ DONE |
+| P4 | Нет state engine | Authoritative State Engine: единый источник истины compliance-state | `state_agent` | 🔄 IN PROGRESS |
+| P5 | Нет asset model | Asset Model: Device, CloudAccount, Repo, DB, Employee как first-class | `asset_agent` | ✅ DONE |
+| P6 | Слабый governance | Governance Graph: approval chains, delegated authority, attestations | `gov_agent` | 🔄 IN PROGRESS |
+| P7 | AI = authority | Deterministic Authority Layer: AI только советует, engine решает | `authority_agent` | ✅ DONE |
+| P8 | Нет ontology | Compliance Ontology: machine-readable YAML semantics для каждого CC | `ontology_agent` | ✅ DONE |
+| P9 | Нет replay | Event Sourcing + Replay Engine: replayable compliance timeline | `replay_agent` | 🔄 IN PROGRESS |
 | P10 | UI вспомогательный | Enterprise Workflow UX: auditor/review/evidence/governance workflows | `ui_agent` | ⏳ |
 
 ### Промпт для каждого агента (self-review после задачи)
