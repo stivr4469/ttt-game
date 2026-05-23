@@ -1,0 +1,96 @@
+# CC2 — Communication and Information
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Коммуникации и информационные потоки внутри и вне организации
+
+controls:
+
+  - id: CC2.1
+    title: "Information to Support Internal Control"
+    category: communication
+    requires:
+      - InformationQualityPolicy
+      - DataClassificationPolicy
+      - OperationalReportingProcess
+    evidence_types:
+      - information_quality_reports
+      - data_classification_audit
+      - operational_metrics_dashboard
+      - management_reporting_records
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.5.1", "A.5.37", "A.8.12"]
+      nist: ["PL-2", "PL-4", "SA-5"]
+      cis: ["14.1", "14.2"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: quarterly
+    description: >
+      Организация получает или генерирует и использует релевантную качественную
+      информацию для поддержки функционирования системы внутреннего контроля.
+      Данные своевременны, точны и доступны уполномоченным лицам.
+    remediation_steps:
+      - "Внедрить политику качества информации"
+      - "Настроить дашборд с KPI для ключевых контрольных процессов"
+      - "Установить SLA на обновление управленческой отчётности"
+
+  - id: CC2.2
+    title: "Internal Communication of Objectives and Responsibilities"
+    category: communication
+    requires:
+      - InternalCommunicationPolicy
+      - SecurityAwarenessProgram
+      - IncidentReportingProcess
+    evidence_types:
+      - all_hands_meeting_records
+      - security_bulletin_archives
+      - employee_acknowledgment_records
+      - incident_report_communications
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.5.1", "A.6.3", "A.7.2"]
+      nist: ["PL-4", "AT-2", "PM-1"]
+      cis: ["14.1", "14.2"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: semi_annual
+    description: >
+      Организация обеспечивает внутренние коммуникации, включая цели и ответственности,
+      необходимые для функционирования внутреннего контроля. Политики ИБ
+      доведены до сотрудников и подтверждены подписями.
+    remediation_steps:
+      - "Запустить регулярные Security Awareness рассылки"
+      - "Задокументировать процесс коммуникации об инцидентах"
+      - "Обеспечить подтверждение получения политик всеми сотрудниками"
+
+  - id: CC2.3
+    title: "External Communication"
+    category: communication
+    requires:
+      - ExternalCommunicationPolicy
+      - VendorCommunicationProcess
+      - CustomerNotificationProcedure
+      - IncidentDisclosurePolicy
+    evidence_types:
+      - vendor_contract_records
+      - customer_notification_templates
+      - regulatory_filing_records
+      - data_breach_notification_procedures
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.5.6", "A.5.14", "A.6.7"]
+      nist: ["IR-6", "SA-3", "PL-4"]
+      cis: ["14.1"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация обменивается информацией с внешними сторонами по вопросам,
+      влияющим на функционирование системы внутреннего контроля. Включает
+      уведомление клиентов об инцидентах и взаимодействие с регуляторами.
+    remediation_steps:
+      - "Разработать процедуры уведомления об инцидентах безопасности"
+      - "Задокументировать требования к раскрытию информации партнёрам"
+      - "Создать шаблоны коммуникаций с клиентами при breaches"

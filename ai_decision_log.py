@@ -142,6 +142,47 @@ def _extract_reasoning(output: str) -> str:
     return " ".join(sentences[:3])[:400]
 
 
+# ── Ontology context builder ──────────────────────────────────────────────────
+
+def _build_ontology_context(control_id: str) -> dict:
+    """
+    Строит словарь ontology context для вставки в metadata AI-решения.
+
+    Включает risk_weight, evidence_types, frameworks и sla_hours контроля.
+    При недоступности онтологии возвращает минимальный словарь с флагом.
+
+    Args:
+        control_id: строка вида "CC6.1"
+
+    Returns:
+        Словарь с семантическими данными контроля или {"available": False} при ошибке.
+    """
+    try:
+        from compliance_ontology import get_ontology_engine
+        engine = get_ontology_engine()
+        ctrl = engine.get_control(control_id)
+        if ctrl is None:
+            return {"available": False, "reason": "control_not_found"}
+        return {
+            "available": True,
+            "risk_weight": ctrl.risk_weight,
+            "evidence_types": list(ctrl.evidence_types),
+            "requires": list(ctrl.requires),
+            "sla_hours": ctrl.sla_hours,
+            "auto_remediable": ctrl.auto_remediable,
+            "owner_role": ctrl.owner_role,
+            "audit_frequency": ctrl.audit_frequency,
+            "frameworks": {
+                "iso27001": list(ctrl.iso27001),
+                "nist": list(ctrl.nist),
+                "cis": list(ctrl.cis),
+            },
+        }
+    except Exception as exc:
+        log.debug("Не удалось загрузить ontology context для %s: %s", control_id, exc)
+        return {"available": False, "reason": str(exc)}
+
+
 # ── Хранилище ──────────────────────────────────────────────────────────────────
 
 class AIDecisionLogger:
@@ -209,6 +250,10 @@ class AIDecisionLogger:
         """
         Записывает AI-решение и сохраняет на диск.
 
+        Автоматически обогащает metadata ontology context (если control_id задан):
+        risk_weight, required evidence_types, frameworks, sla_hours —
+        для обеспечения полноты audit trail и AI reasoning explainability.
+
         Args:
             decision_type: тип операции (POLICY_GENERATION, GAP_ANALYSIS …)
             model: имя модели ("claude-haiku-4-5-20251001", "qwen2.5:7b" …)
@@ -221,8 +266,13 @@ class AIDecisionLogger:
             metadata: произвольные доп. поля
 
         Returns:
-            AIDecisionRecord с заполненными полями
+            AIDecisionRecord с заполненными полями и ontology context в metadata
         """
+        # Обогащаем metadata данными из онтологии (если control_id задан)
+        enriched_metadata = dict(metadata or {})
+        if control_id:
+            enriched_metadata["ontology_context"] = _build_ontology_context(control_id)
+
         rec = AIDecisionRecord(
             id=str(uuid.uuid4()),
             decision_type=decision_type,
@@ -237,7 +287,7 @@ class AIDecisionLogger:
             duration_ms=duration_ms,
             created_by=f"ai:{model}",
             created_at=datetime.now(timezone.utc).isoformat(),
-            metadata=metadata or {},
+            metadata=enriched_metadata,
         )
         # deque с maxlen автоматически удаляет старейшие при превышении лимита
         self._records.append(rec)

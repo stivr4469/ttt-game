@@ -560,6 +560,62 @@ class ControlMappingEngine:
         """Список поддерживаемых фреймворков с мета-информацией."""
         return list(SUPPORTED_FRAMEWORKS)
 
+    def enrich_with_ontology(self, soc2_id: str) -> dict:
+        """
+        Обогащает FrameworkMapping семантикой из онтологии.
+
+        Берёт данные маппинга для контроля soc2_id и дополняет их
+        полной семантикой из ControlOntology: risk_weight, evidence_types,
+        требования, SLA, шаги устранения, категория.
+
+        Args:
+            soc2_id: идентификатор SOC 2 контроля, например "CC6.1"
+
+        Returns:
+            Словарь с объединёнными данными FrameworkMapping и ControlOntology.
+            Если контроль не найден ни в одном источнике — возвращает пустой dict.
+            Если онтология недоступна — возвращает только данные из mapping.
+        """
+        # Получаем базовый маппинг фреймворков
+        mapping = self.get_mappings_for_control(soc2_id)
+        if mapping is None:
+            return {}
+
+        result: dict = {
+            "soc2": mapping.soc2,
+            "description": mapping.description,
+            "category": mapping.category,
+            "iso27001": list(mapping.iso27001),
+            "nist_800_53": list(mapping.nist_800_53),
+            "cis_v8": list(mapping.cis_v8),
+        }
+
+        # Дополняем данными из онтологии (если доступна)
+        try:
+            from compliance_ontology import get_ontology_engine
+            engine = get_ontology_engine()
+            ctrl = engine.get_control(soc2_id)
+            if ctrl is not None:
+                result.update({
+                    "title": ctrl.title,
+                    "risk_weight": ctrl.risk_weight,
+                    "sla_hours": ctrl.sla_hours,
+                    "evidence_types": list(ctrl.evidence_types),
+                    "requires": list(ctrl.requires),
+                    "auto_remediable": ctrl.auto_remediable,
+                    "owner_role": ctrl.owner_role,
+                    "audit_frequency": ctrl.audit_frequency,
+                    "remediation_steps": list(ctrl.remediation_steps),
+                    "ontology_enriched": True,
+                })
+            else:
+                result["ontology_enriched"] = False
+        except Exception:
+            # Если онтология не загружена — возвращаем базовый маппинг
+            result["ontology_enriched"] = False
+
+        return result
+
 
 # ── Вспомогательные функции ────────────────────────────────────────────────────
 

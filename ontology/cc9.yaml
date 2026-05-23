@@ -1,0 +1,76 @@
+# CC9 — Risk Mitigation
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Снижение рисков — бизнес-непрерывность и управление рисками поставщиков
+
+controls:
+
+  - id: CC9.1
+    title: "Risk Mitigation — Business Disruption and Business Continuity"
+    category: business_continuity
+    requires:
+      - BusinessContinuityPlan
+      - DisasterRecoveryPlan
+      - BackupPolicy
+      - RTOAndRPODefinitions
+    evidence_types:
+      - bcp_document
+      - dr_plan_document
+      - backup_test_results
+      - rto_rpo_metrics
+      - dr_drill_records
+      - availability_reports
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.29", "A.5.30", "A.8.14"]
+      nist: ["CP-2", "RA-3", "PM-9"]
+      cis: ["11.1", "11.2", "11.3"]
+    auto_remediable: false
+    sla_hours: 72
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация выявляет и оценивает риски прерывания бизнеса, включая
+      использование поставщиков, и разрабатывает стратегии управления рисками.
+      BCP и DRP задокументированы, протестированы и поддерживаются в актуальном
+      состоянии. RTO и RPO определены для критичных систем.
+    remediation_steps:
+      - "Разработать и задокументировать BCP с определёнными RTO/RPO"
+      - "Провести ежегодный DR drill с результатами и action items"
+      - "Настроить автоматизированные бэкапы с тестированием восстановления"
+      - "Обеспечить cross-region репликацию для критичных данных"
+
+  - id: CC9.2
+    title: "Vendor and Business Partner Risk Management"
+    category: vendor_risk
+    requires:
+      - VendorRiskManagementPolicy
+      - VendorAssessmentProcess
+      - ContractSecurityRequirements
+      - ThirdPartyMonitoring
+    evidence_types:
+      - vendor_security_questionnaires
+      - vendor_soc2_reports
+      - vendor_contract_security_clauses
+      - vendor_risk_register
+      - third_party_access_reviews
+      - vendor_incident_notification_records
+    risk_weight: 0.75
+    frameworks:
+      iso27001: ["A.5.19", "A.5.20", "A.5.21", "A.5.22"]
+      nist: ["SA-9", "SR-1", "SR-2", "SR-3"]
+      cis: ["15.1", "15.2", "15.3"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация выбирает, управляет и контролирует поставщиков и деловых
+      партнёров для снижения рисков, связанных с получением продуктов и услуг.
+      Все критичные поставщики проходят оценку безопасности.
+      Контракты включают требования к безопасности и уведомлению об инцидентах.
+    remediation_steps:
+      - "Создать реестр поставщиков с классификацией по критичности"
+      - "Проводить ежегодные security questionnaire для CRITICAL/HIGH вендоров"
+      - "Собирать SOC 2 Type II отчёты от ключевых поставщиков"
+      - "Включить security requirements (DPA, breach notification) в контракты"
+      - "Ежегодно пересматривать права доступа третьих сторон"

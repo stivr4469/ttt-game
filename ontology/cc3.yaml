@@ -1,0 +1,127 @@
+# CC3 — Risk Assessment
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Оценка рисков — выявление, анализ, реагирование
+
+controls:
+
+  - id: CC3.1
+    title: "Risk Identification and Analysis"
+    category: risk_management
+    requires:
+      - RiskAssessmentPolicy
+      - RiskRegister
+      - ThreatIntelligenceProcess
+    evidence_types:
+      - risk_register_document
+      - annual_risk_assessment_report
+      - threat_model_artifacts
+      - risk_scoring_methodology
+    risk_weight: 0.7
+    frameworks:
+      iso27001: ["A.5.29", "A.6.1", "A.8.16"]
+      nist: ["RA-1", "RA-2", "PM-9"]
+      cis: ["18.1", "18.2"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация специфицирует цели с достаточной чёткостью для обеспечения
+      идентификации и оценки рисков, связанных с этими целями.
+      Риски систематически идентифицируются, анализируются и приоритизируются.
+    remediation_steps:
+      - "Разработать формальный реестр рисков (Risk Register)"
+      - "Провести ежегодную оценку рисков с внешним участием"
+      - "Внедрить процесс threat modeling для новых систем"
+
+  - id: CC3.2
+    title: "Risk Assessment Process"
+    category: risk_management
+    requires:
+      - RiskAssessmentMethodology
+      - RiskToleranceStatement
+      - VulnerabilityManagementProcess
+    evidence_types:
+      - risk_assessment_methodology_doc
+      - risk_treatment_decisions
+      - vulnerability_scan_results
+      - penetration_test_reports
+    risk_weight: 0.7
+    frameworks:
+      iso27001: ["A.5.29", "A.8.2", "A.8.16"]
+      nist: ["RA-3", "RA-5", "PM-9"]
+      cis: ["18.1", "18.2", "18.3"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: security_team
+    audit_frequency: semi_annual
+    description: >
+      Организация идентифицирует риски достижения своих целей в рамках всей
+      сущности и анализирует их как основу для определения способов управления
+      рисками. Методология оценки формализована и воспроизводима.
+    remediation_steps:
+      - "Задокументировать методологию оценки рисков с критериями"
+      - "Установить формальный порог риск-аппетита"
+      - "Интегрировать результаты pentest в реестр рисков"
+
+  - id: CC3.3
+    title: "Fraud Risk Assessment"
+    category: risk_management
+    requires:
+      - FraudRiskPolicy
+      - FraudDetectionControls
+      - WhistleblowerPolicy
+    evidence_types:
+      - fraud_risk_assessment_report
+      - anti_fraud_control_evidence
+      - whistleblower_policy_acknowledgments
+      - suspicious_activity_monitoring_logs
+    risk_weight: 0.6
+    frameworks:
+      iso27001: ["A.5.29", "A.6.6", "A.8.3"]
+      nist: ["RA-3", "SA-11", "PM-16"]
+      cis: ["18.1", "18.3"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация оценивает потенциал мошенничества, включая возможность
+      злонамеренного использования ресурсов, активов или нарушения финансовой
+      отчётности, а также риски от злоупотребления информационными системами.
+    remediation_steps:
+      - "Провести формальную оценку рисков мошенничества"
+      - "Внедрить мониторинг подозрительных транзакций"
+      - "Обеспечить доступность анонимного канала (hotline)"
+
+  - id: CC3.4
+    title: "Change Risk Assessment"
+    category: change_management
+    requires:
+      - ChangeManagementPolicy
+      - ChangeApprovalProcess
+      - RegressionTestingProcess
+    evidence_types:
+      - change_request_records
+      - change_approval_records
+      - github_branch_protection_audit
+      - ci_cd_pipeline_audit
+      - direct_commit_scan_results
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.29", "A.8.2", "A.8.16"]
+      nist: ["RA-3", "SA-9", "PM-9"]
+      cis: ["18.1", "18.2"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Организация выявляет и оценивает изменения, которые могли бы существенно
+      повлиять на систему внутреннего контроля. Все изменения в production
+      проходят через формализованный процесс одобрения с проверками.
+    remediation_steps:
+      - "Включить branch protection rules на main ветке"
+      - "Запретить прямые коммиты в main без PR"
+      - "Настроить обязательный code review (минимум 1 аппрувер)"
+      - "Добавить автоматические security checks в CI/CD pipeline"

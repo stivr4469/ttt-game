@@ -1,0 +1,169 @@
+# CC7 — System Operations
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Операции систем — конфигурации, мониторинг, инциденты, устранение
+
+controls:
+
+  - id: CC7.1
+    title: "Configuration and Change Management Baselines"
+    category: configuration_management
+    requires:
+      - ConfigurationBaselinePolicy
+      - CMDBSystem
+      - HardeningStandards
+      - ComplianceMonitoring
+    evidence_types:
+      - configuration_baseline_reports
+      - cmdb_inventory_export
+      - aws_config_compliance_reports
+      - cis_benchmark_scan_results
+      - cloudtrail_config_change_logs
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.8.8", "A.8.16", "A.8.19"]
+      nist: ["CM-2", "CM-6", "SI-2"]
+      cis: ["2.1", "2.2", "7.4"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Эталонные конфигурации разработаны, внедрены и управляются для технологических
+      компонентов, используемых для достижения задач. Отклонения от базовых
+      конфигураций автоматически обнаруживаются и алертируются.
+    remediation_steps:
+      - "Внедрить Infrastructure as Code (Terraform/CloudFormation)"
+      - "Настроить AWS Config с managed rules для CIS Benchmark"
+      - "Запустить automatic drift detection для конфигураций"
+      - "Задокументировать security hardening baseline для каждого типа ресурсов"
+
+  - id: CC7.2
+    title: "Monitoring for Anomalies and Incidents"
+    category: security_monitoring
+    requires:
+      - SIEMPlatform
+      - AlertingPolicy
+      - SecurityMetrics
+      - ThreatIntelligenceFeed
+    evidence_types:
+      - siem_alert_reports
+      - security_dashboard_evidence
+      - threat_detection_logs
+      - aws_guardduty_findings
+      - anomaly_detection_reports
+    risk_weight: 0.85
+    frameworks:
+      iso27001: ["A.8.15", "A.8.16", "A.5.28"]
+      nist: ["AU-6", "IR-4", "SI-4"]
+      cis: ["8.1", "8.2", "13.1", "13.2"]
+    auto_remediable: false
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Компоненты системы мониторируются для оценки функциональности и
+      выявления потенциальных аномалий безопасности. CloudTrail, GuardDuty
+      и SIEM обеспечивают непрерывный мониторинг действий в системе.
+    remediation_steps:
+      - "Включить AWS GuardDuty во всех регионах"
+      - "Настроить CloudWatch Alarms на критичные security события"
+      - "Интегрировать CloudTrail с SIEM-платформой"
+      - "Установить пороговые значения для автоматических алертов"
+
+  - id: CC7.3
+    title: "Incident Identification and Classification"
+    category: incident_response
+    requires:
+      - IncidentResponsePolicy
+      - IncidentClassificationScheme
+      - SecurityEventProcess
+    evidence_types:
+      - incident_register
+      - event_classification_records
+      - security_team_investigation_logs
+      - escalation_records
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.26", "A.5.28", "A.6.8"]
+      nist: ["IR-4", "IR-5", "IR-6"]
+      cis: ["17.1", "17.2", "17.4"]
+    auto_remediable: false
+    sla_hours: 48
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      События безопасности оцениваются для определения того, являются ли они
+      инцидентами безопасности. Классификация инцидентов задокументирована
+      с чёткими критериями severity. Таймлайны реагирования соответствуют
+      требованиям SLA.
+    remediation_steps:
+      - "Разработать формальный Incident Response Plan (IRP)"
+      - "Определить матрицу классификации инцидентов"
+      - "Настроить эскалацию: CRITICAL → CISO в течение 1 часа"
+      - "Проводить ежегодные tabletop exercises по IR"
+
+  - id: CC7.4
+    title: "Incident Response and Notification"
+    category: incident_response
+    requires:
+      - IncidentResponsePlan
+      - CommunicationsMatrix
+      - LegalCounselProcess
+      - DataBreachNotificationProcedure
+    evidence_types:
+      - incident_response_records
+      - breach_notification_templates
+      - stakeholder_notification_records
+      - regulatory_filing_evidence
+      - post_incident_review_reports
+    risk_weight: 0.85
+    frameworks:
+      iso27001: ["A.5.26", "A.5.27", "A.6.8"]
+      nist: ["IR-4", "IR-5", "IR-7", "IR-8"]
+      cis: ["17.1", "17.3", "17.4", "17.6"]
+    auto_remediable: false
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Инциденты безопасности идентифицируются, документируются и о них уведомляются
+      в соответствии с требованиями. Включает обязательные уведомления регуляторов
+      (72 часа по GDPR, 30 дней по многим штатным законам).
+    remediation_steps:
+      - "Создать и протестировать IRP с чёткими ролями и таймлайнами"
+      - "Задокументировать обязательства по уведомлению (GDPR 72h, CCPA)"
+      - "Установить ретейнер юридического советника для нарушений данных"
+      - "Провести симуляцию нарушения данных ежегодно"
+
+  - id: CC7.5
+    title: "Incident Recovery and Post-Incident Review"
+    category: incident_response
+    requires:
+      - DisasterRecoveryPlan
+      - PostIncidentReviewProcess
+      - RootCauseAnalysisProcess
+      - LessonsLearnedProcess
+    evidence_types:
+      - post_incident_review_reports
+      - root_cause_analysis_documents
+      - remediation_action_items
+      - dr_test_results
+      - lessons_learned_records
+    risk_weight: 0.75
+    frameworks:
+      iso27001: ["A.5.26", "A.5.27", "A.8.16"]
+      nist: ["IR-4", "CA-5", "RA-5"]
+      cis: ["17.3", "17.4", "17.8"]
+    auto_remediable: false
+    sla_hours: 72
+    owner_role: security_team
+    audit_frequency: per_incident
+    description: >
+      Выявленные инциденты устраняются через формализованный процесс.
+      Проводится Root Cause Analysis (RCA) для каждого значимого инцидента.
+      Уроки, извлечённые из инцидентов, применяются для улучшения контролей.
+    remediation_steps:
+      - "Провести RCA после каждого инцидента CRITICAL/HIGH severity"
+      - "Создать action items из каждого PIR с отслеживанием в Jira"
+      - "Тестировать Disaster Recovery план ежегодно (DR drill)"
+      - "Обновлять IRP по результатам PIR не реже раза в год"

@@ -1,0 +1,69 @@
+# CC4 — Monitoring Activities
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Мониторинговые мероприятия — непрерывный мониторинг и устранение недостатков
+
+controls:
+
+  - id: CC4.1
+    title: "Ongoing and Separate Monitoring"
+    category: monitoring
+    requires:
+      - MonitoringPolicy
+      - ContinuousMonitoringPlatform
+      - SOCOperations
+      - AlertingProcess
+    evidence_types:
+      - siem_alert_logs
+      - monitoring_dashboard_screenshots
+      - soc_shift_reports
+      - automated_compliance_scan_results
+      - cloudtrail_logs
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.35", "A.5.36", "A.8.16"]
+      nist: ["CA-7", "SI-4", "AU-6"]
+      cis: ["13.1", "13.3"]
+    auto_remediable: false
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Организация выбирает, разрабатывает и проводит непрерывный и/или отдельный
+      мониторинг эффективности внутренних контролей для обоснования готовности
+      системы контроля. Мониторинг охватывает технические и процессные контроли.
+    remediation_steps:
+      - "Развернуть SIEM-платформу с алертингом по критичным событиям"
+      - "Настроить AWS CloudTrail с логированием всех управляющих API-вызовов"
+      - "Установить KPI для SOC: MTTD, MTTR"
+      - "Проводить ежеквартальные внутренние аудиты эффективности контролей"
+
+  - id: CC4.2
+    title: "Evaluation and Communication of Deficiencies"
+    category: monitoring
+    requires:
+      - DeficiencyManagementPolicy
+      - RemediationTrackingProcess
+      - EscalationProcedure
+    evidence_types:
+      - control_deficiency_reports
+      - remediation_ticket_records
+      - management_reporting_on_findings
+      - audit_finding_disposition_records
+    risk_weight: 0.7
+    frameworks:
+      iso27001: ["A.5.35", "A.5.36", "A.6.1"]
+      nist: ["CA-5", "CA-7", "PM-4"]
+      cis: ["13.1", "13.2"]
+    auto_remediable: false
+    sla_hours: 48
+    owner_role: security_team
+    audit_frequency: quarterly
+    description: >
+      Организация оценивает и сообщает о недостатках внутреннего контроля
+      своевременно тем, кто несёт ответственность за их устранение, включая
+      руководство и совет директоров в зависимости от обстоятельств.
+    remediation_steps:
+      - "Внедрить систему отслеживания находок (Jira / ServiceNow)"
+      - "Установить SLA на устранение: CRITICAL=24h, HIGH=72h"
+      - "Настроить автоматическое эскалирование просроченных находок"
+      - "Отчитываться о статусе устранения на ежеквартальных security review"

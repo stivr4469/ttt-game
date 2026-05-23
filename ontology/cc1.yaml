@@ -1,0 +1,152 @@
+# CC1 — Control Environment (COSO)
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Среда контроля — культура, тон руководства, компетентность
+
+controls:
+
+  - id: CC1.1
+    title: "Commitment to Integrity and Ethical Values"
+    category: governance
+    requires:
+      - CodeOfConduct
+      - EthicsPolicy
+      - LeadershipTraining
+    evidence_types:
+      - hr_policy_audit
+      - employee_training_records
+      - code_of_conduct_acknowledgment
+      - ethics_hotline_records
+    risk_weight: 0.6
+    frameworks:
+      iso27001: ["A.5.1", "A.5.2", "A.6.1"]
+      nist: ["PM-1", "PM-2", "AT-1"]
+      cis: ["14.1", "14.2"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: ciso
+    audit_frequency: annual
+    description: >
+      Организация демонстрирует приверженность честности и этическим ценностям.
+      Руководство устанавливает тон доверия через политики и поведение.
+      Сотрудники проходят обучение этике и подписывают Кодекс поведения.
+    remediation_steps:
+      - "Разработать или обновить Кодекс поведения"
+      - "Запустить обязательное ежегодное обучение по этике"
+      - "Настроить анонимный канал для сообщений о нарушениях"
+
+  - id: CC1.2
+    title: "Board Independence and Oversight"
+    category: governance
+    requires:
+      - BoardCharterPolicy
+      - AuditCommitteeCharter
+      - InternalAuditFunction
+    evidence_types:
+      - board_meeting_minutes
+      - audit_committee_reports
+      - independent_director_certifications
+      - oversight_activity_records
+    risk_weight: 0.6
+    frameworks:
+      iso27001: ["A.5.2", "A.6.1"]
+      nist: ["PM-2", "SA-2", "PL-2"]
+      cis: ["14.1"]
+    auto_remediable: false
+    sla_hours: 720
+    owner_role: ciso
+    audit_frequency: annual
+    description: >
+      Совет директоров независим от руководства и осуществляет надзор за разработкой
+      и функционированием системы внутреннего контроля. Аудиторский комитет
+      рассматривает существенные риски и недостатки контроля.
+    remediation_steps:
+      - "Задокументировать устав совета директоров и аудиторского комитета"
+      - "Установить регулярные отчёты CISO перед советом"
+
+  - id: CC1.3
+    title: "Organizational Structure and Authority"
+    category: governance
+    requires:
+      - OrgChartPolicy
+      - RACI_Matrix
+      - SecurityGovernancePolicy
+    evidence_types:
+      - org_chart_document
+      - raci_matrix
+      - job_descriptions
+      - authority_delegation_records
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.5.2", "A.6.1", "A.6.3"]
+      nist: ["PM-2", "PS-1", "PS-2"]
+      cis: ["14.1", "14.6"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Руководство определяет структуры, линии подчинения и надлежащие полномочия
+      для достижения целей. Ответственности за ИБ чётко распределены.
+    remediation_steps:
+      - "Задокументировать RACI-матрицу для ИБ-функций"
+      - "Обновить должностные инструкции с ИБ-обязанностями"
+
+  - id: CC1.4
+    title: "Commitment to Competence"
+    category: human_resources
+    requires:
+      - SecurityTrainingProgram
+      - CompetencyFramework
+      - PerformanceReviewProcess
+    evidence_types:
+      - training_completion_records
+      - certification_records
+      - performance_review_documents
+      - hiring_process_documentation
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.6.3", "A.6.4", "A.7.2"]
+      nist: ["AT-2", "AT-3", "PM-13"]
+      cis: ["14.1", "14.2", "14.7"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация демонстрирует приверженность привлечению, развитию и удержанию
+      компетентных сотрудников в соответствии с целями. Требования к компетентности
+      для ключевых ролей ИБ определены и задокументированы.
+    remediation_steps:
+      - "Разработать программу Security Awareness Training"
+      - "Установить требования к сертификации для ИБ-ролей"
+      - "Настроить ежегодное повышение квалификации для ключевого персонала"
+
+  - id: CC1.5
+    title: "Accountability for Internal Control"
+    category: governance
+    requires:
+      - AccountabilityPolicy
+      - ControlOwnershipMatrix
+      - PerformanceMetrics
+    evidence_types:
+      - control_owner_assignments
+      - kpi_reports
+      - accountability_enforcement_records
+      - disciplinary_action_records
+    risk_weight: 0.6
+    frameworks:
+      iso27001: ["A.5.1", "A.5.2", "A.6.1"]
+      nist: ["PM-1", "IR-8", "AU-1"]
+      cis: ["14.1", "14.2"]
+    auto_remediable: false
+    sla_hours: 168
+    owner_role: ciso
+    audit_frequency: semi_annual
+    description: >
+      Организация устанавливает механизмы привлечения к ответственности лиц,
+      ответственных за внутренний контроль. Нарушения политик расследуются
+      и влекут надлежащие последствия.
+    remediation_steps:
+      - "Назначить владельцев для каждого SOC 2 контроля"
+      - "Создать KPI для измерения эффективности контрольных мероприятий"
+      - "Задокументировать процедуры привлечения к ответственности"

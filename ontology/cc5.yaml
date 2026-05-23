@@ -1,0 +1,100 @@
+# CC5 — Control Activities
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Контрольные мероприятия — выбор, разработка и развёртывание контролей
+
+controls:
+
+  - id: CC5.1
+    title: "Selection and Development of Control Activities"
+    category: control_activities
+    requires:
+      - ControlFrameworkPolicy
+      - RiskResponseStrategy
+      - ControlDesignProcess
+    evidence_types:
+      - control_design_documentation
+      - risk_response_decisions
+      - control_activity_inventory
+      - sox_itgc_documentation
+    risk_weight: 0.6
+    frameworks:
+      iso27001: ["A.5.1", "A.5.37", "A.8.1"]
+      nist: ["PL-1", "SA-8", "PM-1"]
+      cis: ["14.1", "14.2"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация выбирает и разрабатывает контрольные мероприятия,
+      которые вносят вклад в снижение рисков до приемлемых уровней
+      для достижения целей. Контрольные мероприятия соответствуют
+      характеру и масштабу организации.
+    remediation_steps:
+      - "Создать полный реестр контрольных мероприятий с владельцами"
+      - "Сопоставить контроли с идентифицированными рисками"
+      - "Задокументировать дизайн и ожидаемую эффективность каждого контроля"
+
+  - id: CC5.2
+    title: "Technology General Controls"
+    category: control_activities
+    requires:
+      - ITSecurityPolicy
+      - ConfigurationManagementProcess
+      - PatchManagementPolicy
+      - SecurityHardeningStandards
+    evidence_types:
+      - configuration_baseline_documents
+      - patch_management_reports
+      - it_asset_inventory
+      - security_hardening_audit
+      - cis_benchmark_compliance_reports
+    risk_weight: 0.7
+    frameworks:
+      iso27001: ["A.5.37", "A.8.1", "A.8.8"]
+      nist: ["CM-6", "CM-7", "SA-8"]
+      cis: ["4.1", "4.2", "14.1"]
+    auto_remediable: true
+    sla_hours: 72
+    owner_role: security_team
+    audit_frequency: quarterly
+    description: >
+      Организация выбирает и разрабатывает общие технологические контроли
+      для поддержки достижения целей. Включает: управление конфигурациями,
+      patch management, управление активами и защиту ИТ-инфраструктуры.
+    remediation_steps:
+      - "Внедрить CIS Benchmarks для всех серверных ОС"
+      - "Настроить автоматизированное управление патчами"
+      - "Провести инвентаризацию всех ИТ-активов"
+      - "Запустить регулярные vulnerability scans"
+
+  - id: CC5.3
+    title: "Policies and Procedures Deployment"
+    category: control_activities
+    requires:
+      - PolicyManagementFramework
+      - PolicyVersionControl
+      - PolicyAcknowledgmentProcess
+    evidence_types:
+      - published_policies_inventory
+      - policy_acknowledgment_records
+      - policy_review_schedule
+      - policy_exception_management_records
+    risk_weight: 0.5
+    frameworks:
+      iso27001: ["A.5.1", "A.5.37", "A.7.2"]
+      nist: ["PM-1", "PL-4", "AT-1"]
+      cis: ["14.1", "14.2", "14.7"]
+    auto_remediable: false
+    sla_hours: 240
+    owner_role: security_team
+    audit_frequency: annual
+    description: >
+      Организация разворачивает контрольные мероприятия через политики,
+      устанавливающие ожидания, и процедуры, описывающие порядок их
+      реализации. Все сотрудники осведомлены о действующих политиках.
+    remediation_steps:
+      - "Опубликовать все политики ИБ в едином репозитории"
+      - "Настроить ежегодное подтверждение прочтения политик"
+      - "Установить цикл пересмотра политик (минимум ежегодно)"
+      - "Создать процесс управления исключениями из политик"

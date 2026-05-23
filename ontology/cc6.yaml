@@ -1,0 +1,261 @@
+# CC6 — Logical and Physical Access Controls
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Логический и физический контроль доступа — наиболее технически автоматизируемая категория
+
+controls:
+
+  - id: CC6.1
+    title: "Logical and Physical Address Restrictions"
+    category: logical_access
+    requires:
+      - MFA
+      - RBAC
+      - PasswordPolicy
+      - LeastPrivilegePolicy
+    evidence_types:
+      - aws_iam_scan
+      - okta_mfa_check
+      - password_policy_audit
+      - access_control_matrix
+      - privileged_access_review
+    risk_weight: 0.9
+    frameworks:
+      iso27001: ["A.5.15", "A.5.16", "A.8.2", "A.8.3"]
+      nist: ["AC-2", "AC-3", "IA-2", "IA-5"]
+      cis: ["5.1", "5.2", "6.1", "6.2"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Логический доступ к программному обеспечению, данным и оборудованию
+      ограничен только авторизованными пользователями. MFA обязателен для всех
+      пользователей. Политика паролей соответствует требованиям безопасности.
+      Реализован принцип минимальных привилегий.
+    remediation_steps:
+      - "Включить MFA для всех пользователей в Okta и AWS IAM"
+      - "Настроить IAM password policy: minLen=12, require uppercase/numbers/symbols"
+      - "Удалить избыточные административные привилегии"
+      - "Провести quarterly access review с деактивацией неиспользуемых учётных записей"
+
+  - id: CC6.2
+    title: "Prior to Issuance: Authorization for Access"
+    category: logical_access
+    requires:
+      - AccessRequestProcess
+      - ManagerApprovalWorkflow
+      - AccountProvisioningPolicy
+    evidence_types:
+      - access_request_tickets
+      - approval_workflow_records
+      - user_provisioning_logs
+      - onboarding_checklist_records
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.16", "A.5.18", "A.8.2"]
+      nist: ["AC-2", "IA-2", "IA-8"]
+      cis: ["5.1", "5.2", "6.1"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Все учётные записи пользователей создаются только после явного авторизованного
+      запроса. Каждое выдача доступа документируется и одобрена ответственным
+      менеджером или владельцем системы до предоставления доступа.
+    remediation_steps:
+      - "Внедрить formal access request workflow (ITSM тикеты)"
+      - "Убедиться что все пользователи Okta/AWS имеют тег approved=true"
+      - "Настроить автоматическую деактивацию неодобренных аккаунтов"
+
+  - id: CC6.3
+    title: "Role-Based Access and Separation of Duties"
+    category: logical_access
+    requires:
+      - RBAC
+      - SeparationOfDutiesPolicy
+      - PrivilegedAccessManagement
+    evidence_types:
+      - rbac_configuration_audit
+      - privilege_escalation_logs
+      - separation_of_duties_matrix
+      - pam_tool_reports
+    risk_weight: 0.9
+    frameworks:
+      iso27001: ["A.5.15", "A.5.18", "A.8.2", "A.8.3"]
+      nist: ["AC-2", "AC-17", "AC-20", "IA-2"]
+      cis: ["5.4", "6.1", "6.2", "6.3"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Доступ к ресурсам предоставляется на основе ролей, а не индивидуально.
+      Реализовано разделение обязанностей для критичных операций.
+      Привилегированные роли (SUPER_ADMIN, ORG_ADMIN) присваиваются только
+      при бизнес-необходимости и регулярно пересматриваются.
+    remediation_steps:
+      - "Перейти с user-based на role-based permissions везде"
+      - "Удалить прямые AdministratorAccess политики у IAM пользователей"
+      - "Внедрить Just-in-Time (JIT) доступ для привилегированных операций"
+
+  - id: CC6.4
+    title: "Physical Access Controls"
+    category: physical_access
+    requires:
+      - PhysicalAccessPolicy
+      - DataCenterSecurityPolicy
+      - VisitorManagementProcess
+    evidence_types:
+      - physical_access_logs
+      - badge_access_records
+      - data_center_audit_reports
+      - visitor_log_records
+      - cctv_monitoring_evidence
+    risk_weight: 0.7
+    frameworks:
+      iso27001: ["A.7.1", "A.7.2", "A.7.3"]
+      nist: ["PE-1", "PE-2", "PE-3"]
+      cis: ["10.1", "10.2"]
+    auto_remediable: false
+    sla_hours: 72
+    owner_role: security_team
+    audit_frequency: quarterly
+    description: >
+      Физический доступ к объектам ограничен и контролируется.
+      Для облачных организаций: контроль физического доступа делегирован
+      провайдерам (AWS/GCP/Azure) — требуется SOC 2 отчёт провайдера.
+      Офисные помещения с оборудованием требуют собственных контролей.
+    remediation_steps:
+      - "Получить и задокументировать SOC 2 отчёт облачного провайдера"
+      - "Настроить badge-доступ к серверным помещениям"
+      - "Вести журнал посетителей с сотрудником-сопровождающим"
+
+  - id: CC6.5
+    title: "Termination and Transfer of Access"
+    category: logical_access
+    requires:
+      - OffboardingProcess
+      - AccessRevocationPolicy
+      - RoleChangeProcess
+    evidence_types:
+      - offboarding_checklist_records
+      - access_revocation_tickets
+      - hr_termination_notifications
+      - dormant_account_audit
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.5.18", "A.7.3", "A.8.1"]
+      nist: ["AC-2", "MP-6", "PE-16"]
+      cis: ["3.7", "5.3", "6.2"]
+    auto_remediable: true
+    sla_hours: 4
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Логический и физический доступ аннулируется при увольнении или смене
+      ролей сотрудников. Аккаунты деактивируются в день увольнения.
+      Регулярный аудит выявляет и деактивирует dormant accounts.
+    remediation_steps:
+      - "Автоматизировать offboarding: деактивация за <4 часов после увольнения"
+      - "Настроить HR→IT нотификации для триггера offboarding workflow"
+      - "Ежеквартальный аудит аккаунтов без активности >90 дней"
+
+  - id: CC6.6
+    title: "Logical Access Security Measures"
+    category: network_security
+    requires:
+      - NetworkSecurityPolicy
+      - FirewallPolicy
+      - SecurityGroupPolicy
+      - IntrustionDetectionSystem
+    evidence_types:
+      - aws_security_group_audit
+      - firewall_rule_review
+      - network_access_control_reports
+      - ids_ips_logs
+    risk_weight: 0.9
+    frameworks:
+      iso27001: ["A.8.20", "A.8.21", "A.8.22"]
+      nist: ["SC-7", "CA-3", "AC-17"]
+      cis: ["12.1", "12.2", "13.4"]
+    auto_remediable: true
+    sla_hours: 12
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Логический доступ к системам защищён от угроз извне системных границ.
+      Security Groups и firewall rules запрещают unnecessary inbound access.
+      Опасные порты (SSH, RDP, DB) не открыты в интернет без обоснования.
+    remediation_steps:
+      - "Закрыть все security group rules с source 0.0.0.0/0 на опасные порты"
+      - "Перевести SSH-доступ на bastion/VPN"
+      - "Внедрить WAF для веб-ресурсов"
+      - "Настроить IDS/IPS мониторинг периметра"
+
+  - id: CC6.7
+    title: "Restrictions on Information Transmission"
+    category: data_protection
+    requires:
+      - DataEncryptionPolicy
+      - EncryptionAtRestPolicy
+      - EncryptionInTransitPolicy
+      - DLPPolicy
+    evidence_types:
+      - s3_encryption_audit
+      - dynamodb_encryption_audit
+      - tls_configuration_scan
+      - kms_key_usage_audit
+      - lambda_secret_scan
+    risk_weight: 0.85
+    frameworks:
+      iso27001: ["A.8.10", "A.8.11", "A.8.12"]
+      nist: ["MP-2", "MP-3", "MP-5", "MP-6"]
+      cis: ["3.6", "3.7", "10.2"]
+    auto_remediable: true
+    sla_hours: 24
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Ограничения применяются к передаче и хранению информации для защиты от
+      несанкционированного доступа. Данные в покое шифруются (AES-256).
+      Данные в движении защищены TLS 1.2+. Секреты не хранятся в plaintext.
+    remediation_steps:
+      - "Включить server-side encryption для всех S3 бакетов"
+      - "Включить SSE для всех DynamoDB таблиц"
+      - "Перенести все секреты из переменных окружения в AWS Secrets Manager/KMS"
+      - "Настроить принудительное TLS на всех API endpoints"
+
+  - id: CC6.8
+    title: "Malware Prevention and Detection"
+    category: endpoint_security
+    requires:
+      - MalwareProtectionPolicy
+      - EDRSolution
+      - PatchManagementProcess
+      - FileIntegrityMonitoring
+    evidence_types:
+      - edr_deployment_evidence
+      - malware_scan_logs
+      - vulnerability_scan_results
+      - file_integrity_monitoring_reports
+      - endpoint_compliance_reports
+    risk_weight: 0.8
+    frameworks:
+      iso27001: ["A.8.7", "A.8.8", "A.8.16"]
+      nist: ["SI-3", "SI-4", "SI-7"]
+      cis: ["10.1", "10.5", "13.2"]
+    auto_remediable: false
+    sla_hours: 48
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Предотвращение, обнаружение и устранение вредоносного программного
+      обеспечения реализованы на всех управляемых устройствах. EDR/AV
+      развёртывается централизованно. Обновления антивирусных сигнатур
+      выполняются автоматически.
+    remediation_steps:
+      - "Развернуть EDR/AV на всех управляемых устройствах"
+      - "Настроить MDM политики запрещения неодобренного ПО"
+      - "Установить file integrity monitoring на критичных серверах"
+      - "Регулярные vulnerability scans с приоритизацией по CVSS"

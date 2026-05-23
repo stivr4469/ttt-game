@@ -1,0 +1,43 @@
+# CC8 — Change Management
+# Источник: AICPA SOC 2 Trust Services Criteria 2017 (updated 2022)
+# Категория: Управление изменениями — контролируемые изменения в системах и инфраструктуре
+
+controls:
+
+  - id: CC8.1
+    title: "Change Management Infrastructure, Data, Software, and Procedures"
+    category: change_management
+    requires:
+      - ChangeManagementPolicy
+      - ChangeApprovalBoard
+      - BranchProtectionPolicy
+      - CodeReviewProcess
+      - ReleaseManagementProcess
+    evidence_types:
+      - github_branch_protection_audit
+      - code_review_records
+      - change_request_approvals
+      - deployment_pipeline_audit
+      - change_advisory_board_minutes
+      - rollback_procedures_documentation
+    risk_weight: 0.9
+    frameworks:
+      iso27001: ["A.8.19", "A.8.32", "A.8.33"]
+      nist: ["CM-3", "CM-4", "CM-5", "SA-10"]
+      cis: ["2.5", "4.1", "16.1", "16.2"]
+    auto_remediable: true
+    sla_hours: 12
+    owner_role: security_team
+    audit_frequency: continuous
+    description: >
+      Управление изменениями в инфраструктуре, данных, программном обеспечении
+      и процедурах реализовано через формализованный процесс. Все изменения
+      в production проходят через код-ревью и одобрение. Branch protection
+      запрещает прямые коммиты в main без pull request.
+    remediation_steps:
+      - "Включить branch protection на main: требовать PR с минимум 1 ревьюером"
+      - "Запретить прямые force-pushes в main"
+      - "Настроить обязательные статус-проверки (CI/CD) перед мёрджем"
+      - "Создать процесс Change Advisory Board для production изменений"
+      - "Задокументировать rollback procedures для всех критичных систем"
+      - "Хранить всё конфигурационное управление в IaC (Terraform/CDK)"
