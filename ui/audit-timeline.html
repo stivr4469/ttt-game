@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Audit Timeline — Compliance Sandbox</title>
+<style>
+  :root {
+    --bg:       #080d1a;
+    --s1:       #0d1426;
+    --s2:       #111b2e;
+    --s3:       #162035;
+    --border:   #1e2d4a;
+    --text:     #e2e8f0;
+    --muted:    #64748b;
+    --accent:   #3b82f6;
+    --accent2:  #60a5fa;
+    --pass:     #22c55e;
+    --fail:     #ef4444;
+    --warn:     #f59e0b;
+    --teal:     #00d4aa;
+    --header-h: 56px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
+
+  /* ── Шапка ── */
+  header {
+    height: var(--header-h); display: flex; align-items: center; gap: 12px;
+    padding: 0 20px; background: var(--s1); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 100;
+  }
+  header h1 { font-size: 15px; font-weight: 700; flex: 1; display: flex; align-items: center; gap: 10px; }
+  .btn-back { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; }
+  .btn-back:hover { background: var(--s2); color: var(--text); }
+  .user-info { font-size: 12px; color: var(--muted); background: var(--s2); padding: 4px 12px; border-radius: 20px; }
+
+  /* ── Горизонтальная навигация ── */
+  .top-nav {
+    display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+    scrollbar-width: none; margin-left: 12px;
+  }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .top-nav a {
+    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+    color: var(--muted); text-decoration: none; border-radius: 6px;
+    font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+  }
+  .top-nav a:hover { background: var(--s2); color: var(--text); }
+  .top-nav a.active { background: rgba(0,212,170,.12); color: var(--teal); }
+  .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+  main { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
+
+  /* ── Wizard ── */
+  #wizard { display: none; }
+  #wizard.visible { display: block; }
+
+  .wizard-card {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 16px;
+    padding: 36px 40px; max-width: 640px; margin: 0 auto;
+  }
+  .wizard-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
+  .wizard-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
+
+  /* Шаги прогресса */
+  .wizard-steps { display: flex; align-items: center; gap: 0; margin-bottom: 36px; }
+  .wstep {
+    display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
+    flex: 1;
+  }
+  .wstep .num {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700; flex-shrink: 0; transition: all .2s;
+  }
+  .wstep.active .num { border-color: var(--teal); color: var(--teal); background: rgba(0,212,170,.1); }
+  .wstep.done .num { border-color: var(--pass); background: var(--pass); color: #000; }
+  .wstep-line { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
+
+  /* Содержимое шагов */
+  .wstep-content { display: none; }
+  .wstep-content.active { display: block; }
+
+  .field-label { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
+  .field-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .date-input {
+    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px 16px; color: var(--text); font-size: 15px; outline: none;
+    transition: border-color .15s;
+  }
+  .date-input:focus { border-color: var(--teal); }
+
+  /* Выбор фреймворка */
+  .framework-options { display: flex; flex-direction: column; gap: 12px; }
+  .fw-option {
+    background: var(--s2); border: 2px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; cursor: pointer; transition: all .15s;
+  }
+  .fw-option:hover { border-color: var(--accent); }
+  .fw-option.selected { border-color: var(--teal); background: rgba(0,212,170,.05); }
+  .fw-option .fw-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .fw-option .fw-desc { font-size: 12px; color: var(--muted); }
+
+  /* Выбор систем */
+  .systems-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .sys-option {
+    background: var(--s2); border: 2px solid var(--border); border-radius: 10px;
+    padding: 14px 16px; cursor: pointer; transition: all .15s;
+  }
+  .sys-option:hover { border-color: var(--accent); }
+  .sys-option.selected { border-color: var(--teal); background: rgba(0,212,170,.05); }
+  .sys-option .sys-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
+  .sys-option .sys-desc { font-size: 11px; color: var(--muted); }
+  .sys-check { float: right; color: var(--teal); display: none; }
+  .sys-option.selected .sys-check { display: block; }
+
+  /* Подтверждение */
+  .confirm-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .confirm-row:last-child { border-bottom: none; }
+  .confirm-val { color: var(--teal); font-weight: 600; }
+
+  /* Кнопки wizard */
+  .wizard-actions { display: flex; gap: 12px; margin-top: 28px; justify-content: flex-end; }
+  .btn {
+    padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
+    border: none; transition: all .15s;
+  }
+  .btn-primary { background: var(--teal); color: #000; }
+  .btn-primary:hover { background: #00bfa0; }
+  .btn-primary:disabled { background: var(--muted); color: var(--s1); cursor: not-allowed; }
+  .btn-secondary { background: var(--s2); color: var(--text); border: 1px solid var(--border); }
+  .btn-secondary:hover { border-color: var(--accent); }
+
+  /* ── Dashboard ── */
+  #dashboard { display: none; }
+  #dashboard.visible { display: block; }
+
+  /* Счётчик дней */
+  .countdown-banner {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 16px;
+    padding: 24px 28px; margin-bottom: 24px;
+    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
+  }
+  .countdown-days { font-size: 52px; font-weight: 800; line-height: 1; color: var(--teal); }
+  .countdown-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .countdown-info { flex: 1; min-width: 180px; }
+  .countdown-date { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+
+  /* Risk badge */
+  .risk-badge {
+    padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 700;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .risk-badge.green { background: rgba(34,197,94,.15); color: var(--pass); border: 1px solid rgba(34,197,94,.3); }
+  .risk-badge.yellow { background: rgba(245,158,11,.15); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
+  .risk-badge.red { background: rgba(239,68,68,.15); color: var(--fail); border: 1px solid rgba(239,68,68,.3); }
+
+  /* Прогресс */
+  .progress-section { margin-top: 16px; width: 100%; }
+  .progress-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .progress-bar-wrap { background: var(--s3); border-radius: 6px; height: 8px; overflow: hidden; }
+  .progress-bar-fill { height: 100%; background: var(--teal); border-radius: 6px; transition: width .5s; }
+
+  /* Кнопка создать новый */
+  .new-btn {
+    margin-left: auto; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 7px 14px; color: var(--muted); font-size: 12px; cursor: pointer;
+  }
+  .new-btn:hover { border-color: var(--teal); color: var(--teal); }
+
+  /* ── Вертикальный Timeline ── */
+  .timeline-section { margin-top: 28px; }
+  .timeline-section h2 { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 20px; }
+
+  .timeline-list { position: relative; padding-left: 32px; }
+  .timeline-list::before {
+    content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px;
+    background: var(--border);
+  }
+
+  .ms-item {
+    position: relative; margin-bottom: 16px;
+  }
+  .ms-item::before {
+    content: ''; position: absolute; left: -28px; top: 18px;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--s3); border: 2px solid var(--border);
+    transition: all .2s;
+  }
+  .ms-item.completed::before { background: var(--pass); border-color: var(--pass); }
+  .ms-item.in_progress::before { background: var(--teal); border-color: var(--teal); box-shadow: 0 0 8px var(--teal); }
+  .ms-item.blocked::before { background: var(--fail); border-color: var(--fail); }
+  .ms-item.overdue::before { background: var(--warn); border-color: var(--warn); }
+
+  .ms-card {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 16px 18px; transition: border-color .15s;
+  }
+  .ms-item.in_progress .ms-card { border-color: var(--teal); background: rgba(0,212,170,.03); }
+  .ms-item.completed .ms-card { opacity: 0.7; }
+
+  .ms-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+  .ms-name { font-size: 14px; font-weight: 600; flex: 1; }
+  .ms-date { font-size: 11px; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
+
+  .ms-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .ms-owner { font-size: 11px; color: var(--muted); background: var(--s3); border-radius: 4px; padding: 2px 8px; }
+  .ms-desc { font-size: 12px; color: var(--muted); }
+
+  .ms-status-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
+    text-transform: uppercase; letter-spacing: .5px;
+  }
+  .ms-status-badge.not_started { background: rgba(100,116,139,.15); color: var(--muted); }
+  .ms-status-badge.in_progress  { background: rgba(0,212,170,.15); color: var(--teal); }
+  .ms-status-badge.completed    { background: rgba(34,197,94,.15); color: var(--pass); }
+  .ms-status-badge.blocked      { background: rgba(239,68,68,.15); color: var(--fail); }
+
+  /* Детальная панель milestone */
+  .ms-detail { display: none; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
+  .ms-detail.open { display: block; }
+
+  .ms-notes-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+  .ms-notes-input {
+    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 12px; color: var(--text); font-size: 12px; resize: vertical;
+    min-height: 60px; outline: none; font-family: inherit;
+  }
+  .ms-notes-input:focus { border-color: var(--teal); }
+
+  .ms-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .ms-btn {
+    padding: 5px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;
+    border: 1px solid var(--border); background: var(--s2); color: var(--muted);
+    transition: all .15s;
+  }
+  .ms-btn:hover { background: var(--s3); }
+  .ms-btn.complete { border-color: var(--pass); color: var(--pass); }
+  .ms-btn.complete:hover { background: rgba(34,197,94,.1); }
+  .ms-btn.block { border-color: var(--fail); color: var(--fail); }
+  .ms-btn.block:hover { background: rgba(239,68,68,.1); }
+  .ms-btn.progress { border-color: var(--teal); color: var(--teal); }
+  .ms-btn.progress:hover { background: rgba(0,212,170,.1); }
+  .ms-btn.reset { border-color: var(--muted); }
+  .ms-btn.save { border-color: var(--accent); color: var(--accent2); }
+  .ms-btn.save:hover { background: rgba(59,130,246,.1); }
+
+  /* Кнопка раскрытия */
+  .ms-expand-btn { cursor: pointer; margin-left: auto; color: var(--muted); font-size: 13px; padding: 2px 6px; }
+  .ms-expand-btn:hover { color: var(--text); }
+
+  /* Overdue alert */
+  .overdue-alert {
+    background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: 10px;
+    padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--fail);
+  }
+
+  /* Loader и ошибки */
+  #loader { text-align: center; padding: 60px 20px; color: var(--muted); }
+  #error-msg { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: 10px; padding: 16px; margin: 20px 0; color: var(--fail); display: none; }
+
+  /* Toast */
+  #toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--s1);
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px;
+    font-size: 13px; z-index: 999; opacity: 0; transition: opacity .3s;
+    pointer-events: none; max-width: 300px;
+  }
+  #toast.show { opacity: 1; }
+  #toast.ok { border-color: var(--pass); color: var(--pass); }
+  #toast.err { border-color: var(--fail); color: var(--fail); }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📅 Audit Timeline &amp; Readiness</h1>
+  <!-- Горизонтальная навигация по разделам платформы -->
+  <nav class="top-nav" id="topNav">
+    <a href="/">📊 Dashboard</a>
+    <span class="nav-sep"></span>
+    <a href="/training">🎓 Training</a>
+    <a href="/background-checks">👤 BG Checks</a>
+    <span class="nav-sep"></span>
+    <a href="/vulnerabilities">🔒 Vulns</a>
+    <a href="/pentests">🔍 Pen Tests</a>
+    <a href="/risk-register">⚠️ Risk</a>
+    <span class="nav-sep"></span>
+    <a href="/audit-timeline" class="active">📅 Timeline</a>
+    <a href="/questionnaires">📋 Questionnaires</a>
+    <span class="nav-sep"></span>
+    <a href="/access-review">👥 Access Review</a>
+    <a href="/auditor-portal">🔎 Auditor</a>
+    <span class="nav-sep"></span>
+    <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+  </nav>
+  <span class="user-info" id="user-badge">—</span>
+</header>
+
+<main>
+  <div id="loader">Загружаем данные...</div>
+  <div id="error-msg"></div>
+
+  <!-- ══════════════ WIZARD ══════════════ -->
+  <div id="wizard">
+    <div class="wizard-card">
+      <div class="wizard-title">Настройка Audit Timeline</div>
+      <div class="wizard-subtitle">Заполните 4 шага чтобы создать временную шкалу подготовки к аудиту</div>
+
+      <!-- Индикатор шагов -->
+      <div class="wizard-steps">
+        <div class="wstep active" id="ws1">
+          <div class="num">1</div>
+          <span>Дата</span>
+        </div>
+        <div class="wstep-line"></div>
+        <div class="wstep" id="ws2">
+          <div class="num">2</div>
+          <span>Фреймворк</span>
+        </div>
+        <div class="wstep-line"></div>
+        <div class="wstep" id="ws3">
+          <div class="num">3</div>
+          <span>Системы</span>
+        </div>
+        <div class="wstep-line"></div>
+        <div class="wstep" id="ws4">
+          <div class="num">4</div>
+          <span>Подтверждение</span>
+        </div>
+      </div>
+
+      <!-- Шаг 1: Дата аудита -->
+      <div class="wstep-content active" id="step1">
+        <div class="field-label">Когда запланирован аудит?</div>
+        <input type="date" class="date-input" id="auditDateInput">
+        <div class="field-hint">Укажите дату начала работы внешних аудиторов</div>
+        <div class="wizard-actions">
+          <button class="btn btn-primary" id="step1Next">Далее →</button>
+        </div>
+      </div>
+
+      <!-- Шаг 2: Фреймворк -->
+      <div class="wstep-content" id="step2">
+        <div class="field-label">Выберите тип аудита</div>
+        <div class="framework-options">
+          <div class="fw-option selected" data-fw="soc2_type2">
+            <div class="fw-name">SOC2 Type II</div>
+            <div class="fw-desc">Оценка эффективности контролей за период (обычно 6-12 месяцев). Требует ~16 недель подготовки.</div>
+          </div>
+          <div class="fw-option" data-fw="soc2_type1">
+            <div class="fw-name">SOC2 Type I</div>
+            <div class="fw-desc">Оценка наличия и дизайна контролей на конкретную дату. Требует ~8 недель подготовки.</div>
+          </div>
+        </div>
+        <div class="wizard-actions">
+          <button class="btn btn-secondary" id="step2Back">← Назад</button>
+          <button class="btn btn-primary" id="step2Next">Далее →</button>
+        </div>
+      </div>
+
+      <!-- Шаг 3: Системы в области -->
+      <div class="wstep-content" id="step3">
+        <div class="field-label">Выберите системы в области аудита</div>
+        <div class="systems-grid" id="systemsGrid">
+          <!-- Заполняется из API /api/audit-timeline/wizard/systems -->
+        </div>
+        <div class="field-hint" style="margin-top: 12px;">Выбрано систем: <span id="selectedCount">0</span></div>
+        <div class="wizard-actions">
+          <button class="btn btn-secondary" id="step3Back">← Назад</button>
+          <button class="btn btn-primary" id="step3Next">Далее →</button>
+        </div>
+      </div>
+
+      <!-- Шаг 4: Подтверждение -->
+      <div class="wstep-content" id="step4">
+        <div class="field-label">Подтвердите настройки</div>
+        <div id="confirmDetails">
+          <div class="confirm-row"><span>Дата аудита</span><span class="confirm-val" id="cDate">—</span></div>
+          <div class="confirm-row"><span>Фреймворк</span><span class="confirm-val" id="cFramework">—</span></div>
+          <div class="confirm-row"><span>Систем в области</span><span class="confirm-val" id="cSystems">—</span></div>
+          <div class="confirm-row"><span>Контролей в области</span><span class="confirm-val" id="cControls">—</span></div>
+          <div class="confirm-row"><span>Milestone-ов</span><span class="confirm-val" id="cMilestones">—</span></div>
+        </div>
+        <div class="wizard-actions">
+          <button class="btn btn-secondary" id="step4Back">← Назад</button>
+          <button class="btn btn-primary" id="createBtn">Создать Timeline</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════ DASHBOARD ══════════════ -->
+  <div id="dashboard">
+
+    <!-- Счётчик дней и риск -->
+    <div class="countdown-banner">
+      <div>
+        <div class="countdown-days" id="daysCount">—</div>
+        <div class="countdown-label">дней до аудита</div>
+      </div>
+      <div class="countdown-info">
+        <div class="countdown-date" id="auditDateDisp">—</div>
+        <div style="margin-top: 8px;" id="riskBadgeWrap"></div>
+        <div class="progress-section">
+          <div class="progress-header">
+            <span>Общая готовность</span>
+            <span id="progressPct">0%</span>
+          </div>
+          <div class="progress-bar-wrap">
+            <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+      <button class="new-btn" id="newTimelineBtn">+ Новый timeline</button>
+    </div>
+
+    <!-- Предупреждение о просроченных -->
+    <div class="overdue-alert" id="overdueAlert" style="display:none"></div>
+
+    <!-- Вертикальная временная шкала -->
+    <div class="timeline-section">
+      <h2>Milestones</h2>
+      <div class="timeline-list" id="timelineList"></div>
+    </div>
+
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<script>
+// ── Состояние ──────────────────────────────────────────────────────────────
+const state = {
+  token: null,
+  role: null,
+  userName: null,
+  timelineId: null,
+  selectedFramework: 'soc2_type2',
+  selectedSystems: new Set(),
+  systemsData: [],
+  step: 1,
+};
+
+// ── Вспомогательные ──────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const resp = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    credentials: 'same-origin',
+    ...opts,
+  });
+  if (resp.status === 401) {
+    window.location.href = '/login';
+    throw new Error('Unauthorized');
+  }
+  if (!resp.ok) {
+    const body = await resp.json().catch(() => ({}));
+    throw new Error(body.detail || `HTTP ${resp.status}`);
+  }
+  return resp.json();
+}
+
+function showToast(msg, type = 'ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${type}`;
+  setTimeout(() => { t.className = ''; }, 3000);
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function hideError() {
+  document.getElementById('error-msg').style.display = 'none';
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function riskLabel(level) {
+  const map = { green: '🟢 On Track', yellow: '🟡 At Risk', red: '🔴 Critical' };
+  return map[level] || '—';
+}
+
+// ── Auth: читаем данные пользователя через cookie-based API ──
+async function loadAuth() {
+  try {
+    const resp = await fetch('/api/auth/me', { credentials: 'same-origin' });
+    if (resp.status === 401) return false;
+    const user = await resp.json();
+    state.role = user.role || 'viewer';
+    state.userName = user.name || user.email || 'User';
+    const badge = document.getElementById('user-badge');
+    if (badge) badge.textContent = `${state.userName} (${state.role})`;
+    return true;
+  } catch { return false; }
+}
+
+// ── Wizard: управление шагами ───────────────────────────────────────────────
+function goStep(n) {
+  // Скрываем текущий шаг
+  document.querySelectorAll('.wstep-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.wstep').forEach((el, i) => {
+    el.classList.remove('active', 'done');
+    if (i + 1 < n) el.classList.add('done');
+    if (i + 1 === n) el.classList.add('active');
+  });
+  document.getElementById(`step${n}`).classList.add('active');
+  state.step = n;
+}
+
+// Шаг 1 → 2
+document.getElementById('step1Next').addEventListener('click', () => {
+  const d = document.getElementById('auditDateInput').value;
+  if (!d) { showToast('Укажите дату аудита', 'err'); return; }
+  goStep(2);
+});
+
+// Шаг 2 кнопки
+document.getElementById('step2Back').addEventListener('click', () => goStep(1));
+document.getElementById('step2Next').addEventListener('click', () => {
+  loadSystems();
+  goStep(3);
+});
+
+// Клик по фреймворку
+document.querySelectorAll('.fw-option').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.fw-option').forEach(e => e.classList.remove('selected'));
+    el.classList.add('selected');
+    state.selectedFramework = el.dataset.fw;
+  });
+});
+
+// Шаг 3 кнопки
+document.getElementById('step3Back').addEventListener('click', () => goStep(2));
+document.getElementById('step3Next').addEventListener('click', () => {
+  fillConfirmation();
+  goStep(4);
+});
+
+// Шаг 4 кнопки
+document.getElementById('step4Back').addEventListener('click', () => goStep(3));
+document.getElementById('createBtn').addEventListener('click', createTimeline);
+
+// Загрузка систем из API
+async function loadSystems() {
+  const grid = document.getElementById('systemsGrid');
+  grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Загружаем системы...</div>';
+  try {
+    const systems = await apiFetch('/api/audit-timeline/wizard/systems');
+    state.systemsData = systems;
+    grid.innerHTML = '';
+    systems.forEach(sys => {
+      const div = document.createElement('div');
+      div.className = 'sys-option' + (state.selectedSystems.has(sys.id) ? ' selected' : '');
+      div.innerHTML = `
+        <span class="sys-check">✓</span>
+        <div class="sys-name">${sys.name}</div>
+        <div class="sys-desc">${sys.description}</div>
+      `;
+      div.addEventListener('click', () => {
+        if (state.selectedSystems.has(sys.id)) {
+          state.selectedSystems.delete(sys.id);
+          div.classList.remove('selected');
+        } else {
+          state.selectedSystems.add(sys.id);
+          div.classList.add('selected');
+        }
+        document.getElementById('selectedCount').textContent = state.selectedSystems.size;
+      });
+      grid.appendChild(div);
+    });
+  } catch (e) {
+    // Если нет прав (не admin) — показываем стандартный набор
+    grid.innerHTML = `<div style="color:var(--muted);font-size:12px;grid-column:1/-1">
+      Не удалось загрузить список систем. Используем стандартный набор.
+    </div>`;
+    ['AWS Infrastructure', 'Okta', 'GitHub', 'PostgreSQL'].forEach(name => {
+      state.selectedSystems.add(name.toLowerCase().replace(' ', '_'));
+    });
+  }
+}
+
+// Заполнение страницы подтверждения
+function fillConfirmation() {
+  const d = document.getElementById('auditDateInput').value;
+  const fwLabels = { soc2_type2: 'SOC2 Type II', soc2_type1: 'SOC2 Type I' };
+  const msCounts = { soc2_type2: 10, soc2_type1: 6 };
+
+  // Собираем контроли из выбранных систем
+  const controls = new Set();
+  state.systemsData.filter(s => state.selectedSystems.has(s.id)).forEach(s => {
+    (s.controls || []).forEach(c => controls.add(c));
+  });
+
+  document.getElementById('cDate').textContent = fmtDate(d);
+  document.getElementById('cFramework').textContent = fwLabels[state.selectedFramework] || state.selectedFramework;
+  document.getElementById('cSystems').textContent = state.selectedSystems.size;
+  document.getElementById('cControls').textContent = controls.size || '33 (все)';
+  document.getElementById('cMilestones').textContent = msCounts[state.selectedFramework] || '?';
+}
+
+// Создание timeline
+async function createTimeline() {
+  const btn = document.getElementById('createBtn');
+  btn.disabled = true;
+  btn.textContent = 'Создаём...';
+
+  const d = document.getElementById('auditDateInput').value;
+
+  // Собираем контроли из выбранных систем
+  const controls = new Set();
+  state.systemsData.filter(s => state.selectedSystems.has(s.id)).forEach(s => {
+    (s.controls || []).forEach(c => controls.add(c));
+  });
+
+  const body = {
+    audit_date: d,
+    framework: state.selectedFramework,
+    scope: {
+      systems: Array.from(state.selectedSystems),
+      in_scope_controls: Array.from(controls),
+      excluded: [],
+    },
+  };
+
+  try {
+    await apiFetch('/api/audit-timeline', { method: 'POST', body: JSON.stringify(body) });
+    showToast('Timeline создан успешно!', 'ok');
+    setTimeout(() => loadDashboard(), 500);
+  } catch (e) {
+    showToast(`Ошибка: ${e.message}`, 'err');
+    btn.disabled = false;
+    btn.textContent = 'Создать Timeline';
+  }
+}
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function loadDashboard() {
+  document.getElementById('loader').style.display = 'block';
+  document.getElementById('wizard').classList.remove('visible');
+  document.getElementById('dashboard').classList.remove('visible');
+  hideError();
+
+  try {
+    const status = await apiFetch('/api/audit-timeline');
+
+    if (!status.active) {
+      // Нет активного timeline — показываем wizard
+      document.getElementById('loader').style.display = 'none';
+      // Wizard доступен только admin
+      if (state.role === 'admin') {
+        document.getElementById('wizard').classList.add('visible');
+      } else {
+        showError('Audit Timeline ещё не создан. Обратитесь к администратору.');
+      }
+      return;
+    }
+
+    renderDashboard(status);
+  } catch (e) {
+    document.getElementById('loader').style.display = 'none';
+    showError(`Ошибка загрузки данных: ${e.message}`);
+  }
+}
+
+function renderDashboard(status) {
+  document.getElementById('loader').style.display = 'none';
+  document.getElementById('dashboard').classList.add('visible');
+  state.timelineId = status.timeline_id;
+
+  // Счётчик дней
+  document.getElementById('daysCount').textContent = Math.max(0, status.days_to_audit);
+  document.getElementById('auditDateDisp').textContent =
+    `Аудит: ${fmtDate(status.audit_date)} · ${status.framework === 'soc2_type2' ? 'SOC2 Type II' : 'SOC2 Type I'}`;
+
+  // Risk badge
+  const riskWrap = document.getElementById('riskBadgeWrap');
+  riskWrap.innerHTML = `<span class="risk-badge ${status.risk_level}">${riskLabel(status.risk_level)}</span>`;
+
+  // Прогресс
+  const pct = status.overall_progress_pct || 0;
+  document.getElementById('progressPct').textContent = `${pct}%`;
+  document.getElementById('progressFill').style.width = `${pct}%`;
+
+  // Overdue предупреждение
+  const overdueEl = document.getElementById('overdueAlert');
+  if (status.overdue_milestones && status.overdue_milestones.length > 0) {
+    const names = status.overdue_milestones.map(m => m.name).join(', ');
+    overdueEl.textContent = `⚠️ Просрочены: ${names}`;
+    overdueEl.style.display = 'block';
+  } else {
+    overdueEl.style.display = 'none';
+  }
+
+  // Кнопка новый timeline (только admin)
+  const newBtn = document.getElementById('newTimelineBtn');
+  if (state.role !== 'admin') newBtn.style.display = 'none';
+  newBtn.onclick = () => {
+    document.getElementById('dashboard').classList.remove('visible');
+    document.getElementById('wizard').classList.add('visible');
+    goStep(1);
+  };
+
+  // Загружаем полный timeline с milestones
+  loadMilestones();
+}
+
+async function loadMilestones() {
+  if (!state.timelineId) return;
+  try {
+    const tl = await apiFetch(`/api/audit-timeline/${state.timelineId}`);
+    renderTimeline(tl.milestones || []);
+  } catch (e) {
+    showError(`Ошибка загрузки milestones: ${e.message}`);
+  }
+}
+
+function renderTimeline(milestones) {
+  const list = document.getElementById('timelineList');
+  const today = new Date().toISOString().slice(0, 10);
+  list.innerHTML = '';
+
+  milestones.forEach(ms => {
+    const isOverdue = ms.date < today && ms.status !== 'completed';
+    const statusClass = isOverdue ? 'overdue' : ms.status;
+
+    const item = document.createElement('div');
+    item.className = `ms-item ${statusClass}`;
+    item.dataset.id = ms.id;
+
+    // Только admin и auditor могут менять статусы
+    const canEdit = (state.role === 'admin' || state.role === 'auditor');
+
+    item.innerHTML = `
+      <div class="ms-card">
+        <div class="ms-top">
+          <div class="ms-name">${ms.name}</div>
+          <div class="ms-date">${fmtDate(ms.date)}</div>
+          ${canEdit ? `<span class="ms-expand-btn" title="Раскрыть">▾</span>` : ''}
+        </div>
+        <div class="ms-meta">
+          <span class="ms-status-badge ${ms.status}">${statusLabel(ms.status)}</span>
+          <span class="ms-owner">👤 ${ms.owner}</span>
+          <span class="ms-desc">${ms.description}</span>
+        </div>
+        ${canEdit ? `
+        <div class="ms-detail" id="detail-${ms.id}">
+          <div class="ms-notes-label">Заметки</div>
+          <textarea class="ms-notes-input" id="notes-${ms.id}" placeholder="Добавьте заметки...">${ms.notes || ''}</textarea>
+          <div class="ms-actions">
+            <button class="ms-btn progress" data-ms="${ms.id}" data-status="in_progress">▶ В работе</button>
+            <button class="ms-btn complete" data-ms="${ms.id}" data-status="completed">✓ Завершён</button>
+            <button class="ms-btn block" data-ms="${ms.id}" data-status="blocked">⛔ Заблокирован</button>
+            <button class="ms-btn reset" data-ms="${ms.id}" data-status="not_started">↺ Сбросить</button>
+            <button class="ms-btn save" data-save="${ms.id}">💾 Сохранить заметки</button>
+          </div>
+        </div>
+        ` : ''}
+      </div>
+    `;
+    list.appendChild(item);
+  });
+
+  // Обработчики раскрытия
+  list.querySelectorAll('.ms-expand-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const item = e.target.closest('.ms-item');
+      const msId = item.dataset.id;
+      const detail = document.getElementById(`detail-${msId}`);
+      const isOpen = detail.classList.contains('open');
+      detail.classList.toggle('open', !isOpen);
+      btn.textContent = isOpen ? '▾' : '▴';
+    });
+  });
+
+  // Обработчики смены статуса
+  list.querySelectorAll('.ms-btn[data-status]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const msId = btn.dataset.ms;
+      const newStatus = btn.dataset.status;
+      const notes = document.getElementById(`notes-${msId}`).value;
+      await updateMilestone(msId, newStatus, notes);
+    });
+  });
+
+  // Обработчики сохранения заметок
+  list.querySelectorAll('.ms-btn[data-save]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const msId = btn.dataset.save;
+      const notes = document.getElementById(`notes-${msId}`).value;
+      // Получаем текущий статус из UI
+      const item = list.querySelector(`[data-id="${msId}"]`);
+      const currentBadge = item.querySelector('.ms-status-badge');
+      const currentStatus = [...currentBadge.classList].find(c => c !== 'ms-status-badge') || 'not_started';
+      await updateMilestone(msId, currentStatus, notes);
+    });
+  });
+}
+
+function statusLabel(s) {
+  const map = {
+    not_started: '⏳ Не начат',
+    in_progress:  '🔄 В работе',
+    completed:    '✅ Завершён',
+    blocked:      '⛔ Заблокирован',
+  };
+  return map[s] || s;
+}
+
+async function updateMilestone(milestoneId, status, notes) {
+  if (!state.timelineId) return;
+  try {
+    await apiFetch(
+      `/api/audit-timeline/${state.timelineId}/milestones/${milestoneId}`,
+      { method: 'PATCH', body: JSON.stringify({ status, notes }) }
+    );
+    showToast('Milestone обновлён', 'ok');
+    loadDashboard();  // обновляем весь dashboard
+  } catch (e) {
+    showToast(`Ошибка: ${e.message}`, 'err');
+  }
+}
+
+// ── Инициализация ──────────────────────────────────────────────────────────
+(async function init() {
+  // Устанавливаем минимальную дату: сегодня + 4 недели
+  const minDate = new Date();
+  minDate.setDate(minDate.getDate() + 28);
+  document.getElementById('auditDateInput').min = minDate.toISOString().slice(0, 10);
+
+  const ok = await loadAuth();
+  if (!ok) {
+    document.getElementById('loader').style.display = 'none';
+    showError('Требуется авторизация. <a href="/login" style="color:var(--accent2)">Войдите</a> и попробуйте снова.');
+    return;
+  }
+  loadDashboard();
+})();
+</script>
+</body>
+</html>

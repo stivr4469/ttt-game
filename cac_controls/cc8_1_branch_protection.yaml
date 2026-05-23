@@ -1,0 +1,17 @@
+control_id: CC8.1
+name: Branch Protection on Main
+framework: SOC2
+severity: high
+check:
+  type: mock
+  condition: "branch_protection == true"
+  target: "main_branch"
+  mock_result: false
+  mock_detail: "Branch protection check requires GitHub API integration"
+remediation:
+  type: script
+  command: "python3 fix_infrastructure.py --fix branch_protection"
+  requires_approval: false
+  approver_role: admin
+sla_hours: 72
+tags: [change_management, git, branch]

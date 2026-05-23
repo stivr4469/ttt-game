@@ -1,0 +1,195 @@
+{
+  "id": null,
+  "uid": "soc2-main",
+  "title": "SOC 2 Compliance Dashboard",
+  "tags": ["soc2", "compliance"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Request Rate (req/s)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "red", "value": 50 }] },
+          "unit": "reqps"
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(http_requests_total[1m]))",
+        "legendFormat": "req/s",
+        "datasource": "Prometheus"
+      }]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Error Rate (5xx)",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.01 }] },
+          "unit": "percentunit"
+        }
+      },
+      "targets": [{
+        "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m]))",
+        "legendFormat": "error rate",
+        "datasource": "Prometheus"
+      }]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "P95 Latency",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.5 }, { "color": "red", "value": 2 }] },
+          "unit": "s"
+        }
+      },
+      "targets": [{
+        "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+        "legendFormat": "p95",
+        "datasource": "Prometheus"
+      }]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Total Requests (1h)",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [{
+        "expr": "sum(increase(http_requests_total[1h]))",
+        "legendFormat": "total",
+        "datasource": "Prometheus"
+      }]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP Request Rate by Status",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": { "defaults": { "unit": "reqps", "custom": { "lineWidth": 2 } } },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"2..\"}[1m]))",
+          "legendFormat": "2xx OK",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"4..\"}[1m]))",
+          "legendFormat": "4xx Client Error",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[1m]))",
+          "legendFormat": "5xx Server Error",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Request Latency Percentiles",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": { "defaults": { "unit": "s", "custom": { "lineWidth": 2 } } },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.90, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p90",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "datasource": "Prometheus"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "table",
+      "title": "Top Endpoints by Request Count",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "options": { "sortBy": [{ "displayName": "Requests", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Error Rate" }, "properties": [{ "id": "unit", "value": "percentunit" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "steps": [{ "color": "green", "value": null }, { "color": "red", "value": 0.05 }] } }] }
+        ]
+      },
+      "targets": [{
+        "expr": "sort_desc(sum by (endpoint) (increase(http_requests_total[1h])))",
+        "legendFormat": "{{endpoint}}",
+        "instant": true,
+        "format": "table",
+        "datasource": "Prometheus"
+      }],
+      "transformations": [
+        { "id": "organize", "options": { "renameByName": { "Value": "Requests", "endpoint": "Endpoint" } } }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Auth Failures (401/403) — SOC 2 CC6.1",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "options": {},
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        {
+          "expr": "sort_desc(sum by (endpoint, method) (increase(http_requests_total{status=~\"40[13]\"}[1h])))",
+          "legendFormat": "{{method}} {{endpoint}}",
+          "instant": true,
+          "format": "table",
+          "datasource": "Prometheus"
+        }
+      ],
+      "transformations": [
+        { "id": "organize", "options": { "renameByName": { "Value": "Auth Failures", "endpoint": "Endpoint", "method": "Method" } } }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "Scan Trigger Activity — CC7.2",
+      "gridPos": { "x": 0, "y": 20, "w": 24, "h": 6 },
+      "options": { "legend": { "displayMode": "list", "placement": "right" } },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "drawStyle": "bars", "lineWidth": 1 } } },
+      "targets": [
+        {
+          "expr": "increase(http_requests_total{endpoint=\"/api/scheduler/trigger\", method=\"POST\"}[5m])",
+          "legendFormat": "Manual scan triggered",
+          "datasource": "Prometheus"
+        },
+        {
+          "expr": "increase(http_requests_total{endpoint=~\"/api/run/.*\", method=\"GET\"}[5m])",
+          "legendFormat": "Agent run",
+          "datasource": "Prometheus"
+        }
+      ]
+    }
+  ]
+}

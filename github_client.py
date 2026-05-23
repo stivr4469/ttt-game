@@ -4,6 +4,7 @@ from typing import List, Dict, Optional, Any
 
 import requests
 
+from base_http_client import BaseHTTPClient
 from log_config import get_logger
 
 log = get_logger(__name__)
@@ -12,11 +13,18 @@ _REQUEST_TIMEOUT = 30
 _MAX_RATE_LIMIT_WAITS = 3
 
 
-class GitHubClient:
+class GitHubClient(BaseHTTPClient):
+    """
+    Клиент GitHub API.
+    Наследует _session и интерфейс _get/_post/_patch от BaseHTTPClient,
+    но переопределяет _request — GitHub требует специфичной обработки
+    rate-limit (403 + X-RateLimit-Reset) вместо стандартного retry по 5xx.
+    """
+
     def __init__(self, token: str):
-        self.base_url = "https://api.github.com"
-        self.session = requests.Session()
-        self.session.headers.update({
+        super().__init__(base_url="https://api.github.com", timeout=_REQUEST_TIMEOUT)
+        # Настраиваем заголовки аутентификации на унаследованной сессии
+        self._session.headers.update({
             "Authorization": f"token {token}",
             "Accept": "application/vnd.github.v3+json",
         })
@@ -28,21 +36,26 @@ class GitHubClient:
         self.close()
 
     def close(self):
-        self.session.close()
+        self._session.close()
 
     def _request(
         self,
         method: str,
-        path: str,
+        url: str,
         params: Optional[Dict[str, Any]] = None,
         **kwargs,
     ) -> Optional[requests.Response]:
-        url = f"{self.base_url}{path}"
-        kwargs.setdefault("timeout", _REQUEST_TIMEOUT)
+        """
+        GitHub-специфичный _request: обрабатывает rate-limit (403 + заголовок
+        X-RateLimit-Reset) и secondary rate limit вместо базового retry по 5xx.
+        Возвращает объект Response (не JSON), чтобы каждый метод мог сам
+        решить, нужен ли .json().
+        """
+        kwargs.setdefault("timeout", self.timeout)
 
         for attempt in range(_MAX_RATE_LIMIT_WAITS):
             try:
-                response = self.session.request(method, url, params=params, **kwargs)
+                response = self._session.request(method, url, params=params, **kwargs)
 
                 remaining = int(response.headers.get("X-RateLimit-Remaining", 1))
                 if response.status_code == 403 and remaining == 0:
@@ -81,18 +94,29 @@ class GitHubClient:
         log.error("GitHub rate limit retries exhausted", extra={"method": method, "url": url})
         raise requests.exceptions.RetryError(f"Rate limit retries exhausted for {url}")
 
+    # Перегружаем _get/_post/_patch: передаём полный url (base_url + path),
+    # а params пробрасываем явно через _request
+    def _get(self, path: str, **kwargs) -> Optional[requests.Response]:  # type: ignore[override]
+        return self._request("GET", f"{self.base_url}{path}", **kwargs)
+
+    def _post(self, path: str, **kwargs) -> Optional[requests.Response]:  # type: ignore[override]
+        return self._request("POST", f"{self.base_url}{path}", **kwargs)
+
+    def _patch(self, path: str, **kwargs) -> Optional[requests.Response]:  # type: ignore[override]
+        return self._request("PATCH", f"{self.base_url}{path}", **kwargs)
+
     def get_branch_protection(self, repo: str, branch: str = "main") -> Optional[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/branches/{branch}/protection")
+        response = self._get(f"/repos/{repo}/branches/{branch}/protection")
         return response.json() if response else None
 
     def get_recent_commits(self, repo: str, branch: str = "main", days: int = 30) -> List[Dict[str, Any]]:
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
         params = {"sha": branch, "since": since, "per_page": 100}
-        response = self._request("GET", f"/repos/{repo}/commits", params=params)
+        response = self._get(f"/repos/{repo}/commits", params=params)
         return response.json() if response else []
 
     def get_pull_requests(self, repo: str, state: str = "all", days: int = 30) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/pulls", params={"state": state, "per_page": 100})
+        response = self._get(f"/repos/{repo}/pulls", params={"state": state, "per_page": 100})
         if not response:
             return []
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
@@ -104,53 +128,53 @@ class GitHubClient:
         return result
 
     def get_repo_info(self, repo: str) -> Optional[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}")
+        response = self._get(f"/repos/{repo}")
         return response.json() if response else None
 
     def get_workflows(self, repo: str) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/actions/workflows")
+        response = self._get(f"/repos/{repo}/actions/workflows")
         return response.json().get("workflows", []) if response else []
 
     def get_workflow_runs(self, repo: str, per_page: int = 10) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/actions/runs", params={"per_page": per_page})
+        response = self._get(f"/repos/{repo}/actions/runs", params={"per_page": per_page})
         return response.json().get("workflow_runs", []) if response else []
 
     def get_deploy_keys(self, repo: str) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/keys")
+        response = self._get(f"/repos/{repo}/keys")
         return response.json() if response else []
 
     def get_environments(self, repo: str) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/environments")
+        response = self._get(f"/repos/{repo}/environments")
         return response.json().get("environments", []) if response else []
 
     def get_secret_scanning_alerts(self, repo: str) -> Optional[List[Dict[str, Any]]]:
-        response = self._request("GET", f"/repos/{repo}/secret-scanning/alerts")
+        response = self._get(f"/repos/{repo}/secret-scanning/alerts")
         return response.json() if response else None
 
     def get_dependabot_alerts(self, repo: str) -> Optional[List[Dict[str, Any]]]:
         try:
-            response = self._request("GET", f"/repos/{repo}/dependabot/alerts")
+            response = self._get(f"/repos/{repo}/dependabot/alerts")
             return response.json() if response else None
         except Exception:
             return None
 
     def get_code_scanning_alerts(self, repo: str) -> Optional[List[Dict[str, Any]]]:
-        response = self._request("GET", f"/repos/{repo}/code-scanning/alerts")
+        response = self._get(f"/repos/{repo}/code-scanning/alerts")
         return response.json() if response else None
 
     def get_security_advisories(self, repo: str) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/security-advisories")
+        response = self._get(f"/repos/{repo}/security-advisories")
         return response.json() if response else []
 
     def get_file_content(self, repo: str, path: str) -> Optional[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/contents/{path}")
+        response = self._get(f"/repos/{repo}/contents/{path}")
         return response.json() if response else None
 
     def get_issues(self, repo: str, state: str = "open", labels: str = "") -> List[Dict[str, Any]]:
         params: Dict[str, Any] = {"state": state, "per_page": 100}
         if labels:
             params["labels"] = labels
-        response = self._request("GET", f"/repos/{repo}/issues", params=params)
+        response = self._get(f"/repos/{repo}/issues", params=params)
         return response.json() if response else []
 
     def create_issue(
@@ -163,16 +187,13 @@ class GitHubClient:
         data: Dict[str, Any] = {"title": title, "body": body}
         if labels:
             data["labels"] = labels
-        response = self._request("POST", f"/repos/{repo}/issues", json=data)
+        response = self._post(f"/repos/{repo}/issues", json=data)
         return response.json() if response else None
 
     def get_repo_teams(self, repo: str) -> List[Dict[str, Any]]:
-        response = self._request("GET", f"/repos/{repo}/teams")
+        response = self._get(f"/repos/{repo}/teams")
         return response.json() if response else []
 
     def get_commit_signing(self, repo: str, branch: str = "main") -> Optional[Dict[str, Any]]:
-        response = self._request(
-            "GET",
-            f"/repos/{repo}/branches/{branch}/protection/required_signatures",
-        )
+        response = self._get(f"/repos/{repo}/branches/{branch}/protection/required_signatures")
         return response.json() if response else None

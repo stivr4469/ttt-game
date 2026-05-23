@@ -1,0 +1,15 @@
+control_id: CC6.3
+name: Restrict SUPER_ADMIN Roles
+framework: SOC2
+severity: high
+check:
+  type: aws_iam
+  condition: "admin_count <= 2"
+  target: "admin_users"
+remediation:
+  type: script
+  command: "python3 fix_infrastructure.py --fix admin_roles"
+  requires_approval: true
+  approver_role: admin
+sla_hours: 48
+tags: [access, roles, privilege]

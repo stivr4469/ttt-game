@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vulnerability Management — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --critical: #ef4444;
+            --high: #f59e0b;
+            --medium: #3b82f6;
+            --low: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+        .back-link { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 30px;
+        }
+        .btn {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
+
+        /* SLA Stats */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            text-align: center;
+        }
+        .stat-card .val { font-size: 32px; font-weight: 700; display: block; }
+        .stat-card .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+        .stat-card.breached { border-color: var(--critical); }
+        .stat-card.breached .val { color: var(--critical); }
+        .stat-card.at_risk .val { color: var(--high); }
+        .stat-card.on_track .val { color: var(--low); }
+
+        /* Table */
+        .table-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; }
+        td { padding: 14px 16px; border-top: 1px solid var(--border); }
+
+        .severity-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        .severity-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .severity-high { background: rgba(245, 158, 11, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .severity-medium { background: rgba(59, 130, 246, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+        .severity-low { background: rgba(16, 185, 129, 0.2); color: var(--low); border: 1px solid var(--low); }
+
+        .sla-pill {
+            font-size: 10px;
+            font-weight: 700;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        .sla-breached { background: var(--critical); color: #fff; animation: blink 1.5s infinite; }
+        .sla-at_risk { background: var(--high); color: #fff; }
+        .sla-on_track { background: rgba(16, 185, 129, 0.2); color: var(--low); }
+
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        .vuln-row.breached { background: rgba(239, 68, 68, 0.05); }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 600px;
+            padding: 30px;
+        }
+        .detail-row { margin-bottom: 20px; }
+        .detail-lbl { font-size: 12px; color: var(--muted); margin-bottom: 4px; font-weight: 600; }
+        .detail-val { font-size: 14px; }
+        .remediation-box { background: var(--bg); padding: 15px; border-radius: 8px; border-left: 4px solid var(--accent); font-family: monospace; font-size: 13px; }
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 16px 24px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+        }
+
+        /* ── Горизонтальная навигация ── */
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🔒 Vulnerability Management</h1>
+            <!-- Горизонтальная навигация по разделам платформы -->
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities" class="active">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <div class="toolbar">
+            <button class="btn primary" onclick="runScan()" id="scanBtn">🚀 Run Vulnerability Scan</button>
+            <div style="flex: 1;"></div>
+            <select class="btn" id="filterSeverity" onchange="loadVulns()">
+                <option value="">All Severities</option>
+                <option value="critical">Critical</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select class="btn" id="filterSLA" onchange="loadVulns()">
+                <option value="">All SLA Status</option>
+                <option value="breached">Breached</option>
+                <option value="at_risk">At Risk</option>
+                <option value="on_track">On Track</option>
+            </select>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card breached">
+                <span class="val" id="statBreached">0</span>
+                <span class="lbl">SLA Breached</span>
+            </div>
+            <div class="stat-card at_risk">
+                <span class="val" id="statAtRisk">0</span>
+                <span class="lbl">At Risk</span>
+            </div>
+            <div class="stat-card on_track">
+                <span class="val" id="statOnTrack">0</span>
+                <span class="lbl">On Track</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>CVE ID</th>
+                        <th>Package</th>
+                        <th>Severity</th>
+                        <th>Version</th>
+                        <th>SLA Status</th>
+                        <th>Deadline</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="vulnTableContent">
+                    <!-- Loaded via JS -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Detail Modal -->
+    <div class="modal" id="vulnModal">
+        <div class="modal-content">
+            <h2 id="modalTitle" style="margin-bottom: 20px;">Vulnerability Details</h2>
+            <div class="detail-row">
+                <div class="detail-lbl">Summary</div>
+                <div class="detail-val" id="vulnSummary">...</div>
+            </div>
+            <div class="detail-row">
+                <div class="detail-lbl">Remediation Steps</div>
+                <div class="remediation-box" id="vulnRemediation">...</div>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 30px;">
+                <button class="btn primary" style="flex: 1;" onclick="resolveVuln()">Mark as Resolved</button>
+                <button class="btn" style="flex: 1;" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let currentVulnId = null;
+
+        async function init() {
+            const r = await fetch('/api/auth/me');
+            if (r.status === 401) { window.location.href = '/login'; return; }
+            
+            await loadSummary();
+            await loadVulns();
+        }
+
+        async function loadSummary() {
+            const r = await fetch('/api/vulnerabilities/summary');
+            const data = await r.json();
+            document.getElementById('statBreached').innerText = data.sla_breached;
+            document.getElementById('statAtRisk').innerText = data.sla_at_risk;
+            document.getElementById('statOnTrack').innerText = data.total_open - data.sla_breached - data.sla_at_risk;
+        }
+
+        async function loadVulns() {
+            const sev = document.getElementById('filterSeverity').value;
+            const sla = document.getElementById('filterSLA').value;
+            let url = '/api/vulnerabilities?state=open';
+            if (sev) url += `&severity=${sev}`;
+            if (sla) url += `&sla_status=${sla}`;
+            
+            const r = await fetch(url);
+            const vulns = await r.json();
+            
+            const content = document.getElementById('vulnTableContent');
+            content.innerHTML = vulns.map(v => `
+                <tr class="vuln-row ${v.sla_status === 'breached' ? 'breached' : ''}">
+                    <td style="font-family: monospace; font-weight: 600;">${v.cve_id || 'N/A'}</td>
+                    <td>${v.package}</td>
+                    <td><span class="severity-badge severity-${v.severity}">${v.severity}</span></td>
+                    <td>${v.affected_version}</td>
+                    <td><span class="sla-pill sla-${v.sla_status}">${v.sla_status.replace('_', ' ')}</span></td>
+                    <td style="color: var(--muted);">${new Date(v.sla_deadline).toLocaleDateString()}</td>
+                    <td>
+                        <button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="viewVuln('${v.id}')">View</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        async function runScan() {
+            const btn = document.getElementById('scanBtn');
+            btn.disabled = true;
+            btn.innerText = "⏳ Scanning...";
+            showToast("Vulnerability scan started...", "info");
+            
+            try {
+                const r = await fetch('/api/vulnerabilities/scan', { method: 'POST' });
+                await r.json();
+                showToast("Scan completed successfully", "success");
+                await loadSummary();
+                await loadVulns();
+            } catch (e) {
+                showToast("Scan failed", "error");
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "🚀 Run Vulnerability Scan";
+            }
+        }
+
+        async function viewVuln(id) {
+            currentVulnId = id;
+            const r = await fetch(`/api/vulnerabilities/${id}`);
+            const v = await r.json();
+            
+            document.getElementById('modalTitle').innerText = v.cve_id || 'Vulnerability Details';
+            document.getElementById('vulnSummary').innerText = v.summary;
+            document.getElementById('vulnRemediation').innerText = v.remediation;
+            
+            document.getElementById('vulnModal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('vulnModal').style.display = 'none';
+        }
+
+        async function resolveVuln() {
+            const r = await fetch(`/api/vulnerabilities/${currentVulnId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ state: 'resolved' })
+            });
+            if (r.ok) {
+                closeModal();
+                showToast("Vulnerability marked as resolved", "success");
+                await loadSummary();
+                await loadVulns();
+            }
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            t.style.borderColor = type === 'success' ? 'var(--pass)' : 'var(--fail)';
+            setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

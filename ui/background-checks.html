@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Background Checks — SOC 2 Compliance</title>
+<style>
+  :root {
+    --bg:      #080d1a;
+    --s1:      #0d1426;
+    --s2:      #111b2e;
+    --s3:      #162035;
+    --border:  #1e2d4a;
+    --text:    #e2e8f0;
+    --muted:   #64748b;
+    --accent:  #3b82f6;
+    --accent2: #60a5fa;
+    --pass:    #22c55e;
+    --fail:    #ef4444;
+    --warn:    #f59e0b;
+    --teal:    #00d4aa;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    min-height: 100%; background: var(--bg); color: var(--text);
+    font-family: 'Inter', system-ui, sans-serif; font-size: 14px;
+  }
+
+  /* ── Header ── */
+  header {
+    height: 56px; display: flex; align-items: center; gap: 12px;
+    padding: 0 24px; background: var(--s1); border-bottom: 1px solid var(--border);
+    position: sticky; top: 0; z-index: 10;
+  }
+  header .logo { font-size: 20px; }
+  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
+  header .badge-cc {
+    background: rgba(0,212,170,.15); color: var(--teal);
+    border: 1px solid rgba(0,212,170,.3); border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; font-weight: 700;
+  }
+  header .mode-badge {
+    margin-left: auto; font-size: 11px; color: var(--muted);
+    background: var(--s3); border: 1px solid var(--border);
+    border-radius: 20px; padding: 4px 12px;
+  }
+  header a {
+    color: var(--muted); text-decoration: none; font-size: 13px;
+    padding: 5px 12px; border: 1px solid var(--border); border-radius: 6px;
+    transition: color .15s, border-color .15s; margin-left: 8px;
+  }
+  header a:hover { color: var(--text); border-color: var(--accent); }
+
+  /* ── Layout ── */
+  main { max-width: 1280px; margin: 0 auto; padding: 28px 24px 60px; }
+
+  .page-title { font-size: 22px; font-weight: 700; margin-bottom: 4px; }
+  .page-sub { color: var(--muted); font-size: 13px; margin-bottom: 24px; }
+
+  /* ── Summary cards ── */
+  .summary-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px;
+  }
+  .summary-card {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; display: flex; flex-direction: column; gap: 6px;
+  }
+  .summary-card .s-label {
+    font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
+  }
+  .summary-card .s-value { font-size: 32px; font-weight: 700; line-height: 1; }
+  .summary-card .s-sub { font-size: 12px; color: var(--muted); }
+  .summary-card.cleared .s-value { color: var(--pass); }
+  .summary-card.pending .s-value { color: var(--warn); }
+  .summary-card.flagged .s-value { color: var(--fail); }
+  .summary-card.unchecked .s-value { color: var(--muted); }
+
+  /* ── Progress bar ── */
+  .progress-wrap {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    padding: 20px 24px; margin-bottom: 20px;
+  }
+  .progress-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;
+  }
+  .progress-header .p-title { font-size: 14px; font-weight: 600; }
+  .progress-header .p-pct { font-size: 22px; font-weight: 700; color: var(--teal); }
+  .progress-bar-bg {
+    height: 10px; background: var(--s3); border-radius: 99px; overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%; border-radius: 99px;
+    background: linear-gradient(90deg, var(--teal), var(--accent));
+    transition: width .5s ease;
+  }
+  .progress-note { margin-top: 10px; font-size: 12px; color: var(--muted); }
+
+  /* ── Toolbar ── */
+  .toolbar {
+    display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap;
+  }
+  .toolbar .spacer { flex: 1; }
+  .btn {
+    padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+    border: none; cursor: pointer; transition: opacity .15s, transform .1s;
+    display: inline-flex; align-items: center; gap: 6px;
+  }
+  .btn:hover:not(:disabled) { opacity: .85; transform: translateY(-1px); }
+  .btn:disabled { opacity: .4; cursor: not-allowed; transform: none; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-teal    { background: var(--teal); color: #080d1a; }
+  .btn-outline {
+    background: transparent; color: var(--accent2);
+    border: 1px solid var(--border);
+  }
+  .btn-outline:hover:not(:disabled) { border-color: var(--accent2); }
+
+  /* ── Table ── */
+  .table-wrap {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
+    overflow: hidden; margin-bottom: 24px;
+  }
+  .table-header {
+    padding: 14px 18px; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+    font-size: 13px; font-weight: 600;
+  }
+  .table-header .t-count { color: var(--muted); font-size: 12px; font-weight: 400; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th {
+    padding: 11px 14px; text-align: left; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
+    background: var(--s2); border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .12s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--s2); }
+  td { padding: 12px 14px; vertical-align: middle; }
+
+  .emp-name { font-weight: 600; font-size: 13px; }
+  .emp-email { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+  /* ── Status badges ── */
+  .status-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600;
+    white-space: nowrap;
+  }
+  .status-clear     { background: rgba(34,197,94,.15); color: #86efac; border: 1px solid rgba(34,197,94,.25); }
+  .status-pending   { background: rgba(245,158,11,.15); color: #fcd34d; border: 1px solid rgba(245,158,11,.25); }
+  .status-consider  { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.25); }
+  .status-dispute   { background: rgba(239,68,68,.15); color: #fca5a5; border: 1px solid rgba(239,68,68,.25); }
+  .status-suspended { background: rgba(100,116,139,.15); color: #94a3b8; border: 1px solid rgba(100,116,139,.25); }
+  .status-not_started { background: rgba(100,116,139,.1); color: var(--muted); border: 1px solid var(--border); }
+
+  .package-tag {
+    background: var(--s3); border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 8px; font-size: 11px; color: var(--muted);
+  }
+
+  .date-cell { font-size: 12px; color: var(--muted); }
+
+  /* ── Unchecked list ── */
+  .unchecked-wrap {
+    background: var(--s1); border: 1px solid rgba(239,68,68,.3); border-radius: 12px;
+    padding: 16px 20px; margin-bottom: 20px; display: none;
+  }
+  .unchecked-wrap.visible { display: block; }
+  .unchecked-title { font-size: 13px; font-weight: 600; color: var(--fail); margin-bottom: 10px; }
+  .unchecked-list { display: flex; flex-wrap: wrap; gap: 6px; }
+  .unchecked-email {
+    background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2);
+    color: #fca5a5; border-radius: 4px; padding: 2px 8px; font-size: 12px;
+  }
+
+  /* ── Empty / loading states ── */
+  .empty-row td { text-align: center; padding: 40px; color: var(--muted); font-size: 13px; }
+  .loader { display: inline-block; width: 16px; height: 16px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .6s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  .toast {
+    position: fixed; bottom: 24px; right: 24px; background: var(--s1);
+    border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px;
+    font-size: 13px; z-index: 999; opacity: 0; transition: opacity .25s;
+    max-width: 360px; box-shadow: 0 4px 20px rgba(0,0,0,.4);
+  }
+  .toast.show { opacity: 1; }
+  .toast.ok   { border-color: rgba(34,197,94,.4); color: var(--pass); }
+  .toast.err  { border-color: rgba(239,68,68,.4); color: var(--fail); }
+  .toast.warn { border-color: rgba(245,158,11,.4); color: var(--warn); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.65); z-index: 100;
+    display: none; align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal {
+    background: var(--s1); border: 1px solid var(--border); border-radius: 14px;
+    padding: 28px; width: 440px; max-width: 95vw;
+  }
+  .modal-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; }
+  .modal-sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+  .form-group { margin-bottom: 16px; }
+  .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .form-input, .form-select {
+    width: 100%; background: var(--s2); border: 1px solid var(--border);
+    border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 13px; outline: none;
+    transition: border-color .15s;
+  }
+  .form-input:focus, .form-select:focus { border-color: var(--accent); }
+  .form-select option { background: var(--s2); }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+  .btn-cancel { background: var(--s3); color: var(--muted); border: 1px solid var(--border); }
+
+  @media (max-width: 768px) {
+    .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    .toolbar { flex-direction: column; align-items: stretch; }
+  }
+
+  /* ── Горизонтальная навигация ── */
+  .top-nav {
+    display: flex; align-items: center; gap: 4px; margin-left: 16px; flex: 1; overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .top-nav a {
+    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+    color: var(--muted); text-decoration: none; border-radius: 6px;
+    font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+    border: none; margin: 0;
+  }
+  .top-nav a:hover { background: var(--s2); color: var(--text); }
+  .top-nav a.active { background: rgba(59,130,246,.15); color: var(--accent2); }
+  .top-nav .nav-sep {
+    width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="logo">🔍</span>
+  <h1>Background Checks</h1>
+  <span class="badge-cc">CC6.2</span>
+  <!-- Горизонтальная навигация по разделам платформы -->
+  <nav class="top-nav" id="topNav">
+    <a href="/">📊 Dashboard</a>
+    <span class="nav-sep"></span>
+    <a href="/training">🎓 Training</a>
+    <a href="/background-checks" class="active">👤 Background Checks</a>
+    <span class="nav-sep"></span>
+    <a href="/vulnerabilities">🔒 Vulns</a>
+    <a href="/pentests">🔍 Pen Tests</a>
+    <a href="/risk-register">⚠️ Risk</a>
+    <span class="nav-sep"></span>
+    <a href="/audit-timeline">📅 Timeline</a>
+    <a href="/questionnaires">📋 Questionnaires</a>
+    <span class="nav-sep"></span>
+    <a href="/access-review">👥 Access Review</a>
+    <a href="/auditor-portal">🔎 Auditor</a>
+    <span class="nav-sep"></span>
+    <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+  </nav>
+  <span class="mode-badge" id="modeBadge">⏳ загрузка...</span>
+</header>
+
+<main>
+  <div class="page-title">Background Checks — Employee Screening</div>
+  <div class="page-sub">Проверка биографических данных сотрудников через Checkr API. Контроль: CC6.2 (User Registration/Screening)</div>
+
+  <!-- Сводные карточки -->
+  <div class="summary-grid">
+    <div class="summary-card cleared">
+      <div class="s-label">Cleared</div>
+      <div class="s-value" id="cntCleared">—</div>
+      <div class="s-sub">Проверено чисто</div>
+    </div>
+    <div class="summary-card pending">
+      <div class="s-label">Pending</div>
+      <div class="s-value" id="cntPending">—</div>
+      <div class="s-sub">В процессе</div>
+    </div>
+    <div class="summary-card flagged">
+      <div class="s-label">Flagged</div>
+      <div class="s-value" id="cntFlagged">—</div>
+      <div class="s-sub">Требуют внимания</div>
+    </div>
+    <div class="summary-card unchecked">
+      <div class="s-label">Not Started</div>
+      <div class="s-value" id="cntUnchecked">—</div>
+      <div class="s-sub">Не проверено</div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress-wrap">
+    <div class="progress-header">
+      <div class="p-title">Background Check Coverage</div>
+      <div class="p-pct" id="compliancePct">—%</div>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar" style="width:0%"></div>
+    </div>
+    <div class="progress-note" id="progressNote">Загрузка данных...</div>
+  </div>
+
+  <!-- Список непроверенных сотрудников -->
+  <div class="unchecked-wrap" id="uncheckedWrap">
+    <div class="unchecked-title">⚠️ Сотрудники без проверки:</div>
+    <div class="unchecked-list" id="uncheckedList"></div>
+  </div>
+
+  <!-- Toolbar -->
+  <div class="toolbar">
+    <button class="btn btn-teal" id="btnRunAll" onclick="runChecksForAll()">
+      ▶ Run Checks for All New Employees
+    </button>
+    <button class="btn btn-outline" id="btnCheckOne" onclick="openModal()">
+      + Check Specific Employee
+    </button>
+    <div class="spacer"></div>
+    <button class="btn btn-outline" onclick="loadData()">
+      ↻ Обновить
+    </button>
+  </div>
+
+  <!-- Таблица проверок -->
+  <div class="table-wrap">
+    <div class="table-header">
+      <span>Список проверок</span>
+      <span class="t-count" id="tableCount"></span>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Сотрудник</th>
+          <th>Package</th>
+          <th>Статус</th>
+          <th>Результат</th>
+          <th>Дата инициации</th>
+          <th>Завершено</th>
+        </tr>
+      </thead>
+      <tbody id="checksTable">
+        <tr class="empty-row"><td colspan="6"><span class="loader"></span> Загрузка...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<!-- Модальное окно: Check Specific Employee (только для Admin) -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOnBackdrop(event)">
+  <div class="modal">
+    <div class="modal-title">Check Specific Employee</div>
+    <div class="modal-sub">Запустить background check для конкретного сотрудника</div>
+    <div class="form-group">
+      <label class="form-label" for="inputEmail">Email сотрудника</label>
+      <input class="form-input" id="inputEmail" type="email" placeholder="john@marineso.com">
+    </div>
+    <div class="form-group">
+      <label class="form-label" for="selectPackage">Тип проверки (Package)</label>
+      <select class="form-select" id="selectPackage">
+        <option value="tasker_standard">tasker_standard — Standard Employee Check (Criminal + SSN)</option>
+        <option value="driver_pro">driver_pro — Driver Pro (Criminal + MVR + SSN)</option>
+        <option value="professional">professional — Professional (Criminal + Education + Employment)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-cancel" onclick="closeModal()">Отмена</button>
+      <button class="btn btn-primary" onclick="submitCheckEmployee()">Запустить проверку</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast-уведомления -->
+<div class="toast" id="toast"></div>
+
+<script>
+  // ── Утилиты ─────────────────────────────────────────────────────────────────
+
+  let userRole = null; // 'admin' | 'auditor' | ...
+
+  function getCookie(name) {
+    const match = document.cookie.match(new RegExp('(^|;)\\s*' + name + '\\s*=\\s*([^;]+)'));
+    return match ? decodeURIComponent(match[2]) : null;
+  }
+
+  function parseJwt(token) {
+    try {
+      const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(atob(base64));
+    } catch { return {}; }
+  }
+
+  function detectRole() {
+    const token = getCookie('access_token');
+    if (!token) return;
+    const payload = parseJwt(token);
+    userRole = payload.role || null;
+
+    // Скрываем кнопки записи если не admin
+    if (userRole !== 'admin') {
+      document.getElementById('btnRunAll').style.display = 'none';
+      document.getElementById('btnCheckOne').style.display = 'none';
+    }
+  }
+
+  async function apiFetch(url, options = {}) {
+    const resp = await fetch(url, { credentials: 'include', ...options });
+    if (resp.status === 401) { window.location.href = '/login'; return null; }
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+      throw new Error(err.detail || `HTTP ${resp.status}`);
+    }
+    return resp.json();
+  }
+
+  function toast(msg, type = 'ok') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = `toast show ${type}`;
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove('show'), 4000);
+  }
+
+  function fmtDate(iso) {
+    if (!iso) return '<span style="color:var(--muted)">—</span>';
+    const d = new Date(iso);
+    return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  // ── Рендер статус-badge ──────────────────────────────────────────────────────
+
+  const STATUS_CONFIG = {
+    clear:       { icon: '🟢', label: 'Clear',       cls: 'status-clear' },
+    pending:     { icon: '🟡', label: 'Pending',     cls: 'status-pending' },
+    consider:    { icon: '🔴', label: 'Flagged',     cls: 'status-consider' },
+    dispute:     { icon: '🔴', label: 'Dispute',     cls: 'status-dispute' },
+    suspended:   { icon: '⚪', label: 'Suspended',   cls: 'status-suspended' },
+    not_started: { icon: '⚪', label: 'Not Started', cls: 'status-not_started' },
+  };
+
+  function statusBadge(status) {
+    const cfg = STATUS_CONFIG[status] || STATUS_CONFIG['not_started'];
+    return `<span class="status-badge ${cfg.cls}">${cfg.icon} ${cfg.label}</span>`;
+  }
+
+  function packageLabel(pkg) {
+    const labels = {
+      tasker_standard: 'Standard',
+      driver_pro: 'Driver Pro',
+      professional: 'Professional',
+    };
+    return `<span class="package-tag">${labels[pkg] || pkg}</span>`;
+  }
+
+  // ── Загрузка данных ──────────────────────────────────────────────────────────
+
+  async function loadData() {
+    await Promise.all([loadSummary(), loadChecks()]);
+  }
+
+  async function loadSummary() {
+    try {
+      const data = await apiFetch('/api/background-checks/summary');
+      if (!data) return;
+
+      document.getElementById('cntCleared').textContent = data.checks_cleared ?? 0;
+      document.getElementById('cntPending').textContent = data.checks_pending ?? 0;
+      document.getElementById('cntFlagged').textContent = data.checks_flagged ?? 0;
+      document.getElementById('cntUnchecked').textContent = (data.unchecked_employees || []).length;
+
+      const pct = data.compliance_pct ?? 0;
+      document.getElementById('compliancePct').textContent = `${pct}%`;
+      document.getElementById('progressBar').style.width = `${Math.min(pct, 100)}%`;
+      document.getElementById('progressNote').textContent =
+        `${data.checks_completed} из ${data.total_employees} активных сотрудников проверено`;
+
+      // Режим работы
+      const badge = document.getElementById('modeBadge');
+      if (data.mode === 'mock') {
+        badge.textContent = '🔧 Mock режим (CHECKR_API_KEY не задан)';
+      } else {
+        badge.textContent = '✅ Checkr API';
+      }
+
+      // Список непроверенных
+      const unchecked = data.unchecked_employees || [];
+      const wrap = document.getElementById('uncheckedWrap');
+      if (unchecked.length > 0) {
+        wrap.classList.add('visible');
+        document.getElementById('uncheckedList').innerHTML =
+          unchecked.map(e => `<span class="unchecked-email">${e}</span>`).join('');
+      } else {
+        wrap.classList.remove('visible');
+      }
+    } catch (e) {
+      toast(`Ошибка загрузки сводки: ${e.message}`, 'err');
+    }
+  }
+
+  async function loadChecks() {
+    const tbody = document.getElementById('checksTable');
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="6"><span class="loader"></span> Загрузка...</td></tr>';
+
+    try {
+      const data = await apiFetch('/api/background-checks');
+      if (!data) return;
+
+      const checks = data.checks || [];
+      document.getElementById('tableCount').textContent = `${checks.length} записей`;
+
+      if (checks.length === 0) {
+        tbody.innerHTML = '<tr class="empty-row"><td colspan="6">Нет проверок. Нажмите «Run Checks» для запуска.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = checks.map(c => `
+        <tr>
+          <td>
+            <div class="emp-name">${escHtml(c.employee_name || '—')}</div>
+            <div class="emp-email">${escHtml(c.employee_email)}</div>
+          </td>
+          <td>${packageLabel(c.package)}</td>
+          <td>${statusBadge(c.status || 'pending')}</td>
+          <td>${statusBadge(c.result || (c.status === 'pending' ? 'pending' : 'not_started'))}</td>
+          <td class="date-cell">${fmtDate(c.initiated_at)}</td>
+          <td class="date-cell">${fmtDate(c.completed_at)}</td>
+        </tr>
+      `).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr class="empty-row"><td colspan="6" style="color:var(--fail)">Ошибка: ${escHtml(e.message)}</td></tr>`;
+      toast(`Ошибка загрузки проверок: ${e.message}`, 'err');
+    }
+  }
+
+  // ── Действия ─────────────────────────────────────────────────────────────────
+
+  async function runChecksForAll() {
+    const btn = document.getElementById('btnRunAll');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="loader"></span> Запуск...';
+
+    try {
+      const data = await apiFetch('/api/background-checks/run', { method: 'POST' });
+      if (!data) return;
+      toast(`✅ Запущено ${data.initiated} новых проверок. Уже проверено: ${data.already_checked}`, 'ok');
+      await loadData();
+    } catch (e) {
+      toast(`Ошибка: ${e.message}`, 'err');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '▶ Run Checks for All New Employees';
+    }
+  }
+
+  async function submitCheckEmployee() {
+    const email = document.getElementById('inputEmail').value.trim();
+    const pkg   = document.getElementById('selectPackage').value;
+
+    if (!email) { toast('Введите email сотрудника', 'warn'); return; }
+
+    const submitBtn = document.querySelector('#modalOverlay .btn-primary');
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Запуск...';
+
+    try {
+      const data = await apiFetch('/api/background-checks/employee', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, package: pkg }),
+      });
+      if (!data) return;
+      closeModal();
+      toast(`✅ Проверка для ${email}: ${data.check?.status || 'запущена'}`, 'ok');
+      await loadData();
+    } catch (e) {
+      toast(`Ошибка: ${e.message}`, 'err');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'Запустить проверку';
+    }
+  }
+
+  // ── Модальное окно ───────────────────────────────────────────────────────────
+
+  function openModal() {
+    if (userRole !== 'admin') {
+      toast('Только администратор может запускать проверки', 'warn');
+      return;
+    }
+    document.getElementById('inputEmail').value = '';
+    document.getElementById('selectPackage').selectedIndex = 0;
+    document.getElementById('modalOverlay').classList.add('open');
+    document.getElementById('inputEmail').focus();
+  }
+
+  function closeModal() {
+    document.getElementById('modalOverlay').classList.remove('open');
+  }
+
+  function closeModalOnBackdrop(e) {
+    if (e.target === document.getElementById('modalOverlay')) closeModal();
+  }
+
+  // Закрыть по Escape
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') closeModal();
+  });
+
+  // ── Вспомогательные ──────────────────────────────────────────────────────────
+
+  function escHtml(str) {
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  // ── Инициализация ────────────────────────────────────────────────────────────
+
+  detectRole();
+  loadData();
+</script>
+</body>
+</html>

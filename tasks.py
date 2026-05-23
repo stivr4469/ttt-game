@@ -74,4 +74,59 @@ def run_full_pipeline_task(self):
             log.error("Celery: agent failed", extra={"agent": name, "error": str(e)})
             results.append({"agent": name, "status": "error", "error": str(e)})
 
-    return {"status": "completed", "results": results}
+from datetime import datetime
+from pathlib import Path
+
+# Маппинг: контроль → какой агент его пересчитывает
+CONTROL_AGENT_MAP = {
+    "CC8.1": "github",   # Change Authorization
+    "CC5.3": "github",   # Change Management
+    "CC3.4": "scanner",  # Change Assessment
+    "CC6.1": "scanner",  # Logical Access
+    "CC6.2": "hr",       # User Registration
+    "CC6.3": "scanner",  # Least Privilege
+    "CC6.8": "github",   # Anti-Malware / Dependabot
+    "CC7.3": "github",   # Security Events / Advisories
+}
+
+@celery_app.task(name="tasks.rescan_control")
+def rescan_control(control_id: str, trigger: str):
+    """Пересканировать конкретный контроль по webhook-триггеру."""
+    agent = CONTROL_AGENT_MAP.get(control_id)
+    controls_map = _load_controls_map()
+    log.info(f"Webhook trigger: {trigger} -> rescanning {control_id} via {agent}")
+    
+    try:
+        if agent == "github":
+            from github_agent import main as run_github
+            run_github(controls_map)
+        elif agent == "scanner":
+            from scanner import main as run_scanner
+            run_scanner(controls_map)
+        elif agent == "hr":
+            from hr_agent import main as run_hr
+            run_hr(controls_map)
+    except Exception as e:
+        log.error(f"Rescan failed for {control_id}: {e}")
+
+    # Записать в лог
+    _append_webhook_log({
+        "control_id": control_id, 
+        "trigger": trigger, 
+        "agent": agent, 
+        "ts": datetime.utcnow().isoformat()
+    })
+
+def _append_webhook_log(entry: dict):
+    """Добавить запись в webhook_events.json, хранить последние 100."""
+    log_file = Path(__file__).parent / "webhook_events.json"
+    events = []
+    if log_file.exists():
+        try:
+            events = json.loads(log_file.read_text())
+        except (json.JSONDecodeError, ValueError):
+            events = []
+    events.append(entry)
+    events = events[-100:]  # ротация — последние 100
+    log_file.write_text(json.dumps(events, indent=2, ensure_ascii=False))
+

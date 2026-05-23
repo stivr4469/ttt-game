@@ -1,0 +1,19 @@
+[
+  {
+    "id": "266a704e-0b9f-46ab-b904-1e289d37f78a",
+    "vendor_id": "VND-001",
+    "assessment_date": "2026-05-23T19:45:15.656862+00:00",
+    "exceptions_found": [],
+    "uecc_items": [
+      "Customer is responsible for configuring IAM roles and permissions appropriately",
+      "Customer must implement and manage encryption keys for their data",
+      "Customer is responsible for data classification and handling requirements",
+      "Customer must configure network access controls and security groups",
+      "Customer is responsible for monitoring and responding to security incidents in their environment"
+    ],
+    "risk_level": "low",
+    "recommendation": "approve",
+    "summary": "AWS has successfully completed a SOC 2 Type II audit with no exceptions found, indicating strong adherence to security, availability, processing integrity, confidentiality, and privacy criteria. The vendor demonstrates mature governance and operational controls across its platform. Customer responsibilities primarily involve proper configuration management and access control implementation.",
+    "raw_analysis": "SOC2 Type II report. No exceptions found."
+  }
+]

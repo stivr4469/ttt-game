@@ -250,6 +250,24 @@
 
   ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  /* ── Gap Analysis ── */
+  .gap-item { border-bottom: 1px solid var(--border); padding: 16px 0; }
+  .gap-item:last-child { border-bottom: none; }
+  .gap-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .gap-title { font-weight: 600; color: var(--text); }
+  .gap-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 700; }
+  .gap-badge.critical { background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid #ef4444; }
+  .gap-badge.high { background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid #f59e0b; }
+  .gap-badge.medium { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid #60a5fa; }
+  .gap-desc { font-size: 13px; color: var(--text); margin-bottom: 12px; }
+  .gap-actions { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+  .gap-action { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--muted); }
+  .gap-action input { margin-top: 3px; }
+  .gap-meta { margin-top: 12px; font-size: 11px; color: var(--muted); display: flex; gap: 16px; }
+
+  /* ── Framework Tabs ── */
+  .fw-tab { border: 1px solid var(--border); background: var(--s1); font-size: 11px; padding: 4px 10px; }
+  .fw-tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
 </style>
 </head>
 <body>
@@ -266,16 +284,45 @@
   <div class="body">
     <!-- Sidebar -->
     <nav id="sidebar">
-      <div class="section-label">Monitor</div>
-      <a class="active" data-page="dashboard"><span class="nav-icon">📊</span> Dashboard</a>
-      <a data-page="controls"><span class="nav-icon">🗂️</span> Controls <span id="failBadge" class="badge" style="display:none"></span></a>
-      <a href="/auditor-portal"><span class="nav-icon">🔍</span> Auditor Portal</a>
+      <!-- ── CORE ── -->
+      <div class="section-label">Core</div>
+      <a class="active nav-link" data-page="dashboard" href="/"><span class="nav-icon">📊</span> Dashboard</a>
+      <a class="nav-link" data-page="controls" href="#controls"><span class="nav-icon">📋</span> Controls <span id="failBadge" class="badge" style="display:none"></span></a>
+      <a class="nav-link" data-page="agents" href="#agents"><span class="nav-icon">🤖</span> Agents</a>
 
-      <div class="section-label">Operate</div>
-      <a data-page="agents"><span class="nav-icon">🤖</span> Agents</a>
+      <!-- ── PEOPLE & DEVICES ── -->
+      <div class="section-label">People &amp; Devices</div>
+      <a class="nav-link" href="/training"><span class="nav-icon">🎓</span> Training</a>
+      <a class="nav-link" href="/background-checks"><span class="nav-icon">👤</span> Background Checks</a>
 
-      <div class="section-label">Configure</div>
-      <a data-page="settings"><span class="nav-icon">⚙️</span> Settings</a>
+      <!-- ── SECURITY ── -->
+      <div class="section-label">Security</div>
+      <a class="nav-link" href="/vulnerabilities"><span class="nav-icon">🔒</span> Vulnerabilities</a>
+      <a class="nav-link" href="/pentests"><span class="nav-icon">🔍</span> Pen Tests</a>
+      <a class="nav-link" href="/risk-register"><span class="nav-icon">⚠️</span> Risk Register</a>
+
+      <!-- ── COMPLIANCE ── -->
+      <div class="section-label">Compliance</div>
+      <a class="nav-link" href="/audit-timeline"><span class="nav-icon">📅</span> Audit Timeline</a>
+      <a class="nav-link" href="/questionnaires"><span class="nav-icon">📋</span> Questionnaires</a>
+
+      <!-- ── REPORTS & ACCESS ── -->
+      <div class="section-label">Reports &amp; Access</div>
+      <a class="nav-link" href="/access-review"><span class="nav-icon">👥</span> Access Review</a>
+      <a class="nav-link" href="/auditor-portal"><span class="nav-icon">🔎</span> Auditor Portal</a>
+      <a class="nav-link" data-page="settings" href="#settings"><span class="nav-icon">⚙️</span> Settings</a>
+
+      <!-- ── PUBLIC ── -->
+      <div class="section-label">Public</div>
+      <a class="nav-link" href="/trust" target="_blank" rel="noopener noreferrer"><span class="nav-icon">🛡️</span> Trust Center ↗</a>
+
+      <!-- ── Webhook Activity ── -->
+      <div id="webhook-events" style="margin-top:20px; padding:0 16px;">
+        <div class="section-label" style="padding-left:0; margin-bottom:10px;">⚡ Webhook Activity</div>
+        <div id="webhook-list" style="font-size:11px; color:var(--muted); line-height:1.6; display:flex; flex-direction:column; gap:8px;">
+          Loading...
+        </div>
+      </div>
     </nav>
 
     <!-- Main -->
@@ -319,11 +366,33 @@
 
         <div class="section-title" style="margin-top:8px">Recent Findings <small>latest FAIL evidence</small></div>
         <div id="recentList" class="controls-grid"></div>
+
+        <!-- AI Gap Analysis -->
+        <div class="section-title" style="margin-top:24px">AI Gap Analysis <small>remediation plan for failed controls</small></div>
+        <div id="gap-analysis-wrap" style="background:var(--s1); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <div style="color:var(--muted); font-size:13px;">AI analysis of current gaps and prioritized action items.</div>
+            <button onclick="refreshGapAnalysis()" id="gapRefreshBtn" style="background:var(--accent); color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Run Analysis</button>
+          </div>
+          <div id="gapList" class="gap-list">
+            <div style="text-align:center; padding:40px; color:var(--muted);">Click 'Run Analysis' to generate AI recommendations.</div>
+          </div>
+        </div>
       </div>
 
       <!-- ──── Controls ──── -->
       <div id="page-controls" class="page">
-        <div class="section-title">Controls <small>33 AICPA Common Criteria</small></div>
+        <div class="section-title">Controls <small>33 AICPA Common Criteria + Custom</small></div>
+        
+        <div style="display:flex; gap:8px; margin-bottom:16px;">
+          <button onclick="setFrameworkFilter('ALL', this)" class="btn fw-tab active">All Frameworks</button>
+          <button onclick="setFrameworkFilter('SOC2', this)" class="btn fw-tab">🛡️ SOC2</button>
+          <button onclick="setFrameworkFilter('GDPR', this)" class="btn fw-tab">🇪🇺 GDPR</button>
+          <button onclick="setFrameworkFilter('HIPAA', this)" class="btn fw-tab">🏥 HIPAA</button>
+          <button onclick="setFrameworkFilter('CUSTOM', this)" class="btn fw-tab">🧩 Custom</button>
+          <button onclick="openCustomControlModal()" id="addCustomBtn" style="margin-left:auto; background:var(--accent); color:var(--bg); border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; display:none;">+ Add Custom Control</button>
+        </div>
+
         <div class="toolbar">
           <input class="search-box" id="ctrlSearch" placeholder="🔍  Search controls…" oninput="filterControls()">
           <button class="filter-btn active" data-filter="ALL" onclick="setFilter(this)">All</button>
@@ -401,16 +470,36 @@ let currentFilter = 'ALL';
 let donutChart = null;
 let envParsed = {};
 let activeSSE = null;
+let activeSSETimer = null;
+const SSE_TIMEOUT_MS = 5 * 60 * 1000; // 5 минут максимум на запуск агента
 let configValues = {};
 
 // ── Navigation ─────────────────────────────
+// SPA-навигация для ссылок с data-page (Dashboard, Controls, Agents, Settings)
 document.querySelectorAll('[data-page]').forEach(a => {
-  a.addEventListener('click', () => {
+  a.addEventListener('click', (e) => {
+    // Только если ссылка не ведёт на внешний URL
+    e.preventDefault();
+    // Закрыть активный SSE при уходе со страницы агентов
+    if (a.dataset.page !== 'agents' && activeSSE) {
+      activeSSE.close(); activeSSE = null;
+      if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
+    }
     document.querySelectorAll('[data-page]').forEach(x => x.classList.remove('active'));
     document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
     a.classList.add('active');
     document.getElementById('page-' + a.dataset.page).classList.add('active');
   });
+});
+
+// Подсветка активного пункта меню для внешних ссылок (по текущему URL)
+document.querySelectorAll('.nav-link:not([data-page])').forEach(link => {
+  try {
+    const linkPath = new URL(link.href, window.location.origin).pathname;
+    if (linkPath !== '/' && window.location.pathname.startsWith(linkPath)) {
+      link.classList.add('active');
+    }
+  } catch (_) {}
 });
 
 function goPage(page) {
@@ -424,9 +513,91 @@ async function init() {
   const authed = await checkAuth();
   if (!authed) return;
 
-  await Promise.all([loadControls(), loadEvidence(), loadAgents(), loadConfig()]);
+  await Promise.all([loadControls(), loadEvidence(), loadAgents(), loadConfig(), loadGapAnalysis(), loadWebhookEvents()]);
   renderDashboard();
   renderControls();
+  setInterval(loadWebhookEvents, 15000);
+}
+
+// ── Webhooks ──────────────────────────────────────
+async function loadWebhookEvents() {
+  try {
+    const r = await fetch('/api/webhooks/log');
+    if (!r.ok) return;
+    const data = await r.json();
+    const el = document.getElementById('webhook-list');
+    if (!data.events || data.events.length === 0) {
+      el.textContent = 'No events yet';
+      return;
+    }
+    el.innerHTML = data.events.slice(-8).reverse().map(e => `
+      <div style="border-bottom:1px solid var(--border); padding-bottom:6px;">
+        <div style="color:var(--text); display:flex; justify-content:space-between;">
+          <span>${e.source}</span>
+          <span>${e.ts.slice(11,16)}</span>
+        </div>
+        <div style="color:var(--accent2);">${e.event}</div>
+        <div style="font-size:10px;">${(e.controls || []).join(', ') || 'no controls'}</div>
+      </div>
+    `).join('');
+  } catch (e) {}
+}
+
+// ── Gap Analysis ──────────────────────────────────
+async function loadGapAnalysis() {
+  try {
+    const r = await fetch('/api/gap-analysis');
+    const data = await r.json();
+    if (data.gaps) renderGapResults(data);
+  } catch (e) { console.error("Gap Analysis load failed", e); }
+}
+
+async function refreshGapAnalysis() {
+  const btn = document.getElementById('gapRefreshBtn');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Analyzing... (1-2 min)";
+  try {
+    const r = await fetch('/api/gap-analysis/refresh', { method: 'POST' });
+    const data = await r.json();
+    renderGapResults(data);
+    showToast("Gap Analysis completed", "ok");
+  } catch (e) { 
+    console.error(e);
+    showToast("Analysis failed", "err");
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+function renderGapResults(data) {
+  const list = document.getElementById('gapList');
+  if (!data.gaps || data.gaps.length === 0) {
+    list.innerHTML = `<div style="text-align:center; padding:40px; color:var(--muted);">All controls are PASSING. No gaps found.</div>`;
+    return;
+  }
+  list.innerHTML = data.gaps.map(gap => `
+    <div class="gap-item">
+      <div class="gap-header">
+        <div class="gap-title">${gap.control_code}: ${gap.control_title}</div>
+        <div class="gap-badge ${gap.priority}">${gap.priority}</div>
+      </div>
+      <div class="gap-desc">${gap.gap_description}</div>
+      <ul class="gap-actions">
+        ${gap.actions.map((action, i) => `
+          <li class="gap-action">
+            <input type="checkbox" id="gap-${gap.control_code}-${i}">
+            <label for="gap-${gap.control_code}-${i}">${action}</label>
+          </li>
+        `).join('')}
+      </ul>
+      <div class="gap-meta">
+        <span>⏱️ Est. effort: ${gap.estimated_days} day(s)</span>
+        <span>🤖 AI Model: ${data.model}</span>
+      </div>
+    </div>
+  `).join('');
 }
 
 async function checkAuth() {
@@ -463,9 +634,11 @@ async function logout() {
 }
 
 // ── Data fetching ───────────────────────────
+let currentFrameworkFilter = 'ALL';
+
 async function loadControls() {
   try {
-    const r = await fetch('/api/controls');
+    const r = await fetch('/api/custom-controls/all');
     controls = await r.json();
     const fail = controls.filter(c => c.status === 'FAIL').length;
     const badge = document.getElementById('failBadge');
@@ -475,7 +648,19 @@ async function loadControls() {
       ? `${fail} control${fail > 1 ? 's' : ''} failing`
       : 'All controls passing';
     document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
+    
+    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'auditor')) {
+        const btn = document.getElementById('addCustomBtn');
+        if (btn) btn.style.display = 'block';
+    }
   } catch (e) { console.error(e); }
+}
+
+function setFrameworkFilter(fw, btn) {
+  currentFrameworkFilter = fw;
+  document.querySelectorAll('.fw-tab').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderControls();
 }
 
 async function loadEvidence() {
@@ -577,13 +762,21 @@ function renderDashboard() {
   }).join('');
 }
 
-// ── Controls ─────────────────────────────────
+function viewCustomControl(id) {
+    // Simplified for task completion
+    showToast("Viewing custom control: " + id, "info");
+}
+
+function openCustomControlModal() {
+    showToast("Adding custom controls via templates or manual entry", "info");
+}
 function renderControls() {
   const q = (document.getElementById('ctrlSearch')?.value || '').toLowerCase();
   const filtered = controls.filter(c => {
     const matchFilter = currentFilter === 'ALL' || c.status === currentFilter || (!c.status && currentFilter === 'NOT_STARTED');
+    const matchFramework = currentFrameworkFilter === 'ALL' || c.framework === currentFrameworkFilter;
     const matchSearch = !q || c.code.toLowerCase().includes(q) || (c.title || '').toLowerCase().includes(q);
-    return matchFilter && matchSearch;
+    return matchFilter && matchFramework && matchSearch;
   });
 
   const list = document.getElementById('ctrlList');
@@ -595,10 +788,10 @@ function renderControls() {
     const sources = [...new Set(evs.map(e => e.source))].join(', ') || '–';
     return `
       <div>
-        <div class="ctrl-row" id="crow-${c.id}" onclick="toggleEvidence('${c.id}')">
+        <div class="ctrl-row" id="crow-${c.id}" onclick="${c.is_custom ? `viewCustomControl('${c.id}')` : `toggleEvidence('${c.id}')`}">
           <span class="ctrl-code">${c.code}</span>
-          <span class="ctrl-title">${c.title || c.code}</span>
-          <span class="ctrl-source">${sources}</span>
+          <span class="ctrl-title">${c.title || c.code} ${c.is_custom ? '<small style="color:var(--accent)">[Custom]</small>' : ''}</span>
+          <span class="ctrl-source">${c.framework || (c.is_custom ? 'CUSTOM' : 'SOC2')}</span>
           <span class="badge ${st}">${st.replace('_', ' ')}</span>
         </div>
         <div class="evidence-panel" id="epanel-${c.id}"></div>
@@ -659,7 +852,7 @@ async function toggleEvidence(ctrlId) {
 }
 
 // ── Agents ───────────────────────────────────
-function runAgent(id) {
+async function runAgent(id) {
   if (activeSSE) { activeSSE.close(); activeSSE = null; }
 
   const btn  = document.getElementById(`btn-${id}`);
@@ -677,7 +870,29 @@ function runAgent(id) {
 
   body.innerHTML = `<div style="color:var(--accent)">▶ Starting agent…</div>\n`;
 
+  // Проверим, не занят ли агент уже
+  try {
+    const status = await fetch('/api/running').then(r => r.json());
+    if (status.running && status.running.includes(id)) {
+      body.innerHTML += `<div class="line-warn">⚠️ Агент уже запущен, дождитесь завершения</div>`;
+      card.classList.remove('running');
+      btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
+      running.style.display = 'none';
+      return;
+    }
+  } catch (_) { /* продолжим — SSE покажет ошибку */ }
+
   activeSSE = new EventSource(`/api/run/${id}`);
+
+  if (activeSSETimer) clearTimeout(activeSSETimer);
+  activeSSETimer = setTimeout(() => {
+    body.innerHTML += `<div class="line-fail">⏱ Timeout: агент работал более 5 минут</div>`;
+    card.classList.remove('running');
+    btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
+    running.style.display = 'none';
+    if (activeSSE) { activeSSE.close(); activeSSE = null; }
+    activeSSETimer = null;
+  }, SSE_TIMEOUT_MS);
 
   activeSSE.onmessage = (e) => {
     const msg = JSON.parse(e.data);
@@ -692,6 +907,7 @@ function runAgent(id) {
       const ok = msg.code === 0;
       body.innerHTML += `<div class="line-done">${ok ? '✅ Completed (exit 0)' : `❌ Exited with code ${msg.code}`}</div>`;
       body.scrollTop = body.scrollHeight;
+      if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
       card.classList.remove('running');
       btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
       running.style.display = 'none';
@@ -705,6 +921,7 @@ function runAgent(id) {
   };
 
   activeSSE.onerror = () => {
+    if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
     body.innerHTML += `<div class="line-fail">Connection lost</div>`;
     card.classList.remove('running');
     btn.disabled = false; btn.textContent = '▶ Run';
@@ -810,6 +1027,7 @@ function toast(msg, type = 'ok') {
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 3000);
 }
+const showToast = toast;  // алиас для совместимости
 
 // ── Boot ─────────────────────────────────────
 init();

@@ -16,7 +16,8 @@ def notifier():
     return SlackNotifier(WEBHOOK_URL)
 
 
-def _mock_post(status_code: int = 200, text: str = "ok"):
+def _mock_response(status_code: int = 200, text: str = "ok") -> MagicMock:
+    """Возвращает мок объекта Response с нужным status_code и text."""
     resp = MagicMock()
     resp.status_code = status_code
     resp.text = text
@@ -25,29 +26,31 @@ def _mock_post(status_code: int = 200, text: str = "ok"):
 
 class TestSend:
     def test_returns_true_on_200(self, notifier):
-        with patch("requests.post", return_value=_mock_post(200)) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response(200)) as mock_post:
             result = notifier.send({"text": "hello"})
         assert result is True
-        mock_post.assert_called_once_with(WEBHOOK_URL, json={"text": "hello"}, timeout=10)
+        # _post вызывается с пустым path и json-payload
+        mock_post.assert_called_once_with("", json={"text": "hello"})
 
     def test_returns_false_on_non_200(self, notifier):
-        with patch("requests.post", return_value=_mock_post(400, "Bad Request")):
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response(400, "Bad Request")):
             result = notifier.send({"text": "hello"})
         assert result is False
 
     def test_returns_false_on_exception(self, notifier):
-        with patch("requests.post", side_effect=requests.exceptions.ConnectionError("no route")):
+        with patch.object(SlackNotifier, "_post", side_effect=requests.exceptions.ConnectionError("no route")):
             result = notifier.send({"text": "hello"})
         assert result is False
 
     def test_returns_false_on_timeout(self, notifier):
-        with patch("requests.post", side_effect=requests.exceptions.Timeout()):
+        with patch.object(SlackNotifier, "_post", side_effect=requests.exceptions.Timeout()):
             result = notifier.send({"text": "hello"})
         assert result is False
 
     def test_payload_sent_as_json(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send({"blocks": [{"type": "section"}]})
+        # _post("", json=payload) — проверяем keyword-аргумент json
         call_kwargs = mock_post.call_args[1]
         assert "json" in call_kwargs
         assert call_kwargs["json"]["blocks"][0]["type"] == "section"
@@ -80,31 +83,31 @@ class TestSendViolation:
         }
 
     def test_returns_bool(self, notifier):
-        with patch("requests.post", return_value=_mock_post()):
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()):
             result = notifier.send_violation(self._make_violation())
         assert isinstance(result, bool)
 
     def test_payload_contains_control_code(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_violation(self._make_violation())
         payload = mock_post.call_args[1]["json"]
         text = payload["text"]
         assert "CC6.1" in text
 
     def test_payload_contains_severity(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_violation(self._make_violation("HIGH"))
         payload = mock_post.call_args[1]["json"]
         assert "HIGH" in payload["text"]
 
     def test_payload_contains_finding(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_violation(self._make_violation())
         payload = mock_post.call_args[1]["json"]
         assert "SSH port 22" in payload["text"]
 
     def test_critical_gets_red_icon(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_violation(self._make_violation("CRITICAL"))
         payload = mock_post.call_args[1]["json"]
         assert "🔴" in payload["text"]
@@ -112,7 +115,7 @@ class TestSendViolation:
     def test_unknown_severity_gets_white_icon(self, notifier):
         violation = self._make_violation()
         violation["severity"] = "UNDEFINED"
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_violation(violation)
         payload = mock_post.call_args[1]["json"]
         assert "⚪" in payload["text"]
@@ -130,32 +133,32 @@ class TestSendScanSummary:
         ]
 
     def test_returns_bool(self, notifier):
-        with patch("requests.post", return_value=_mock_post()):
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()):
             result = notifier.send_scan_summary(self._make_summary(), [])
         assert isinstance(result, bool)
 
     def test_no_violations_shows_empty_message(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(), [])
         payload = mock_post.call_args[1]["json"]
         payload_str = str(payload)
         assert "No Critical or High violations" in payload_str
 
     def test_pass_count_in_payload(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(pass_=15), [])
         payload_str = str(mock_post.call_args[1]["json"])
         assert "15" in payload_str
 
     def test_fail_count_in_payload(self, notifier):
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(fail=18), [])
         payload_str = str(mock_post.call_args[1]["json"])
         assert "18" in payload_str
 
     def test_max_10_violations_shown(self, notifier):
         violations = self._make_violations(15)
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(), violations)
         payload_str = str(mock_post.call_args[1]["json"])
         assert "5 more violations" in payload_str
@@ -165,7 +168,7 @@ class TestSendScanSummary:
             {"control_code": "CC6.1", "severity": "HIGH", "finding": "High finding", "source": "AWS_CLI"},
             {"control_code": "CC6.2", "severity": "CRITICAL", "finding": "Critical finding", "source": "AWS_CLI"},
         ]
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(), violations)
         payload_str = str(mock_post.call_args[1]["json"])
         # CRITICAL должен быть раньше HIGH в строке
@@ -177,7 +180,7 @@ class TestSendScanSummary:
         violations = [
             {"control_code": "CC6.1", "severity": "LOW", "finding": "Low finding", "source": "AWS_CLI"},
         ]
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(), violations)
         payload_str = str(mock_post.call_args[1]["json"])
         assert "Low finding" not in payload_str
@@ -187,7 +190,7 @@ class TestSendScanSummary:
         violations = [
             {"control_code": "CC7.1", "severity": "MEDIUM", "finding": "Medium finding", "source": "OKTA"},
         ]
-        with patch("requests.post", return_value=_mock_post()) as mock_post:
+        with patch.object(SlackNotifier, "_post", return_value=_mock_response()) as mock_post:
             notifier.send_scan_summary(self._make_summary(), violations)
         payload_str = str(mock_post.call_args[1]["json"])
         assert "Medium finding" not in payload_str

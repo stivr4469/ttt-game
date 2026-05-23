@@ -1,0 +1,8 @@
+Добавить в ui_server.py после "from auditor_routes import router as auditor_router":
+
+    from audit_timeline_routes import router as timeline_router
+    app.include_router(timeline_router)
+
+    @app.get("/audit-timeline", response_class=HTMLResponse)
+    async def audit_timeline_page():
+        return FileResponse(ROOT / "ui" / "audit-timeline.html")

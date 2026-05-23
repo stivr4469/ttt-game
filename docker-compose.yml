@@ -2,6 +2,7 @@ services:
   localstack:
     container_name: localstack_sandbox
     image: localstack/localstack:3.5.0
+    restart: unless-stopped
     ports:
       - "4566:4566"
     environment:
@@ -19,8 +20,12 @@ services:
 
   redis:
     image: redis:7-alpine
+    restart: unless-stopped
     ports:
       - "6379:6379"
+    command: redis-server --appendonly yes --appendfsync everysec
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -29,16 +34,105 @@ services:
 
   celery_worker:
     build: .
+    restart: unless-stopped
     command: celery -A celery_app worker --loglevel=info --concurrency=2
     environment:
       - REDIS_URL=redis://redis:6379/0
       - EVIDENCE_TRACKER_URL=http://evidence-tracker:8000
+      - LOCALSTACK_ENDPOINT=http://localstack:4566
+    env_file:
+      - .env
+    extra_hosts:
+      - "evidence-tracker:host-gateway"
     depends_on:
       redis:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     volumes:
       - .:/app
     working_dir: /app
+    healthcheck:
+      test: ["CMD", "celery", "-A", "celery_app", "inspect", "ping", "--timeout=5"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  ui_server:
+    build: .
+    restart: unless-stopped
+    command: python3 ui_server.py
+    ports:
+      - "8080:8080"
+    environment:
+      - EVIDENCE_TRACKER_URL=http://evidence-tracker:8000
+      - REDIS_URL=redis://redis:6379/0
+      - CORS_ORIGINS=http://localhost:8080
+      - LOCALSTACK_ENDPOINT=http://localstack:4566
+    env_file:
+      - .env
+    extra_hosts:
+      - "evidence-tracker:host-gateway"
+    depends_on:
+      redis:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    depends_on:
+      - ui_server
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/healthy"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+
+  grafana:
+    image: grafana/grafana:10.4.0
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=soc2admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
 volumes:
   localstack_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:

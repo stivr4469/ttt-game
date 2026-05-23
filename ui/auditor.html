@@ -33,6 +33,21 @@
   .btn-back { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; }
   .btn-back:hover { background: var(--s2); color: var(--text); }
 
+  /* ── Горизонтальная навигация ── */
+  .top-nav {
+    display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+    scrollbar-width: none; margin: 0 12px;
+  }
+  .top-nav::-webkit-scrollbar { display: none; }
+  .top-nav a {
+    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+    color: var(--muted); text-decoration: none; border-radius: 6px;
+    font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+  }
+  .top-nav a:hover { background: var(--s2); color: var(--text); }
+  .top-nav a.active { background: rgba(59,130,246,.15); color: var(--accent2); }
+  .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
   main { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
 
   .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
@@ -107,8 +122,26 @@
 
 <header>
   <h1><span>🔍</span> Auditor Portal</h1>
+  <!-- Горизонтальная навигация по разделам платформы -->
+  <nav class="top-nav" id="topNav">
+    <a href="/">📊 Dashboard</a>
+    <span class="nav-sep"></span>
+    <a href="/training">🎓 Training</a>
+    <a href="/background-checks">👤 BG Checks</a>
+    <span class="nav-sep"></span>
+    <a href="/vulnerabilities">🔒 Vulns</a>
+    <a href="/pentests">🔍 Pen Tests</a>
+    <a href="/risk-register">⚠️ Risk</a>
+    <span class="nav-sep"></span>
+    <a href="/audit-timeline">📅 Timeline</a>
+    <a href="/questionnaires">📋 Questionnaires</a>
+    <span class="nav-sep"></span>
+    <a href="/access-review">👥 Access Review</a>
+    <a href="/auditor-portal" class="active">🔎 Auditor</a>
+    <span class="nav-sep"></span>
+    <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+  </nav>
   <div class="summary" id="summaryHeader">Loading summary...</div>
-  <a href="/" class="btn-back">← Dashboard</a>
 </header>
 
 <main>

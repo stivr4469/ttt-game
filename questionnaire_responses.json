@@ -1,0 +1,231 @@
+[
+  {
+    "id": "6403c761-f07e-4d56-8de6-5c0d1f76a19b",
+    "questionnaire": "sig_lite",
+    "questionnaire_name": "SIG Lite",
+    "requester": {
+      "company": "Acme Corp",
+      "email": "security@acme.com"
+    },
+    "generated_at": "2026-05-23T14:41:21.823908+00:00",
+    "total_questions": 20,
+    "high_confidence": 20,
+    "needs_review_count": 0,
+    "answers": [
+      {
+        "question_id": "A.1",
+        "question": "Does your organization have a formal risk management program?",
+        "category": "Risk Management",
+        "answer": "Yes, Marineso has a formal risk management framework established through our Corporate Governance and Board Oversight Policy. This policy requires the Board of Directors to approve the annual risk assessment and ensures management addresses identified vulnerabilities, with the Board overseeing remediation of control failures. However, with 17 of our 33 SOC 2 controls currently failing in our sandbox environment, we acknowledge gaps exist in our risk management execution and are actively working to strengthen our controls and achieve full compliance.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "A.2",
+        "question": "How frequently is your risk assessment performed?",
+        "category": "Risk Management",
+        "answer": "Based on our Corporate Governance and Board Oversight Policy, the risk assessment is performed annually. The policy specifically states that the Board, through its Audit and Compliance Committee, is responsible for \"approving the annual risk assessment and ensuring that management addresses identified vulnerabilities.\" This annual assessment aligns with our commitment to maintaining robust internal controls and SOC 2 compliance standards.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "B.1",
+        "question": "Do you have a written information security policy?",
+        "category": "Security Policy",
+        "answer": "Yes, Marineso maintains written governance policies that encompass information security oversight, including the Corporate Governance and Board Oversight Policy, which establishes board-level accountability for security and internal controls, and the External Communication and Privacy Policy, which defines security disclosure standards and privacy commitments. However, while these policies provide a framework for security governance and compliance oversight, they do not constitute a comprehensive written information security policy that addresses detailed technical and operational security controls across our AWS (us-east-1) infrastructure, Okta (trial-7222443.okta.com) identity management, and LocalStack testing environments. A dedicated information security policy that comprehensively covers areas such as access controls, incident response procedures, data classification, and security testing requirements would better align with full compliance requirements.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance",
+          "Access Control",
+          "Incident Response"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "B.2",
+        "question": "When was your security policy last reviewed and updated?",
+        "category": "Security Policy",
+        "answer": "Based on our Corporate Governance and Board Oversight Policy (Section 9) and External Communication and Privacy Policy (Review Cycle), all security-related policies are reviewed and re-approved by the Board of Directors at least annually. The Corporate Governance and Board Oversight Policy was most recently approved on 2026-05-22, and the External Communication and Privacy Policy was approved on 2024-05-22. While our policies mandate annual reviews, we acknowledge that our current SOC 2 status shows 17 of 33 controls in FAIL state within our sandbox environment, indicating ongoing remediation efforts that may require additional policy updates.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "C.1",
+        "question": "Do you enforce multi-factor authentication (MFA) for all users?",
+        "category": "Access Control",
+        "answer": "Based on our current policies, we do not have explicit coverage of multi-factor authentication enforcement for all users. While our Corporate Governance and Board Oversight Policy addresses identity governance oversight through Okta and emphasizes the principle of least privilege, it does not specifically mandate MFA for all users. Our External Communication and Privacy Policy references PII management through Okta but does not detail authentication requirements. This represents a gap in our current policy framework that should be addressed to ensure comprehensive access control.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance",
+          "Access Control"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "C.2",
+        "question": "How do you manage privileged access and admin accounts?",
+        "category": "Access Control",
+        "answer": "Based on our Corporate Governance and Board Oversight Policy, we manage privileged access through quarterly reviews of Okta-generated access reports to ensure administrative privileges follow the principle of least privilege and that terminated employees are promptly deprovisioned. However, with 17 of our 33 SOC 2 controls currently failing in the sandbox environment, we acknowledge gaps in our privileged access management implementation and are actively working on remediation as part of our SOC 2 Type II certification process.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "C.3",
+        "question": "Do you perform periodic access reviews?",
+        "category": "Access Control",
+        "answer": "Yes, we perform periodic access reviews as required by our Corporate Governance and Board Oversight Policy. Specifically, Section 6.2 mandates quarterly reviews of access reports generated from our Okta production instance (trial-7222443.okta.com) to ensure administrative privileges adhere to the principle of least privilege and that terminated employees are promptly deprovisioned. These quarterly reviews are overseen by the Board as part of our identity governance framework.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "D.1",
+        "question": "Is data encrypted at rest and in transit?",
+        "category": "Data Protection",
+        "answer": "Based on the policies provided, I cannot find a specific policy that addresses encryption of data at rest and in transit. While our Corporate Governance and Board Oversight Policy establishes oversight responsibilities and our External Communication and Privacy Policy covers data handling commitments, there is no explicit policy or standard defined for encryption implementation. Given that we are currently assessing 33 SOC 2 controls with 17 in \"FAIL\" status in our sandbox environment, this represents a potential gap in our data protection framework that should be addressed through formal policy development and control implementation.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance",
+          "Data Protection"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "D.2",
+        "question": "What data classification policy do you follow?",
+        "category": "Data Protection",
+        "answer": "Based on the policies provided, Marineso does not have a formal, documented data classification policy. However, our External Communication and Privacy Policy establishes related commitments around data minimization, purpose limitation, and retention limits, with PII managed through Okta. We acknowledge this gap in our control framework and are working to implement a comprehensive data classification policy as part of our ongoing SOC 2 certification process.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      },
+      {
+        "question_id": "D.3",
+        "question": "How do you handle customer data deletion requests?",
+        "category": "Data Protection",
+        "answer": "Based on our External Communication and Privacy Policy, we honor all customer data deletion requests and ensure they are fulfilled within 30 days of receipt. This commitment is managed through our Okta identity system and AWS infrastructure, with requests processed in accordance with our data retention limits and purpose limitation principles.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      },
+      {
+        "question_id": "E.1",
+        "question": "Do you have a documented incident response plan?",
+        "category": "Incident Response",
+        "answer": "Yes, we have documented incident response procedures as outlined in our Corporate Governance and Board Oversight Policy (Section 6.3), which establishes an escalation path for critical security incidents including immediate Slack notifications, post-mortem documentation, and Board briefings within 72 hours for customer-impacting events. However, this represents our incident escalation framework rather than a comprehensive incident response plan covering full detection, analysis, containment, and recovery procedures.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance",
+          "Incident Response"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "E.2",
+        "question": "What is your SLA for notifying customers of a data breach?",
+        "category": "Incident Response",
+        "answer": "According to our External Communication and Privacy Policy, we commit to notifying affected customers within **72 hours of breach confirmation**. This requirement is formally outlined in our Customer Breach Notification section, which mandates that all incidents triggering this process must be escalated through the Slack #compliance-alerts channel for immediate response and coordination.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      },
+      {
+        "question_id": "F.1",
+        "question": "Do you perform regular vulnerability assessments or penetration tests?",
+        "category": "Vulnerability Mgmt",
+        "answer": "Based on our current policies and operational status, Marineso does not yet perform regular vulnerability assessments or penetration tests. While our Corporate Governance and Board Oversight Policy establishes oversight responsibilities for internal controls, and our incident escalation procedures exist for responding to security issues, the formal execution of vulnerability scanning and penetration testing programs has not been implemented. Given that we are operating in a sandbox environment with 17 of 33 SOC 2 controls currently failing, we acknowledge this represents a gap in our security posture that needs to be addressed as we mature our compliance program.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "F.2",
+        "question": "What is your patch management process for critical vulnerabilities?",
+        "category": "Vulnerability Mgmt",
+        "answer": "Based on our current policies, we do not have a formally documented patch management process specifically for critical vulnerabilities. While our Corporate Governance and Board Oversight Policy requires the Board to oversee remediation of control failures and our External Communication and Privacy Policy establishes a vulnerability disclosure program for external researchers (with a 5-business-day SLA for initial responses), the internal process for identifying, prioritizing, and deploying patches for critical vulnerabilities is not explicitly defined in our policy framework. We rely on our security and DevOps teams to monitor the compliance dashboard and respond to alerts via the #compliance-alerts Slack channel, but we acknowledge this represents a gap in our governance documentation that should be addressed to ensure consistent and timely remediation of critical security issues.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "G.1",
+        "question": "Do you have a Business Continuity Plan (BCP)?",
+        "category": "Business Continuity",
+        "answer": "Based on our current policies, we do not have a formal, documented Business Continuity Plan (BCP) in place. While our Corporate Governance Policy includes incident escalation procedures and our risk assessment framework addresses control failures, a comprehensive BCP covering disaster recovery, alternate processing facilities, and business continuity strategies has not been established. Business continuity considerations are currently addressed through our incident response procedures and cloud infrastructure redundancy in AWS us-east-1, but a dedicated BCP has not been formally approved or documented.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance",
+          "Incident Response"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "G.2",
+        "question": "What is your Recovery Time Objective (RTO)?",
+        "category": "Business Continuity",
+        "answer": "Based on our current policies, we do not have a formally documented Recovery Time Objective (RTO) established in our Corporate Governance or External Communication policies. While our governance framework includes incident escalation procedures and compliance monitoring through our dashboard, the specific business continuity and disaster recovery targets, including RTO, are not yet defined in our policy documentation. This represents an area where our policies need enhancement to fully align with comprehensive business continuity planning requirements.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "H.1",
+        "question": "Do you perform security assessments of third-party vendors?",
+        "category": "Vendor Management",
+        "answer": "Marineso does not currently have a formal policy or documented procedure specifically addressing security assessments of third-party vendors. While we engage critical third-party services such as Okta for identity management and AWS for cloud infrastructure, our current governance framework primarily focuses on internal controls and direct infrastructure oversight rather than systematic vendor risk evaluation. We recognize the importance of vendor risk management and are considering enhancements to our compliance program to address third-party security assessments.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      },
+      {
+        "question_id": "H.2",
+        "question": "Do your vendors sign Data Processing Agreements (DPA)?",
+        "category": "Vendor Management",
+        "answer": "Based on the policies provided, vendor Data Processing Agreements (DPAs) are not explicitly addressed or mandated in our current Corporate Governance and Board Oversight Policy or External Communication and Privacy Policy. While we have frameworks for compliance reporting, incident escalation, and privacy commitments, the specific requirement for vendors to sign DPAs is not documented in the policies referenced. This represents a gap in our current vendor management controls that would need to be addressed through policy development or clarification of existing procedures.",
+        "confidence": "high",
+        "policy_references": [
+          "Corporate Governance"
+        ],
+        "needs_review": false
+      },
+      {
+        "question_id": "I.1",
+        "question": "What compliance certifications does your organization hold?",
+        "category": "Compliance",
+        "answer": "Based on our External Communication and Privacy Policy, Marineso is currently in the process of obtaining SOC 2 Type II and ISO 27001 certifications, though neither has been finalized at this time. Our compliance dashboard indicates that 33 controls have been assessed with 16 passing and 17 failing in our sandbox environment, reflecting our ongoing certification journey. We remain committed to achieving full certification while maintaining transparency about our current status.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      },
+      {
+        "question_id": "I.2",
+        "question": "Are you SOC 2 Type II certified? Can you share the report?",
+        "category": "Compliance",
+        "answer": "Based on our current status, Marineso is not yet SOC 2 Type II certified. As stated in our External Communication and Privacy Policy, we are actively working toward certification, and our SOC 2 Type II report is currently in progress. The policy specifies that our SOC 2 Type II report is a sensitive document that can only be shared with current or prospective customers under a signed Non-Disclosure Agreement (NDA) and with individual approval from our CISO. If you would like to request access to the report, please let us know, and we can guide you through the appropriate process.",
+        "confidence": "high",
+        "policy_references": [],
+        "needs_review": false
+      }
+    ]
+  }
+]

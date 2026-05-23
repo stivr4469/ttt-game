@@ -7,13 +7,17 @@ import requests
 import subprocess
 from typing import Optional, Dict, List, Union
 from openai import OpenAI, RateLimitError
+import anthropic as _anthropic
 from dotenv import load_dotenv
 from evidence_client import EvidenceClient
 from slack_notifier import SlackNotifier
 from constants import CONTROLS_MAP_FILE
+from ai_decision_log import get_decision_logger, DecisionType
 
-# OpenRouter free tier: 16 req/min → пауза 4 сек между запросами
-_INTER_REQUEST_DELAY = float(os.getenv("POLICY_REQUEST_DELAY", "4.0"))
+_OLLAMA_BASE_URL = os.getenv("OLLAMA_URL", "http://192.168.88.26:11434")
+
+# Задержка между запросами (OpenRouter free tier: 16 req/min)
+_INTER_REQUEST_DELAY = float(os.getenv("POLICY_REQUEST_DELAY", "2.0"))
 _RATE_LIMIT_RETRIES  = 4
 _RATE_LIMIT_BACKOFF  = [10, 30, 60, 120]  # секунды ожидания при 429
 
@@ -412,7 +416,7 @@ POLICY_CONTROLS: Dict[str, Dict] = {
                 "Okta (Identity Provider, Tier 1): SOC 2 Type II certified; reviewed annually",
                 "AWS (Cloud Infrastructure, Tier 1): SOC 2 Type II certified; reviewed annually",
                 "GitHub (Source Code Management, Tier 2): SOC 2 Type II certified; reviewed biennially",
-                "OpenRouter (AI API, Tier 2): security questionnaire completed; no PII transmitted",
+                "Anthropic (AI API, Tier 2): security questionnaire completed; no PII transmitted",
                 "Slack (Internal Communications, Tier 2): SOC 2 Type II certified; reviewed biennially",
             ],
             "Onboarding Requirements": "Security questionnaire completed; SOC 2 or equivalent report reviewed; Data Processing Agreement signed; Okta access scoped to minimum required permissions; CISO approves Tier-1 onboarding",
@@ -522,6 +526,63 @@ GOVERNANCE_CONTROLS = {
 }
 
 
+_CLOSING_PATTERNS = [
+    "this concludes",
+    "this policy concludes",
+    "this document concludes",
+    "this policy is designed to",
+    "this policy aims to",
+    "in conclusion",
+    "in summary,",
+    "by adhering to this",
+    "by following this policy",
+    "by implementing this",
+    "thank you for",
+    "if you have any questions",
+    "please contact",
+    "for more information",
+    "end of policy",
+    "end of document",
+]
+
+
+def _clean_policy_output(text: str) -> str:
+    """Убирает артефакты LLM: финальные заглушки, H3 вместо H2, дублирующие секции."""
+    import re
+    # H3 → H2 для секций верхнего уровня
+    text = re.sub(r'^###\s+', '## ', text, flags=re.MULTILINE)
+    # Убираем строки-заглушки в конце
+    lines = text.strip().splitlines()
+    while lines:
+        lower = lines[-1].strip().lower()
+        if any(lower.startswith(p) for p in _CLOSING_PATTERNS) or lower == "":
+            lines.pop()
+        else:
+            break
+    # Убираем висячий заголовок секции в самом конце (без тела)
+    while lines and re.match(r'^##\s+\S', lines[-1]):
+        lines.pop()
+        while lines and lines[-1].strip() == "":
+            lines.pop()
+    # Убираем дублирующиеся подряд идентичные секции (## Review Cycle × 2)
+    seen_headers: set = set()
+    deduped: list = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        if re.match(r'^##\s+', line):
+            if line in seen_headers:
+                # Пропускаем весь дублирующийся блок до следующего заголовка
+                i += 1
+                while i < len(lines) and not re.match(r'^##\s+', lines[i]):
+                    i += 1
+                continue
+            seen_headers.add(line)
+        deduped.append(line)
+        i += 1
+    return "\n".join(deduped).strip()
+
+
 def _build_sections_outline(sections: SectionMap) -> str:
     """Строит текстовый outline из словаря секций для промта."""
     lines: List[str] = []
@@ -537,9 +598,29 @@ def _build_sections_outline(sections: SectionMap) -> str:
 
 
 class PolicyAgent:
-    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None, use_gemini_cli: bool = False):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        use_gemini_cli: bool = False,
+        use_anthropic: bool = False,
+        use_ollama: bool = False,
+        ollama_url: Optional[str] = None,
+    ):
         self.use_gemini_cli = use_gemini_cli
-        if not use_gemini_cli:
+        self.use_anthropic = use_anthropic
+        self.use_ollama = use_ollama
+        if use_anthropic:
+            _key = api_key or os.getenv("ANTHROPIC_API_KEY", "")
+            self.client = _anthropic.Anthropic(api_key=_key)
+            self.model = model or "claude-haiku-4-5-20251001"
+        elif use_ollama:
+            # Ollama поддерживает OpenAI-совместимый API на /v1
+            _url = (ollama_url or _OLLAMA_BASE_URL).rstrip("/") + "/v1"
+            self.client = OpenAI(base_url=_url, api_key="ollama")
+            self.model = model or "qwen2.5:7b"
+            self._ollama_base = (ollama_url or _OLLAMA_BASE_URL).rstrip("/")
+        elif not use_gemini_cli:
             self.client = OpenAI(
                 base_url="https://openrouter.ai/api/v1",
                 api_key=api_key,
@@ -577,46 +658,81 @@ class PolicyAgent:
             "okta_domain": os.getenv("OKTA_DOMAIN", ""),
             "slack_channel": "#compliance-alerts",
             "aws_region": os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-            "evidence_tracker_url": EVIDENCE_TRACKER_URL,
+            "evidence_tracker_url": os.getenv("COMPLIANCE_DASHBOARD_URL", "https://compliance.marineso.com"),
             "recent_violations": self.fetch_recent_violations(),
             "failed_controls": self.fetch_failed_controls(),
         }
 
     def generate_policy(self, control_code: str, control_info: dict, env_context: dict) -> str:
+        t0 = time.time()
+        result = self._generate_policy_inner(control_code, control_info, env_context)
+        duration_ms = int((time.time() - t0) * 1000)
+        try:
+            get_decision_logger().record(
+                decision_type=DecisionType.POLICY_GENERATION,
+                model=getattr(self, "model", "unknown"),
+                prompt=f"Policy generation for {control_code}: {control_info.get('title', '')}",
+                output=result,
+                outcome="draft",
+                control_id=control_code,
+                duration_ms=duration_ms,
+                metadata={"audience": control_info.get("audience", "")},
+            )
+        except Exception as _log_exc:
+            logging.getLogger(__name__).warning("AI decision log failed: %s", _log_exc)
+        return result
+
+    def _generate_policy_inner(self, control_code: str, control_info: dict, env_context: dict) -> str:
         sections: SectionMap = control_info.get("sections", {})
         sections_outline = _build_sections_outline(sections) if sections else (
             "Purpose | Scope | Policy Statement | Responsibilities | Procedures | Enforcement | Review Cycle"
         )
 
-        prompt = f"""You are a senior compliance expert writing SOC 2 Type II policy documents for a real company.
+        system_msg = (
+            "You are a senior information security compliance expert with 15 years of SOC 2 audit experience. "
+            "You write policy documents that pass Big-4 auditor review without a single revision. "
+            "Your documents are specific, measurable, and name real tools and real people by role. "
+            "You NEVER write filler, summaries, or closing remarks. "
+            "You ALWAYS write full paragraphs — you never copy an outline verbatim. "
+            "Every section you write contains real operational detail, not abstract principles."
+        )
 
-Write a professional policy document for control {control_code}: {control_info['title']}.
+        prompt = f"""Write the complete SOC 2 Type II policy document for {env_context['company_name']}, control {control_code}: {control_info['title']}.
 
-COMPANY CONTEXT — reference these specific details throughout the document (do NOT use generic placeholders):
-- Company: {env_context['company_name']}
-- GitHub repository: {env_context['github_repo']}
-- Identity provider: Okta ({env_context['okta_domain']})
-- Incident escalation: Slack {env_context['slack_channel']}
-- Cloud infrastructure: AWS ({env_context['aws_region']})
-- Compliance dashboard: {env_context['evidence_tracker_url']}
-- Audience: {control_info.get('audience', 'All employees')}
+COMPANY DETAILS — paste these exact values into the document, never use placeholders:
+  Company: {env_context['company_name']}
+  GitHub repo: {env_context['github_repo']}
+  Okta domain: {env_context['okta_domain']}
+  Slack channel: {env_context['slack_channel']}
+  AWS region: {env_context['aws_region']}
+  Compliance portal: {env_context['evidence_tracker_url']}
+  Audience: {control_info.get('audience', 'All employees')}
 
-CURRENT COMPLIANCE STATE — incorporate relevant findings where appropriate:
-- Controls currently FAILING: {env_context['failed_controls']}
-- Recent violations: {env_context['recent_violations'][:3]}
+COMPLIANCE CONTEXT — reference current failures where relevant:
+  Controls FAILING now: {env_context['failed_controls']}
+  Recent violations: {env_context['recent_violations'][:3]}
 
-REQUIRED DOCUMENT STRUCTURE — write EVERY section below, covering the listed topics in detail:
+SECTIONS TO WRITE — these are TOPICS, not summaries. Expand each into full prose:
 
 {sections_outline}
 
-WRITING RULES:
-- English only; formal but readable tone
-- Name actual tools (Okta, AWS, GitHub, Slack) in every relevant section — never write "the identity provider" or "the source control system"
-- Each section must be substantive (3–6 sentences minimum or a proper bullet list)
-- Total length: 650–850 words
-- Format: Markdown, ## for top-level sections, bullet lists where the outline shows list items
-- End with the Review Cycle section
-- Return ONLY the policy document — no preamble, no explanations, no closing remarks"""
+MANDATORY RULES — each violation fails the audit review:
+• Start with ## Purpose (no title line above it)
+• Use ## for ALL section headings (never ### or ####)
+• Each section: write at least 5 full sentences OR a bulleted list of at least 4 items — NEVER copy the outline word-for-word
+• Name tools explicitly in every section that touches them: Okta, AWS, GitHub, Slack, Jira
+• Every deadline must be a number: "within 2 hours", "within 30 days" — never "promptly" or "as soon as possible"
+• Every owner must be a named role: "CISO", "HR", "Engineering Lead", "Compliance Lead" — never "the team"
+• Total word count: 700–900 words
+• End on ## Review Cycle — nothing after it (no closing sentence, no "This concludes", no summary)
+• Return ONLY the policy Markdown"""
+
+        messages_payload = [
+            {"role": "system", "content": system_msg},
+            {"role": "user",   "content": prompt},
+        ]
+
+        _min_words = 620
 
         try:
             if self.use_gemini_cli:
@@ -628,25 +744,61 @@ WRITING RULES:
                 if result.returncode != 0:
                     raise Exception(f"Gemini CLI error: {result.stderr}")
                 output = result.stdout
-                # Обрезать Gemini-internal Task Status section
                 for marker in ["---\n\n### Task Status", "---\n\n## Task", "\n### Task Status", "\n## Статус:"]:
                     if marker in output:
                         output = output[:output.index(marker)]
-                # Убрать служебные строки CLI
                 lines = output.splitlines()
                 clean = [l for l in lines if not any(x in l for x in [
                     "Ripgrep", "MCP issues", "Error executing tool",
                     "Falling back", "YOLO mode"
                 ])]
-                return "\n".join(clean).strip()
+                return _clean_policy_output("\n".join(clean))
+            elif self.use_anthropic:
+                # Anthropic не принимает system в messages — передаём отдельным параметром
+                for attempt, wait in enumerate(_RATE_LIMIT_BACKOFF):
+                    try:
+                        message = self.client.messages.create(
+                            model=self.model,
+                            max_tokens=1800,
+                            system=system_msg,
+                            messages=[{"role": "user", "content": prompt}],
+                        )
+                        return _clean_policy_output(message.content[0].text)
+                    except _anthropic.RateLimitError:
+                        if attempt == len(_RATE_LIMIT_BACKOFF) - 1:
+                            raise
+                        logger.warning(
+                            f"Rate limit hit for {control_code} (attempt {attempt + 1}), "
+                            f"waiting {wait}s..."
+                        )
+                        time.sleep(wait)
+            elif self.use_ollama:
+                for _attempt in range(2):
+                    response = self.client.chat.completions.create(
+                        model=self.model,
+                        messages=messages_payload,
+                        temperature=0.3 + _attempt * 0.1,
+                        max_tokens=1800,
+                    )
+                    result = _clean_policy_output(response.choices[0].message.content)
+                    if len(result.split()) >= _min_words or _attempt == 1:
+                        return result
+                    # Retry: добавляем давление на длину
+                    messages_payload = messages_payload + [
+                        {"role": "assistant", "content": result},
+                        {"role": "user", "content":
+                         f"This response is too short ({len(result.split())} words). "
+                         f"Expand EVERY section with at least 2 additional sentences of specific operational detail. "
+                         f"Target: {_min_words}+ words total."},
+                    ]
             else:
                 for attempt, wait in enumerate(_RATE_LIMIT_BACKOFF):
                     try:
                         response = self.client.chat.completions.create(
                             model=self.model,
-                            messages=[{"role": "user", "content": prompt}],
+                            messages=messages_payload,
                         )
-                        return response.choices[0].message.content
+                        return _clean_policy_output(response.choices[0].message.content)
                     except RateLimitError as e:
                         if attempt == len(_RATE_LIMIT_BACKOFF) - 1:
                             raise
@@ -666,7 +818,11 @@ def main(controls_map: dict | None = None):
     parser.add_argument("--list", action="store_true", help="List all controls requiring policies")
     parser.add_argument("--company", type=str, help="Override company name for the policy")
     parser.add_argument("--gemini", action="store_true", help="Use Gemini CLI instead of OpenRouter")
-    parser.add_argument("--governance", action="store_true", help="Generate only the 9 governance docs (CC1.2/1.3/1.5/2.3/3.1/3.2/3.3/4.1/5.1)")
+    parser.add_argument("--governance", action="store_true", help="Generate only the 9 governance docs")
+    parser.add_argument("--api-key", type=str, default="", help="Anthropic API key (или задай ANTHROPIC_API_KEY в .env)")
+    parser.add_argument("--anthropic", action="store_true", help="Использовать Anthropic API напрямую")
+    parser.add_argument("--ollama", action="store_true", help="Использовать Ollama (qwen2.5:7b, без API ключа)")
+    parser.add_argument("--ollama-model", type=str, default="qwen2.5:7b", help="Модель Ollama (default: qwen2.5:7b)")
 
     args = parser.parse_args()
 
@@ -677,15 +833,32 @@ def main(controls_map: dict | None = None):
         return
 
     use_gemini = args.gemini
-    if not use_gemini and not OPENROUTER_API_KEY:
-        logger.error("OPENROUTER_API_KEY not found. Use --gemini flag to use Gemini CLI instead.")
-        return
+    use_ollama  = args.ollama
 
-    agent = PolicyAgent(
-        api_key=OPENROUTER_API_KEY if not use_gemini else None,
-        model=OPENROUTER_MODEL if not use_gemini else None,
-        use_gemini_cli=use_gemini
-    )
+    if args.api_key:
+        os.environ["ANTHROPIC_API_KEY"] = args.api_key
+
+    if use_gemini:
+        agent = PolicyAgent(use_gemini_cli=True)
+    elif use_ollama:
+        agent = PolicyAgent(model=args.ollama_model, use_ollama=True)
+        print(f"[AI] Бэкенд: Ollama ({args.ollama_model})")
+    else:
+        _ant_key = os.getenv("ANTHROPIC_API_KEY", "")
+        _or_key  = os.getenv("OPENROUTER_API_KEY", "")
+        if _ant_key:
+            print("[AI] Бэкенд: Anthropic")
+            agent = PolicyAgent(
+                api_key=_ant_key,
+                model=os.getenv("POLICY_MODEL", "claude-haiku-4-5-20251001"),
+                use_anthropic=True,
+            )
+        elif _or_key:
+            print("[AI] Бэкенд: OpenRouter")
+            agent = PolicyAgent(api_key=_or_key, model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku"))
+        else:
+            logger.error("Нет API ключа. Задай ANTHROPIC_API_KEY или OPENROUTER_API_KEY в .env, или используй --ollama")
+            return
     evidence_client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="policy_agent")
     notifier = SlackNotifier(SLACK_WEBHOOK_URL) if SLACK_WEBHOOK_URL else None
 
@@ -727,7 +900,7 @@ def main(controls_map: dict | None = None):
             content = json.dumps({
                 "policy_title": info["title"],
                 "control": code,
-                "generated_by": f"AI ({OPENROUTER_MODEL} via OpenRouter)",
+                "generated_by": f"AI (claude-haiku-4-5-20251001 via Anthropic API)",
                 "environment": {
                     "github_repo": env_context["github_repo"],
                     "okta_domain": env_context["okta_domain"],

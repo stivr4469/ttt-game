@@ -1,0 +1,115 @@
+{
+  "generated_at": "2026-05-23T18:28:20.088328+00:00",
+  "model": "poolside/laguna-xs.2:free",
+  "total_fail": 7,
+  "gaps": [
+    {
+      "control_id": "d66bee91-96bb-4dfb-818b-5a987606c9f5",
+      "control_code": "CC6.3",
+      "control_title": "Role-Based Access and Least Privilege",
+      "gap_description": "Multiple critical access control violations exist: public S3 buckets exposing potential customer data, overprivileged IAM roles violating least privilege principles, and excessive user privileges in Okta. These gaps directly violate the role-based access and least privilege requirements of CC6.3.",
+      "actions": [
+        "Immediately run: aws s3api put-bucket-acl --bucket vulnerable-public-bucket --acl private to restrict public access",
+        "Run: aws iam attach-role-policy --role-name insecure-admin --policy-arn arn:aws:iam::aws:policy/ReadOnlyAccess to reduce privileges to read-only",
+        "Log into Okta admin console and review sobeda4838@marineso.com privileges, removing unnecessary admin roles",
+        "Implement S3 bucket policy to deny public access: aws s3api put-bucket-policy --bucket vulnerable-public-bucket --policy file://restrict-policy.json",
+        "Conduct access review meeting with team leads to identify and remediate all overprivileged accounts within 48 hours"
+      ],
+      "priority": "critical",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "98d00e8a-f828-46b5-93e5-4f74fad8ed3d",
+      "control_code": "CC6.2",
+      "control_title": "Registration and Authorization of New Users",
+      "gap_description": "The control is failing due to unauthorized administrative access and improper user provisioning processes. Unprovisioned Okta users (test.nomfa@marineso.com, test.safe@marineso.com) exist without proper authorization workflows, and an unapproved AWS IAM user 'insecure-admin' has been created with excessive privileges, indicating a complete breakdown in user registration and authorization controls.",
+      "actions": [
+        "Immediately remove unauthorized AWS IAM user: aws iam delete-user --user-name insecure-admin",
+        "Delete unprovisioned Okta users: okta user delete --login test.nomfa@marineso.com && okta user delete --login test.safe@marineso.com",
+        "Implement Okta user provisioning workflow with approval gates requiring manager authorization before account creation",
+        "Configure Okta MFA policy to require multi-factor authentication for all new user registrations",
+        "Establish AWS IAM least-privilege policy preventing creation of admin users without security team approval",
+        "Verify remediation by running: aws iam list-users && okta user list --status STAGED,UNLOCKED"
+      ],
+      "priority": "critical",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "7e16c536-071c-4f47-a931-206388db4e1e",
+      "control_code": "CC6.8",
+      "control_title": "Controls to Prevent or Detect Malware on System Components",
+      "gap_description": "The CC6.8 control is failing due to missing malware detection and prevention controls across cloud infrastructure and code repositories. AWS GuardDuty and SecurityHub are not enabled for threat detection, and GitHub lacks secret scanning and Dependabot alerts for vulnerability prevention.",
+      "actions": [
+        "Enable AWS GuardDuty: aws guardduty create-detector --enable --finding-publishing-frequency SIX_HOURS",
+        "Enable AWS SecurityHub: aws securityhub enable-security-hub --region us-east-1",
+        "Enable GitHub secret scanning via GitHub CLI: gh api -X POST /repos/{owner}/{repo}/secret-scanning/alerts --field state=open",
+        "Enable Dependabot alerts in GitHub repository settings via API: gh api -X PUT /repos/{owner}/{repo}/vulnerability-alerts --field enabled=true",
+        "Run Prowler scan to verify controls: prowler -c guardduty_is_enabled,securityhub_enabled --region us-east-1",
+        "Verify GitHub configurations through repository settings UI or API calls"
+      ],
+      "priority": "critical",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "4e7346e3-7e5c-419b-aafc-257b1e933b13",
+      "control_code": "CC6.1",
+      "control_title": "Logical Access Security Software and Architectures",
+      "gap_description": "Multiple critical logical access security failures identified: public S3 bucket 'vulnerable-public-bucket' exposes data to unauthorized access, and critical admin account 'insecure-admin' lacks multi-factor authentication (MFA) protection. Additionally, even the read-only account 'secure-readonly' has no MFA, violating principle of least privilege and defense-in-depth security requirements.",
+      "actions": [
+        "Run: aws s3api put-bucket-acl --bucket vulnerable-public-bucket --acl private to immediately restrict public access",
+        "Run: aws iam enable-mfa-device --serial-number arn:aws:iam::ACCOUNT:mfa/insecure-admin --authentication-parameters file://mfa-response.json to enable MFA for admin account",
+        "Run: aws iam enable-mfa-device --serial-number arn:aws:iam::ACCOUNT:mfa/secure-readonly --authentication-parameters file://mfa-response.json to enable MFA for read-only account",
+        "Run: aws iam attach-user-policy --user-name insecure-admin --policy-arn arn:aws:iam::aws:policy/AmazonS3ReadOnlyAccess to implement least privilege access",
+        "Run: aws s3api get-bucket-acl --bucket vulnerable-public-bucket to verify public access has been removed",
+        "Run: aws iam list-mfa-devices --user-name insecure-admin to verify MFA device is enabled"
+      ],
+      "priority": "critical",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "1886c3b3-f133-4820-8ddc-9aee18654d51",
+      "control_code": "CC8.1",
+      "control_title": "Authorization, Design, Development, Testing, and Implementation of Changes",
+      "gap_description": "The CC8.1 control is failing due to missing GitHub branch protection on the stivr4469/compliance-sandbox repository, which allows unrestricted code changes without authorization or review. Additionally, AWS Config is not enabled in all regions, preventing proper tracking and auditing of infrastructure changes across the environment.",
+      "actions": [
+        "Enable GitHub branch protection on repository stivr4469/compliance-sandbox with requirements for 1 reviewer approval and status checks before merging",
+        "Run: aws configservice put-configuration-recorder --configuration-recorder name=default,roleARN=arn:aws:iam::ACCOUNT:role/ConfigRole --region us-east-1",
+        "Enable AWS Config in all active regions using: aws configservice start-configuration-recorder --configuration-recorder name=default --region REGION for each region",
+        "Implement pre-commit hooks and CI/CD pipeline checks to enforce change authorization policies",
+        "Configure AWS CloudTrail logging for all regions to capture API changes for audit purposes"
+      ],
+      "priority": "critical",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "b7dd01b2-693f-43a9-8139-cac4f2f75daf",
+      "control_code": "CC3.4",
+      "control_title": "Assessment of Changes Affecting Internal Control",
+      "gap_description": "The control is failing due to direct commits being made to the repository without formal change assessment or code review processes. Multiple direct commits (44291874, 8fad459a, etc.) were found bypassing required manual review procedures, indicating no branch protection or change approval workflow exists for assessing changes affecting internal control.",
+      "actions": [
+        "Configure GitHub branch protection for main branch: require pull request reviews before merging, require 1 approval, and restrict direct push access",
+        "Implement pre-commit hooks to enforce code review process and prevent direct commits to protected branches",
+        "Create and deploy a CHANGE_APPROVAL.md policy document outlining the change assessment process for internal control modifications",
+        "Set up GitHub Actions workflow to automatically assess and log all change requests with required approval steps",
+        "Train development team on new change assessment procedures and branch protection requirements"
+      ],
+      "priority": "high",
+      "estimated_days": 3
+    },
+    {
+      "control_id": "1eba1c7a-0f4f-4f29-b712-ee63c6cb59d9",
+      "control_code": "CC1.4",
+      "control_title": "Commitment to Attract, Develop, and Retain Competent Individuals",
+      "gap_description": "Security awareness training policy exists only as incomplete drafts, training is overdue for at least one employee (test.nomfa@marineso.com), and there is no systematic process to ensure all personnel complete mandatory security training, resulting in failed competency verification for CC1.4.",
+      "actions": [
+        "Finalize and implement Security Awareness Training Policy by incorporating AI draft content and adding enforcement procedures",
+        "Enroll all employees in mandatory security awareness training and set completion deadline within 7 days",
+        "Configure automated training completion tracking in HR system with 90-day recurring training schedule",
+        "Establish monthly training compliance audit to verify 100% employee completion",
+        "Remediate overdue training for test.nomfa@marineso.com and 2 additional non-compliant employees within 48 hours"
+      ],
+      "priority": "medium",
+      "estimated_days": 3
+    }
+  ]
+}

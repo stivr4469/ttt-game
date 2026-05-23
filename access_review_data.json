@@ -1,0 +1,14 @@
+{
+  "u001": {
+    "decision": "approve",
+    "reviewer": "manager@acme.com",
+    "reason": "",
+    "decided_at": "2026-05-23T14:41:59.910042+00:00"
+  },
+  "u002": {
+    "decision": "revoke",
+    "reviewer": "manager@acme.com",
+    "reason": "",
+    "decided_at": "2026-05-23T14:42:15.052342+00:00"
+  }
+}

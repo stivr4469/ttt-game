@@ -1,0 +1,33 @@
+Добавить в ui_server.py после строки:
+    "from training_routes import router as training_router"
+
+Вставить:
+    from report_routes import router as report_router
+
+И после строки:
+    "app.include_router(training_router)"
+
+Вставить:
+    app.include_router(report_router)
+
+Итого блок импортов и include_router станет:
+    from access_review_routes import router as access_review_router
+    from auditor_routes import router as auditor_router
+    from trust_routes import router as trust_router
+    from gap_analysis_routes import router as gap_analysis_router
+    from webhook_routes import router as webhook_router
+    from training_routes import router as training_router
+    from report_routes import router as report_router      # <- добавить
+    app.include_router(access_review_router)
+    app.include_router(auditor_router)
+    app.include_router(trust_router)
+    app.include_router(gap_analysis_router)
+    app.include_router(webhook_router)
+    app.include_router(training_router)
+    app.include_router(report_router)                      # <- добавить
+
+Эндпоинты после подключения:
+    GET  /api/reports/html              — сгенерировать и скачать новый отчёт (Admin/Auditor)
+    GET  /api/reports/list              — список отчётов в reports/ (любой авторизованный)
+    GET  /api/reports/download/{name}   — скачать конкретный отчёт (любой авторизованный)
+    DELETE /api/reports/{name}          — удалить отчёт (Admin/Auditor)

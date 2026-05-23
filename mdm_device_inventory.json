@@ -36,13 +36,13 @@
       "owner": "carol@marineso.com",
       "os": "Windows 11 23H2",
       "device_type": "workstation",
-      "filevault_enabled": true,
+      "filevault_enabled": false,
       "screen_lock_minutes": 5,
       "edr_installed": true,
       "edr_name": "Microsoft Defender for Endpoint",
       "os_up_to_date": true,
       "last_check_in": "2026-05-22T19:00:00Z",
-      "compliant": true
+      "compliant": false
     },
     {
       "device_id": "WIN-002",
@@ -66,11 +66,11 @@
       "device_type": "laptop",
       "filevault_enabled": true,
       "screen_lock_minutes": 3,
-      "edr_installed": true,
+      "edr_installed": false,
       "edr_name": "CrowdStrike Falcon",
-      "os_up_to_date": true,
+      "os_up_to_date": false,
       "last_check_in": "2026-05-22T19:45:00Z",
-      "compliant": true
+      "compliant": false
     },
     {
       "device_id": "MAC-004",
@@ -93,12 +93,12 @@
       "os": "Windows 11 23H2",
       "device_type": "workstation",
       "filevault_enabled": true,
-      "screen_lock_minutes": 5,
+      "screen_lock_minutes": 0,
       "edr_installed": true,
       "edr_name": "Microsoft Defender for Endpoint",
-      "os_up_to_date": true,
+      "os_up_to_date": false,
       "last_check_in": "2026-05-22T18:00:00Z",
-      "compliant": true
+      "compliant": false
     },
     {
       "device_id": "MAC-005",

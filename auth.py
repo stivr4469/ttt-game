@@ -53,3 +53,33 @@ def decode_token(token: str) -> Optional[dict]:
         return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
     except JWTError:
         return None
+
+
+# FastAPI Depends-хелперы для использования в роутерах
+try:
+    from fastapi import Depends, HTTPException, Cookie
+
+    def require_auth(access_token: Optional[str] = Cookie(default=None)) -> dict:
+        """Любой авторизованный пользователь."""
+        if not access_token:
+            raise HTTPException(status_code=401, detail="Not authenticated")
+        payload = decode_token(access_token)
+        if not payload:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        return payload
+
+    def require_admin(user: dict = Depends(require_auth)) -> dict:
+        """Только роль admin."""
+        if user.get("role") not in ("admin", "Admin"):
+            raise HTTPException(status_code=403, detail="Admin role required")
+        return user
+
+    def require_auditor(user: dict = Depends(require_auth)) -> dict:
+        """Роли admin или auditor."""
+        if user.get("role") not in ("admin", "Admin", "auditor", "Auditor"):
+            raise HTTPException(status_code=403, detail="Admin or Auditor role required")
+        return user
+
+except ImportError:
+    # FastAPI не установлен — модуль используется без веб-контекста
+    pass

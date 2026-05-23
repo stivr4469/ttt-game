@@ -1,0 +1,15 @@
+control_id: CC7.2
+name: CloudTrail Logging Enabled
+framework: SOC2
+severity: critical
+check:
+  type: aws_cloudtrail
+  condition: "trail_enabled == true"
+  target: "cloudtrail_trails"
+remediation:
+  type: script
+  command: "python3 fix_infrastructure.py --fix cloudtrail"
+  requires_approval: false
+  approver_role: admin
+sla_hours: 4
+tags: [logging, monitoring, cloudtrail]

@@ -1,0 +1,13 @@
+{
+  "admin@acme.com": {
+    "aup": {
+      "course_id": "aup",
+      "course_title": "Acceptable Use Policy",
+      "status": "passed",
+      "score": 100,
+      "certificate_id": "CERT-32E4D71B",
+      "completed_at": "2026-05-23T14:34:49.595792+00:00",
+      "attempts": 1
+    }
+  }
+}

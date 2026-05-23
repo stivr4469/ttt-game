@@ -1,0 +1,24 @@
+Добавить в ui_server.py после строки:
+    from webhook_routes import router as webhook_router
+
+Вставить:
+    from background_check_routes import router as bg_check_router
+    app.include_router(bg_check_router)
+
+И после эндпоинтов страниц (рядом с /access-review) добавить:
+    @app.get("/background-checks", response_class=HTMLResponse)
+    async def bg_checks_page():
+        return FileResponse(ROOT / "ui" / "background-checks.html")
+
+Итого в ui_server.py нужны две правки:
+
+1) Импорт и подключение роутера (в блок импортов роутеров, строки ~100-109):
+
+    from background_check_routes import router as bg_check_router
+    app.include_router(bg_check_router)
+
+2) Страничный маршрут (рядом с /access-review, строка ~163-165):
+
+    @app.get("/background-checks", response_class=HTMLResponse)
+    async def bg_checks_page():
+        return FileResponse(ROOT / "ui" / "background-checks.html")

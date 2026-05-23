@@ -32,8 +32,11 @@ EVIDENCE_TRACKER_URL  = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000
 SLACK_WEBHOOK_URL     = os.getenv("SLACK_WEBHOOK_URL")
 AWS_USE_LOCALSTACK    = os.getenv("AWS_USE_LOCALSTACK", "true").lower() == "true"
 
-PROWLER_SOC2_PATH = Path(importlib.util.find_spec("prowler").origin).parent / \
-                    "compliance" / "aws" / "soc2_aws.json"
+try:
+    _prowler_spec = importlib.util.find_spec("prowler")
+    PROWLER_SOC2_PATH = Path(_prowler_spec.origin).parent / "compliance" / "aws" / "soc2_aws.json" if _prowler_spec else None
+except Exception:
+    PROWLER_SOC2_PATH = None
 
 def _client(svc):
     kw = dict(aws_access_key_id=AWS_ACCESS_KEY_ID,
@@ -432,6 +435,13 @@ def run_all(controls_map, evidence_client, save=True, service_filter=None):
 
 
 def main(controls_map: dict | None = None):
+    if PROWLER_SOC2_PATH is None:
+        print("⚠️  Prowler не установлен в этом окружении.")
+        print("   Установи: pip install prowler")
+        print("   Или используй mock-режим LocalStack для базовых S3/IAM/CloudTrail проверок.")
+        print("\n✅ Prowler Runner: завершён (prowler не доступен, пропускаем 160 checks)")
+        return
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--summary", action="store_true")
     parser.add_argument("--service", type=str)

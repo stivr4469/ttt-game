@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Training LMS — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --fail: #ef4444;
+            --pass: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+        .back-link { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
+
+        /* Course Cards */
+        .course-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .card h3 { font-size: 18px; margin-bottom: 8px; color: #fff; }
+        .card p { font-size: 14px; color: var(--muted); margin-bottom: 20px; flex: 1; }
+        .card-footer { display: flex; justify-content: space-between; align-items: center; }
+        .status-badge { font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; }
+        .status-passed { background: rgba(16, 185, 129, 0.15); color: var(--pass); }
+        .status-not_started { background: rgba(148, 163, 184, 0.15); color: var(--muted); }
+        .status-failed { background: rgba(239, 68, 68, 0.15); color: var(--fail); }
+
+        .btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .btn:hover { opacity: 0.9; }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Quiz View */
+        #quiz-view { display: none; background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); }
+        .q-header { margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
+        .q-title { font-size: 20px; color: #fff; margin-bottom: 5px; }
+        .q-desc { font-size: 14px; color: var(--muted); }
+        .question { margin-bottom: 30px; }
+        .q-text { font-size: 16px; margin-bottom: 15px; font-weight: 500; }
+        .options { display: flex; flex-direction: column; gap: 10px; }
+        .option {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: border-color 0.2s;
+        }
+        .option:hover { border-color: var(--accent); }
+        .option.selected { border-color: var(--accent); background: rgba(0, 212, 170, 0.05); }
+        .option input { display: none; }
+        .radio-dot { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 50%; display: inline-block; }
+        .option.selected .radio-dot { border-color: var(--accent); border-width: 5px; }
+
+        /* Admin Report */
+        #admin-view { margin-top: 60px; display: none; }
+        .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 20px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; }
+        td { padding: 12px 16px; border-top: 1px solid var(--border); }
+        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+        .dot.passed { background: var(--pass); }
+        .dot.not_started { background: var(--muted); }
+        .dot.failed { background: var(--fail); }
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 16px 24px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* ── Горизонтальная навигация ── */
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div>
+                <h1>🎓 Security Training LMS</h1>
+                <p style="color: var(--muted); font-size: 14px;">Marineso Inc. Employee Compliance Portal</p>
+            </div>
+            <!-- Горизонтальная навигация по разделам платформы -->
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training" class="active">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <div id="course-list-view">
+            <div class="course-grid" id="courseList">
+                <!-- Loaded via JS -->
+            </div>
+        </div>
+
+        <div id="quiz-view">
+            <div class="q-header">
+                <div class="q-title" id="quizTitle">Course Title</div>
+                <div class="q-desc" id="quizDesc">Description goes here</div>
+            </div>
+            <div id="questionsContainer">
+                <!-- Loaded via JS -->
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 40px;">
+                <button class="btn" style="background: var(--muted);" onclick="cancelQuiz()">Cancel</button>
+                <button class="btn" id="submitBtn" onclick="submitQuiz()">Submit Answers</button>
+            </div>
+        </div>
+
+        <div id="admin-view">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h2>📊 Team Compliance Report</h2>
+                <button class="btn" onclick="sendReminders()">🔔 Send Reminders</button>
+            </div>
+            <div class="table-wrap">
+                <table id="reportTable">
+                    <thead>
+                        <tr>
+                            <th>Employee</th>
+                            <th>AUP</th>
+                            <th>MFA</th>
+                            <th>Phish</th>
+                            <th>GDPR</th>
+                            <th>IR</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportContent">
+                        <!-- Loaded via JS -->
+                    </tbody>
+                </table>
+            </div>
+            <div style="margin-top: 15px; color: var(--muted); font-size: 12px; text-align: right;" id="overallStats">
+                Loading stats...
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        let currentUser = null;
+        let currentCourseId = null;
+        let selectedAnswers = {};
+
+        async function init() {
+            try {
+                const r = await fetch('/api/auth/me');
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                currentUser = await r.json();
+                
+                await loadMyProgress();
+                if (currentUser.role === 'admin' || currentUser.role === 'auditor') {
+                    await loadComplianceReport();
+                    document.getElementById('admin-view').style.display = 'block';
+                }
+            } catch (e) {
+                console.error("Init failed", e);
+            }
+        }
+
+        async function loadMyProgress() {
+            const r = await fetch('/api/training/my-progress');
+            const data = await r.json();
+            const list = document.getElementById('courseList');
+            list.innerHTML = data.map(c => `
+                <div class="card">
+                    <div>
+                        <span class="status-badge status-${c.status}">${c.status.replace('_', ' ')}</span>
+                        <h3 style="margin-top:12px;">${c.course_title}</h3>
+                        <p>${TRAINING_DESCRIPTIONS[c.course_id] || ''}</p>
+                    </div>
+                    <div class="card-footer">
+                        <div style="font-size: 12px; color: var(--muted);">
+                            ${c.status === 'passed' ? `Score: ${c.score}%<br><span style="color:var(--accent)">${c.certificate_id}</span>` : 'Required: 80%'}
+                        </div>
+                        <button class="btn" onclick="startCourse('${c.course_id}')">
+                            ${c.status === 'passed' ? 'Retake' : 'Start Course'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        const TRAINING_DESCRIPTIONS = {
+            "aup": "Proper use of company devices and IT resources.",
+            "password_policy": "Password strength, MFA, and secure login habits.",
+            "phishing": "Identifying email scams and social engineering.",
+            "gdpr_basics": "EU data protection rules and handling personal data.",
+            "incident_response": "How to report and handle security incidents."
+        };
+
+        async function startCourse(courseId) {
+            currentCourseId = courseId;
+            selectedAnswers = {};
+            const r = await fetch(`/api/training/course/${courseId}`);
+            const course = await r.json();
+            
+            document.getElementById('quizTitle').innerText = course.title;
+            document.getElementById('quizDesc').innerText = course.description;
+            
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = course.questions.map(q => `
+                <div class="question" id="q-${q.id}">
+                    <div class="q-text">${q.id}. ${q.text}</div>
+                    <div class="options">
+                        ${q.options.map((opt, i) => `
+                            <div class="option" onclick="selectOption(${q.id}, ${i})">
+                                <span class="radio-dot"></span>
+                                <span>${opt}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+            
+            document.getElementById('course-list-view').style.display = 'none';
+            document.getElementById('admin-view').style.display = 'none';
+            document.getElementById('quiz-view').style.display = 'block';
+            window.scrollTo(0,0);
+        }
+
+        function selectOption(qId, optIdx) {
+            selectedAnswers[qId] = optIdx;
+            const qDiv = document.getElementById(`q-${qId}`);
+            qDiv.querySelectorAll('.option').forEach((opt, i) => {
+                if (i === optIdx) opt.classList.add('selected');
+                else opt.classList.remove('selected');
+            });
+        }
+
+        async function submitQuiz() {
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+            try {
+                const r = await fetch(`/api/training/course/${currentCourseId}/submit`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(selectedAnswers)
+                });
+                const res = await r.json();
+                
+                if (res.passed) {
+                    showToast(`Congratulations! You passed with ${res.score}%!`, "passed");
+                } else {
+                    showToast(`Failed. Your score: ${res.score}%. Required: 80%.`, "failed");
+                }
+                
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            } catch (e) {
+                btn.disabled = false;
+                showToast("Submission failed", "failed");
+            }
+        }
+
+        function cancelQuiz() {
+            document.getElementById('quiz-view').style.display = 'none';
+            document.getElementById('course-list-view').style.display = 'block';
+            if (currentUser.role === 'admin' || currentUser.role === 'auditor') {
+                document.getElementById('admin-view').style.display = 'block';
+            }
+        }
+
+        async function loadComplianceReport() {
+            const r = await fetch('/api/training/compliance-report');
+            const data = await r.json();
+            const content = document.getElementById('reportContent');
+            content.innerHTML = data.employees.map(e => `
+                <tr>
+                    <td>
+                        <div style="font-weight:600;">${e.name}</div>
+                        <div style="color:var(--muted); font-size:11px;">${e.email}</div>
+                    </td>
+                    <td><span class="dot ${e.courses.aup}"></span></td>
+                    <td><span class="dot ${e.courses.password_policy}"></span></td>
+                    <td><span class="dot ${e.courses.phishing}"></span></td>
+                    <td><span class="dot ${e.courses.gdpr_basics}"></span></td>
+                    <td><span class="dot ${e.courses.incident_response}"></span></td>
+                    <td>
+                        <span style="color:${e.all_required_done ? 'var(--pass)' : 'var(--fail)'}; font-weight:700;">
+                            ${e.all_required_done ? 'COMPLIANT' : 'GAP'}
+                        </span>
+                    </td>
+                </tr>
+            `).join('');
+            
+            document.getElementById('overallStats').innerText = `${data.fully_compliant} / ${data.total_employees} employees fully compliant (${data.compliance_pct}%)`;
+        }
+
+        async function sendReminders() {
+            showToast("Sending Slack reminders...", "passed");
+            await fetch('/api/training/send-reminders', { method: 'POST' });
+            showToast("Reminders sent successfully", "passed");
+        }
+
+        function showToast(msg, type) {
+            const t = document.getElementById('toast');
+            t.innerText = msg;
+            t.style.display = 'block';
+            t.style.borderColor = type === 'passed' ? 'var(--pass)' : 'var(--fail)';
+            setTimeout(() => { t.style.display = 'none'; }, 3000);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

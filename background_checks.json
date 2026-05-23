@@ -1,0 +1,57 @@
+[
+  {
+    "employee_email": "alex.dev@marineso.com",
+    "employee_name": "Alex Developer",
+    "candidate_id": "cand_306596de",
+    "report_id": "report_36816b89",
+    "package": "tasker_standard",
+    "status": "clear",
+    "initiated_at": "2026-05-23T14:35:18.294360+00:00",
+    "completed_at": "2026-05-23T14:35:18.294349+00:00",
+    "result": "clear"
+  },
+  {
+    "employee_email": "maria.hr@marineso.com",
+    "employee_name": "Maria HR",
+    "candidate_id": "cand_b2068054",
+    "report_id": "report_b55fe47e",
+    "package": "tasker_standard",
+    "status": "consider",
+    "initiated_at": "2026-05-23T14:35:18.294954+00:00",
+    "completed_at": "2026-05-23T14:35:18.294937+00:00",
+    "result": "consider"
+  },
+  {
+    "employee_email": "ivan.devops@marineso.com",
+    "employee_name": "Ivan DevOps",
+    "candidate_id": "cand_0dcda26c",
+    "report_id": "report_a72469eb",
+    "package": "tasker_standard",
+    "status": "pending",
+    "initiated_at": "2026-05-23T14:35:18.295548+00:00",
+    "completed_at": null,
+    "result": null
+  },
+  {
+    "employee_email": "contractor.frontend@marineso.com",
+    "employee_name": "Frontend Contractor",
+    "candidate_id": "cand_e83c3135",
+    "report_id": "report_63191291",
+    "package": "tasker_standard",
+    "status": "pending",
+    "initiated_at": "2026-05-23T14:35:18.296115+00:00",
+    "completed_at": null,
+    "result": null
+  },
+  {
+    "employee_email": "test.nomfa@marineso.com",
+    "employee_name": "Test NoMFA User",
+    "candidate_id": "cand_ed7cf416",
+    "report_id": "report_b202f91c",
+    "package": "tasker_standard",
+    "status": "clear",
+    "initiated_at": "2026-05-23T14:35:18.296468+00:00",
+    "completed_at": "2026-05-23T14:35:18.296460+00:00",
+    "result": "clear"
+  }
+]

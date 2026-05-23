@@ -1,0 +1,15 @@
+control_id: CC6.1
+name: Multi-Factor Authentication
+framework: SOC2
+severity: critical
+check:
+  type: aws_iam
+  condition: "mfa_enabled == true"
+  target: "all_users"
+remediation:
+  type: script
+  command: "python3 fix_infrastructure.py --fix mfa"
+  requires_approval: true
+  approver_role: admin
+sla_hours: 24
+tags: [access, mfa, critical]

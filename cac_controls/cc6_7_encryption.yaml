@@ -1,0 +1,15 @@
+control_id: CC6.7
+name: S3 Encryption at Rest
+framework: SOC2
+severity: critical
+check:
+  type: aws_s3
+  condition: "encryption_enabled == true"
+  target: "all_buckets"
+remediation:
+  type: script
+  command: "python3 fix_infrastructure.py --fix s3_encryption"
+  requires_approval: false
+  approver_role: admin
+sla_hours: 12
+tags: [encryption, s3, data_protection]

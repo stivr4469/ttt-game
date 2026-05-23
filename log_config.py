@@ -9,6 +9,14 @@ import sys
 from datetime import datetime, timezone
 
 
+_STANDARD_LOG_ATTRS = frozenset({
+    "args", "created", "exc_info", "exc_text", "filename", "funcName",
+    "levelname", "levelno", "lineno", "message", "module", "msecs", "msg",
+    "name", "pathname", "process", "processName", "relativeCreated",
+    "stack_info", "thread", "threadName", "taskName",
+})
+
+
 class JsonFormatter(logging.Formatter):
     """Выводит каждое log-сообщение как одну строку JSON для ELK/Loki."""
 
@@ -21,8 +29,14 @@ class JsonFormatter(logging.Formatter):
         }
         if record.exc_info:
             payload["exc"] = self.formatException(record.exc_info)
-        if hasattr(record, "extra"):
-            payload.update(record.extra)
+        # захватываем extra-поля переданные через logging.xxx(..., extra={...})
+        for key, val in record.__dict__.items():
+            if key not in _STANDARD_LOG_ATTRS and not key.startswith("_"):
+                try:
+                    json.dumps(val)
+                    payload[key] = val
+                except (TypeError, ValueError):
+                    payload[key] = str(val)
         return json.dumps(payload, ensure_ascii=False)
 
 
