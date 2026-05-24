@@ -21,7 +21,41 @@
     --warn:     #f59e0b;
     --nav-w:    220px;
     --header-h: 56px;
+    --theme-transition: background .25s, color .25s, border-color .25s, box-shadow .25s;
   }
+
+  /* ── Light mode ── */
+  html.light {
+    --bg:      #f1f5f9;
+    --s1:      #ffffff;
+    --s2:      #f8fafc;
+    --s3:      #e2e8f0;
+    --border:  #cbd5e1;
+    --text:    #0f172a;
+    --muted:   #64748b;
+    --accent:  #2563eb;
+    --accent2: #1d4ed8;
+    --pass:    #16a34a;
+    --fail:    #dc2626;
+    --warn:    #d97706;
+  }
+
+  /* плавные переходы при смене темы */
+  *, *::before, *::after { transition: var(--theme-transition); }
+  /* исключаем анимации которым переход мешает */
+  canvas, .status-dot, .badge { transition: none !important; }
+
+  /* ── Кнопка переключения темы ── */
+  .theme-toggle {
+    display: flex; align-items: center; justify-content: center;
+    width: 34px; height: 34px; border-radius: 8px;
+    background: var(--s3); border: 1px solid var(--border);
+    cursor: pointer; font-size: 16px; line-height: 1;
+    color: var(--text); flex-shrink: 0;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .theme-toggle:hover { background: var(--s2); border-color: var(--accent); transform: scale(1.08); }
+  .theme-toggle:active { transform: scale(.94); }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; overflow: hidden; }
 
@@ -623,10 +657,35 @@ function renderUser() {
   info.innerHTML = `
     <span>${currentUser.name}</span>
     <span class="user-role">${currentUser.role}</span>
+    <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Сменить тему">
+      ${document.documentElement.classList.contains('light') ? '🌙' : '☀️'}
+    </button>
     <button class="logout-btn" onclick="logout()">Logout</button>
   `;
   header.appendChild(info);
 }
+
+/* ── Theme toggle ── */
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.classList.toggle('light');
+  localStorage.setItem('theme', isLight ? 'light' : 'dark');
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.textContent = isLight ? '🌙' : '☀️';
+  // перерисовываем donut — Chart.js не реагирует на CSS переменные
+  if (window.scoreChart) {
+    const textColor = isLight ? '#0f172a' : '#e2e8f0';
+    window.scoreChart.options.plugins.legend.labels.color = textColor;
+    window.scoreChart.update();
+  }
+}
+
+/* Применить тему до рендера — убирает мигание */
+(function() {
+  if (localStorage.getItem('theme') === 'light') {
+    document.documentElement.classList.add('light');
+  }
+}());
 
 async function logout() {
   await fetch('/api/auth/logout', { method: 'POST' });
