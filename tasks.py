@@ -73,6 +73,7 @@ def run_full_pipeline_task(self):
         except Exception as e:
             log.error("Celery: agent failed", extra={"agent": name, "error": str(e)})
             results.append({"agent": name, "status": "error", "error": str(e)})
+    return results
 
 from datetime import datetime
 from pathlib import Path

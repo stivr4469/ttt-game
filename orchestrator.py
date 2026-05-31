@@ -209,8 +209,8 @@ class Orchestrator:
         try:
             # Add API Key to headers for internal requests
             headers = {"X-API-Key": os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")}
-            controls_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/controls/?limit=100", headers=headers)
-            evidence_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/?limit=200", headers=headers)
+            controls_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/controls/?limit=100", headers=headers, timeout=10)
+            evidence_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/?limit=200", headers=headers, timeout=10)
             
             controls = controls_resp.json()
             evidence_list = evidence_resp.json()

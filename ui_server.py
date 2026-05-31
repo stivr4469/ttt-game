@@ -4,49 +4,31 @@
 import os
 import json
 import asyncio
-import time
+import hashlib
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-import requests as req
-from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Depends, Cookie, Form, Request, Response
+import httpx
+from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Depends, Cookie, Form
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 from dotenv import dotenv_values, set_key
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST, CollectorRegistry, REGISTRY
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
 
 from log_config import get_logger
 from auth import authenticate_user, create_access_token, decode_token, ROLES
-from config import get_settings
 
 log = get_logger(__name__)
-settings = get_settings()
 
 # Constants
-EVIDENCE_TRACKER = settings.evidence_tracker_url
-EVIDENCE_API_KEY = settings.evidence_api_key
+EVIDENCE_TRACKER = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_API_KEY = os.getenv("UI_API_KEY") or os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
 ENV_FILE = Path(__file__).parent / ".env"
 ROOT = Path(__file__).parent
 _tracker_headers = {"X-API-Key": EVIDENCE_API_KEY}
-
-# Prometheus metrics — отдельный реестр чтобы избежать дублирования при перезапуске
-_APP_REGISTRY = CollectorRegistry(auto_describe=True)
-_REQUEST_COUNT = Counter(
-    "http_requests_total", "Total HTTP requests", ["method", "endpoint", "status"],
-    registry=_APP_REGISTRY,
-)
-_REQUEST_LATENCY = Histogram(
-    "http_request_duration_seconds", "HTTP request latency", ["endpoint"],
-    registry=_APP_REGISTRY,
-)
 
 AGENTS = {
     "scanner": {"label": "AWS Scanner",      "cmd": ["python3", "scanner.py"],                      "desc": "S3, IAM, EC2, CloudTrail — LocalStack/AWS",  "icon": "☁️"},
@@ -58,8 +40,6 @@ AGENTS = {
 }
 
 SENSITIVE_KEYS = {"TOKEN", "KEY", "SECRET", "PASSWORD", "WEBHOOK", "API"}
-
-_running_agents: set[str] = set()
 
 # ── Pydantic request models ────────────────────────────────────────────────────
 class PolicyDraftRequest(BaseModel):
@@ -113,101 +93,14 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown()
 
 # ── Application Initialization ────────────────────────────────────────────────
-limiter = Limiter(key_func=get_remote_address)
-
 app = FastAPI(title="SOC 2 Dashboard", lifespan=lifespan)
-app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
-_cors_origins = settings.cors_origins.split(",")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=_cors_origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["*"],
-)
-
-
-class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next):
-        t0 = time.perf_counter()
-        response = await call_next(request)
-        elapsed = time.perf_counter() - t0
-        # security headers
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        # metrics (skip /metrics itself to avoid recursion)
-        if not request.url.path.startswith("/metrics"):
-            _REQUEST_COUNT.labels(
-                method=request.method,
-                endpoint=request.url.path,
-                status=response.status_code,
-            ).inc()
-            _REQUEST_LATENCY.labels(endpoint=request.url.path).observe(elapsed)
-        return response
-
-
-app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 
 # Import and Include Routers
 from access_review_routes import router as access_review_router
 from auditor_routes import router as auditor_router
-from audit_timeline_routes import router as timeline_router
-from trust_routes import router as trust_router
-from gap_analysis_routes import router as gap_analysis_router
-from webhook_routes import router as webhook_router
-from background_check_routes import router as bg_check_router
-from training_routes import router as training_router
-from report_routes import router as report_router
-from risk_routes import router as risk_router, router_alias as risk_alias_router
-from vuln_routes import router as vuln_router
-from questionnaire_routes import router as questionnaire_router
-from pentest_routes import router as pentest_router, router_alias as pentest_alias_router
-from custom_controls_routes import router as custom_controls_router
-from chaos_routes import router as chaos_router
-from control_mapping_routes import router as control_mapping_router
-from time_machine_routes import router as time_machine_router
-from cac_routes import router as cac_router
-from vendor_risk_routes import router as vendor_risk_router
-from policy_lifecycle_routes import router as policy_lifecycle_router
-from evidence_confidence_routes import router as evidence_confidence_router
-from decision_log_routes import router as decision_log_router
-from compliance_engine_routes import router as compliance_engine_router
-from graph_routes import router as graph_router
-from asset_routes import router as asset_router
-from event_routes import router as event_router
 app.include_router(access_review_router)
 app.include_router(auditor_router)
-app.include_router(timeline_router)
-app.include_router(trust_router)
-app.include_router(gap_analysis_router)
-app.include_router(webhook_router)
-app.include_router(bg_check_router)
-app.include_router(training_router)
-app.include_router(report_router)
-app.include_router(risk_router)
-app.include_router(risk_alias_router)
-app.include_router(vuln_router)
-app.include_router(questionnaire_router)
-app.include_router(pentest_router)
-app.include_router(pentest_alias_router)
-app.include_router(custom_controls_router)
-app.include_router(chaos_router)
-app.include_router(control_mapping_router)
-app.include_router(time_machine_router)
-app.include_router(cac_router)
-app.include_router(vendor_risk_router)
-app.include_router(policy_lifecycle_router)
-app.include_router(evidence_confidence_router)
-app.include_router(decision_log_router)
-app.include_router(compliance_engine_router)
-app.include_router(graph_router)
-app.include_router(asset_router)
-app.include_router(event_router)
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
 async def require_auth(access_token: str | None = Cookie(None)):
@@ -233,7 +126,8 @@ async def require_scanner(payload: dict = Depends(require_auth)):
 async def health():
     """Проверяет доступность Evidence Tracker."""
     try:
-        r = req.get(f"{EVIDENCE_TRACKER}/health", headers=_tracker_headers, timeout=3)
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            r = await client.get(f"{EVIDENCE_TRACKER}/health", headers=_tracker_headers)
         tracker_ok = r.status_code == 200
     except Exception:
         tracker_ok = False
@@ -261,60 +155,19 @@ async def index(access_token: Optional[str] = Cookie(None)):
         return RedirectResponse(url="/login")
     return (ROOT / "ui" / "index.html").read_text(encoding="utf-8")
 
-@app.get("/controls", response_class=HTMLResponse)
-async def controls_page(access_token: Optional[str] = Cookie(None)):
-    if not access_token or not decode_token(access_token):
-        return RedirectResponse(url="/login")
-    return (ROOT / "ui" / "index.html").read_text(encoding="utf-8")
-
-@app.get("/agents", response_class=HTMLResponse)
-async def agents_page(access_token: Optional[str] = Cookie(None)):
-    if not access_token or not decode_token(access_token):
-        return RedirectResponse(url="/login")
-    return (ROOT / "ui" / "index.html").read_text(encoding="utf-8")
-
 @app.get("/access-review", response_class=HTMLResponse)
 async def access_review_page():
     return FileResponse("ui/access_review.html")
 
-@app.get("/training", response_class=HTMLResponse)
-async def training_page():
-    return FileResponse(ROOT / "ui" / "training.html")
-
-@app.get("/risk-register", response_class=HTMLResponse)
-async def risk_register_page():
-    return FileResponse(ROOT / "ui" / "risk-register.html")
-
-@app.get("/vulnerabilities", response_class=HTMLResponse)
-async def vuln_page():
-    return FileResponse(ROOT / "ui" / "vulnerabilities.html")
-
-@app.get("/questionnaires", response_class=HTMLResponse)
-async def questionnaires_page():
-    return FileResponse(ROOT / "ui" / "questionnaires.html")
-
-@app.get("/background-checks", response_class=HTMLResponse)
-async def bg_checks_page():
-    return FileResponse(ROOT / "ui" / "background-checks.html")
-
-@app.get("/audit-timeline", response_class=HTMLResponse)
-async def audit_timeline_page():
-    return FileResponse(ROOT / "ui" / "audit-timeline.html")
-
-@app.get("/pentests", response_class=HTMLResponse)
-async def pentests_page():
-    return FileResponse(ROOT / "ui" / "pentests.html")
-
 # ── Auth API ───────────────────────────────────────────────────────────────────
 @app.post("/api/auth/login")
-@limiter.limit("10/minute")
-async def login(request: Request, email: str = Form(...), password: str = Form(...)):
+async def login(email: str = Form(...), password: str = Form(...)):
     user = authenticate_user(email, password)
     if not user:
         return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
     token = create_access_token({"sub": user["email"], "role": user["role"], "name": user["name"]})
     response = JSONResponse(content={"token": token, "role": user["role"], "name": user["name"]})
-    response.set_cookie("access_token", token, httponly=True, samesite="lax", max_age=28800)
+    response.set_cookie("access_token", token, httponly=True, max_age=28800)
     return response
 
 @app.post("/api/auth/logout")
@@ -342,10 +195,11 @@ async def me(access_token: str | None = Cookie(None)):
 @app.get("/api/controls")
 async def get_controls():
     try:
-        r = req.get(f"{EVIDENCE_TRACKER}/api/v1/controls/?limit=100", headers=_tracker_headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(f"{EVIDENCE_TRACKER}/api/v1/controls/?limit=100", headers=_tracker_headers)
         return r.json()
-    except Exception as e:
-        raise HTTPException(502, str(e))
+    except Exception:
+        raise HTTPException(502, "Internal server error")
 
 @app.get("/api/evidence")
 async def get_evidence(control_id: str = "", limit: int = 100):
@@ -353,10 +207,11 @@ async def get_evidence(control_id: str = "", limit: int = 100):
         url = f"{EVIDENCE_TRACKER}/api/v1/evidence/?limit={limit}"
         if control_id:
             url += f"&control_id={control_id}"
-        r = req.get(url, headers=_tracker_headers, timeout=10)
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            r = await client.get(url, headers=_tracker_headers)
         return r.json()
-    except Exception as e:
-        raise HTTPException(502, str(e))
+    except Exception:
+        raise HTTPException(502, "Internal server error")
 
 @app.get("/api/registry/services")
 async def registry_services():
@@ -364,7 +219,7 @@ async def registry_services():
     return load_registry()["services"]
 
 @app.post("/api/registry/stack-analysis")
-async def stack_analysis(payload: dict):
+async def stack_analysis(payload: dict, _: dict = Depends(require_admin)):
     from registry import get_controls_for_stack
     services = payload.get("services", [])
     framework = payload.get("framework", "soc2")
@@ -374,19 +229,12 @@ async def stack_analysis(payload: dict):
 async def list_agents():
     return {k: {"label": v["label"], "desc": v["desc"], "icon": v["icon"]} for k, v in AGENTS.items()}
 
-@app.get("/api/running")
-async def get_running_agents():
-    return {"running": list(_running_agents)}
-
 @app.get("/api/run/{agent_name}")
 async def run_agent(agent_name: str, payload: dict = Depends(require_scanner)):
     if agent_name not in AGENTS:
         raise HTTPException(404, f"Agent '{agent_name}' not found")
-    if agent_name in _running_agents:
-        raise HTTPException(409, f"Agent '{agent_name}' is already running")
     agent = AGENTS[agent_name]
     async def stream():
-        _running_agents.add(agent_name)
         yield f"data: {json.dumps({'type': 'start', 'agent': agent['label']})}\n\n"
         try:
             proc = await asyncio.create_subprocess_exec(*agent["cmd"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=str(ROOT))
@@ -397,8 +245,6 @@ async def run_agent(agent_name: str, payload: dict = Depends(require_scanner)):
             yield f"data: {json.dumps({'type': 'done', 'code': proc.returncode})}\n\n"
         except Exception as ex:
             yield f"data: {json.dumps({'type': 'error', 'text': str(ex)})}\n\n"
-        finally:
-            _running_agents.discard(agent_name)
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 # ── Config API ─────────────────────────────────────────────────────────────────
@@ -420,23 +266,6 @@ async def update_config(data: dict = Body(...), payload: dict = Depends(require_
             set_key(str(ENV_FILE), key, value)
     return {"ok": True, "updated": len(data)}
 
-@app.post("/api/config/upload")
-async def upload_config(file: UploadFile = File(...), payload: dict = Depends(require_admin)):
-    """Парсит загруженный .env файл и возвращает preview с маскировкой секретов."""
-    content = (await file.read()).decode("utf-8", errors="replace")
-    result = {}
-    for line in content.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if "=" in line:
-            k, _, v = line.partition("=")
-            k = k.strip()
-            v = v.strip().strip('"').strip("'")
-            sensitive = any(s in k.upper() for s in SENSITIVE_KEYS)
-            result[k] = {"masked": _mask(k, v), "sensitive": sensitive}
-    return result
-
 # ── Scheduler API ──────────────────────────────────────────────────────────────
 @app.get("/api/scheduler/status")
 async def scheduler_status():
@@ -445,20 +274,14 @@ async def scheduler_status():
         jobs.append({"id": job.id, "next_run": str(job.next_run_time), "trigger": str(job.trigger)})
     return {"running": scheduler.running, "jobs": jobs}
 
-@app.get("/metrics")
-async def metrics():
-    """Prometheus metrics endpoint."""
-    return Response(generate_latest(_APP_REGISTRY), media_type=CONTENT_TYPE_LATEST)
-
-
 @app.post("/api/scheduler/trigger")
-async def trigger_scan_now(payload: dict = Depends(require_admin)):
+async def trigger_scan_now(_: dict = Depends(require_admin)):
     asyncio.create_task(run_daily_scan())
     return {"status": "triggered", "message": "Daily scan started in background"}
 
 # ── ESignature API ─────────────────────────────────────────────────────────────
 @app.post("/api/esignature/webhook")
-async def esignature_webhook(payload: dict = Body(...)):
+async def esignature_webhook(payload: dict = Body(...), _: dict = Depends(require_auth)):
     envelope_id = payload.get("envelope_id")
     if not envelope_id:
         return JSONResponse(status_code=400, content={"detail": "envelope_id required"})
@@ -482,13 +305,13 @@ async def get_remediations():
     return RemediationAgent().get_all_remediations()
 
 @app.post("/api/remediations/sync")
-async def sync_remediations():
+async def sync_remediations(_: dict = Depends(require_auth)):
     from remediation_agent import RemediationAgent
     updated = RemediationAgent().sync_statuses()
     return {"synced": updated, "count": len(updated)}
 
 @app.post("/api/remediations/create")
-async def create_remediation(payload: dict = Body(...)):
+async def create_remediation(payload: dict = Body(...), _: dict = Depends(require_auth)):
     from remediation_agent import RemediationAgent
     return RemediationAgent().create_remediation_ticket(
         payload.get("control_code", ""),
@@ -497,7 +320,7 @@ async def create_remediation(payload: dict = Body(...)):
 
 # ── Celery Task API ────────────────────────────────────────────────────────────
 @app.post("/api/tasks/run/{agent_name}")
-async def enqueue_agent(agent_name: str, payload: dict = Depends(require_scanner)):
+async def enqueue_agent(agent_name: str, _: dict = Depends(require_scanner)):
     from tasks import run_scanner_task, run_hr_agent_task, run_github_agent_task, run_policy_agent_task, run_full_pipeline_task
     task_map = {
         "scanner": run_scanner_task, "hr_agent": run_hr_agent_task,
@@ -526,22 +349,22 @@ async def active_tasks():
 
 # ── Policy Approval Workflow API ───────────────────────────────────────────────
 @app.post("/api/policies/{control_code}/draft")
-async def create_policy_draft(control_code: str, payload: PolicyDraftRequest):
+async def create_policy_draft(control_code: str, payload: PolicyDraftRequest, _: dict = Depends(require_admin)):
     from policy_workflow import PolicyWorkflow
     return PolicyWorkflow().create_draft(control_code, payload.title, payload.content, payload.created_by, payload.change_summary)
 
 @app.post("/api/policies/{control_code}/versions/{version}/submit")
-async def submit_policy(control_code: str, version: int):
+async def submit_policy(control_code: str, version: int, _: dict = Depends(require_admin)):
     from policy_workflow import PolicyWorkflow
     return PolicyWorkflow().submit_for_approval(control_code, version)
 
 @app.post("/api/policies/{control_code}/versions/{version}/approve")
-async def approve_policy(control_code: str, version: int, payload: ApproveRequest):
+async def approve_policy(control_code: str, version: int, payload: ApproveRequest, _: dict = Depends(require_admin)):
     from policy_workflow import PolicyWorkflow
     return PolicyWorkflow().approve(control_code, version, payload.approver_email)
 
 @app.post("/api/policies/{control_code}/versions/{version}/reject")
-async def reject_policy(control_code: str, version: int, payload: RejectRequest):
+async def reject_policy(control_code: str, version: int, payload: RejectRequest, _: dict = Depends(require_admin)):
     from policy_workflow import PolicyWorkflow
     return PolicyWorkflow().reject(control_code, version, payload.reviewer_email, payload.reason)
 

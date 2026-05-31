@@ -21,6 +21,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.orm import Mapped, mapped_column
@@ -50,10 +51,15 @@ class Evidence(Base):
     source: Mapped[str] = mapped_column(String(100), nullable=False)
     # confidence_score: 0.0–1.0, вычисляется evidence_confidence.py
     confidence_score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # content_hash: SHA-256 от content — используется для идемпотентного create
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True, default="")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=_utcnow,
         server_default=func.now(),
+    )
+    __table_args__ = (
+        UniqueConstraint("control_id", "source", "content_hash", name="uq_evidence_control_source_hash"),
     )
 
     def __repr__(self) -> str:
@@ -228,3 +234,24 @@ class AuditEvent(Base):
             f"<AuditEvent id={self.id} type={self.event_type} "
             f"entity={self.entity_type}/{self.entity_id}>"
         )
+
+
+# ── RemediationTicket ─────────────────────────────────────────────────────────
+
+class RemediationTicket(Base):
+    """Дедупликация Jira-тикетов по ремедиациям."""
+    __tablename__ = "remediation_ticket"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    control_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    issue_key: Mapped[str] = mapped_column(String(50), nullable=False)
+    jira_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, server_default=func.now()
+    )
+    __table_args__ = (
+        UniqueConstraint("control_id", name="uq_remediation_control"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<RemediationTicket control={self.control_id} issue={self.issue_key}>"

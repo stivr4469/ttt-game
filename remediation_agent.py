@@ -13,6 +13,7 @@ log = get_logger(__name__)
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
 JIRA_PROJECT_KEY     = os.getenv("JIRA_PROJECT_KEY", "SEC")
 REMEDIATIONS_FILE    = "remediations.json"
+DATABASE_URL         = os.getenv("DATABASE_URL", "")
 
 PRIORITY_MAP = {
     "CC6.1": "Critical", "CC6.2": "Critical", "CC6.3": "High",
@@ -59,13 +60,65 @@ class RemediationAgent:
         with open(REMEDIATIONS_FILE, "w") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
+    def _get_existing_ticket_db(self, control_code: str) -> Optional[dict]:
+        """Читает существующий тикет из SQLite (DB-режим). Возвращает dict или None."""
+        import asyncio
+        from database import get_async_session
+        from models import RemediationTicket
+        from sqlalchemy import select as sa_select
+
+        async def _query():
+            async for session in get_async_session():
+                result = await session.execute(
+                    sa_select(RemediationTicket).where(RemediationTicket.control_id == control_code)
+                )
+                ticket = result.scalar_one_or_none()
+                if ticket is None:
+                    return None
+                return {
+                    "control_code": ticket.control_id,
+                    "jira_key":     ticket.issue_key,
+                    "jira_url":     ticket.jira_url or "",
+                    "created_at":   ticket.created_at.isoformat(),
+                    "status":       "open",
+                    "mock":         False,
+                }
+
+        return asyncio.run(_query())
+
+    def _save_ticket_db(self, control_code: str, issue_key: str, jira_url: str = "") -> None:
+        """Сохраняет тикет в SQLite (DB-режим)."""
+        import asyncio
+        from database import get_async_session
+        from models import RemediationTicket
+
+        async def _insert():
+            async for session in get_async_session():
+                ticket = RemediationTicket(
+                    control_id=control_code,
+                    issue_key=issue_key,
+                    jira_url=jira_url,
+                )
+                session.add(ticket)
+                try:
+                    await session.commit()
+                except Exception:
+                    await session.rollback()
+
+        asyncio.run(_insert())
+
     def create_remediation_ticket(self, control_code: str, finding: str) -> dict:
         """Создаёт Jira-тикет для FAIL-контроля. Идемпотентно."""
-        data = self._load_remediations()
-        if control_code in data["remediations"]:
-            existing = data["remediations"][control_code]
-            log.info("Remediation ticket already exists", extra={"control_code": control_code, "key": existing.get("jira_key")})
-            return existing
+        # Проверка дубликата: DB-режим или JSON-режим
+        if DATABASE_URL:
+            existing_record = self._get_existing_ticket_db(control_code)
+        else:
+            data = self._load_remediations()
+            existing_record = data["remediations"].get(control_code)
+
+        if existing_record:
+            log.info("Remediation ticket already exists", extra={"control_code": control_code, "key": existing_record.get("jira_key")})
+            return existing_record
 
         description = REMEDIATION_DESCRIPTIONS.get(
             control_code,
@@ -108,8 +161,15 @@ class RemediationAgent:
             "status":       "open",
             "mock":         ticket.get("mock", False),
         }
-        data["remediations"][control_code] = record
-        self._save_remediations(data)
+
+        # Сохранение: DB-режим или JSON-режим
+        if DATABASE_URL:
+            self._save_ticket_db(control_code, ticket["key"], ticket["url"])
+        else:
+            data = self._load_remediations()
+            data["remediations"][control_code] = record
+            self._save_remediations(data)
+
         return record
 
     def process_fail_controls(self, controls: List[Dict]) -> List[dict]:
@@ -128,11 +188,38 @@ class RemediationAgent:
                 results.append({"control_code": code, "error": str(e)})
         return results
 
+    def _get_all_tickets_db_as_dict(self) -> dict:
+        """Читает все RemediationTicket из SQLite и возвращает в формате remediations.json."""
+        import asyncio
+        from database import get_async_session
+        from models import RemediationTicket
+        from sqlalchemy import select as sa_select
+
+        async def _query():
+            rows = {}
+            async for session in get_async_session():
+                result = await session.execute(sa_select(RemediationTicket))
+                for ticket in result.scalars().all():
+                    rows[ticket.control_id] = {
+                        "jira_key":   ticket.issue_key,
+                        "jira_url":   ticket.jira_url or "",
+                        "created_at": ticket.created_at.isoformat(),
+                        "status":     "open",
+                        "mock":       False,
+                    }
+                return {"remediations": rows}
+        return asyncio.run(_query())
+
     def get_all_remediations(self) -> dict:
+        if DATABASE_URL:
+            return self._get_all_tickets_db_as_dict()
         return self._load_remediations()
 
     def sync_statuses(self) -> List[dict]:
         if not (self.jira_url and self.jira_user and self.jira_token):
+            return []
+        if DATABASE_URL:
+            log.info("DB-режим: sync_statuses пропущен — RemediationTicket не хранит статус Jira")
             return []
         data    = self._load_remediations()
         updated = []

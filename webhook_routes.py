@@ -1,4 +1,4 @@
-import hmac, hashlib, json, os, datetime, urllib.parse
+import hmac, hashlib, json, os, datetime, time, urllib.parse
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Header, Depends
 from fastapi.responses import JSONResponse
@@ -13,8 +13,9 @@ log = get_logger(__name__)
 # Singleton обработчика Slack actions — создаётся один раз при импорте модуля
 actions_handler = SlackActionsHandler()
 
-GITHUB_WEBHOOK_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET", "")
-OKTA_WEBHOOK_TOKEN    = os.getenv("OKTA_WEBHOOK_TOKEN", "")
+GITHUB_WEBHOOK_SECRET  = os.getenv("GITHUB_WEBHOOK_SECRET", "")
+OKTA_WEBHOOK_TOKEN     = os.getenv("OKTA_WEBHOOK_TOKEN", "")
+SLACK_SIGNING_SECRET   = os.getenv("SLACK_SIGNING_SECRET", "")
 EVENTS_FILE = Path(__file__).parent / "webhook_events.json"
 
 GITHUB_EVENT_CONTROL_MAP = {
@@ -36,7 +37,7 @@ OKTA_EVENT_CONTROL_MAP = {
 
 def _verify_github_signature(payload: bytes, signature: str, secret: str) -> bool:
     if not secret:
-        return True  # верификация отключена
+        return False
     if not signature:
         return False
     expected = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
@@ -74,7 +75,9 @@ async def github_webhook(request: Request, x_hub_signature_256: str = Header(Non
 
 @router.post("/webhooks/okta")
 async def okta_webhook(request: Request, authorization: str = Header(None)):
-    if OKTA_WEBHOOK_TOKEN and authorization != f"SSWS {OKTA_WEBHOOK_TOKEN}":
+    if not OKTA_WEBHOOK_TOKEN:
+        raise HTTPException(status_code=401, detail="Invalid Okta token")
+    if authorization != f"SSWS {OKTA_WEBHOOK_TOKEN}":
         raise HTTPException(status_code=401, detail="Invalid Okta token")
     
     data = await request.json()
@@ -105,7 +108,17 @@ async def slack_webhook(request: Request):
     - Slack Interactivity (block_actions): application/x-www-form-urlencoded с полем payload
     - Обычные события Slack Events API: application/json
     """
+    if not SLACK_SIGNING_SECRET:
+        raise HTTPException(status_code=403, detail="Webhook verification failed")
+    timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
+    sig_header = request.headers.get("X-Slack-Signature", "")
+    if not timestamp or not sig_header:
+        raise HTTPException(status_code=403, detail="Webhook verification failed")
     body = await request.body()
+    base = f"v0:{timestamp}:{body.decode()}"
+    expected = "v0=" + hmac.new(SLACK_SIGNING_SECRET.encode(), base.encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, sig_header):
+        raise HTTPException(status_code=403, detail="Webhook verification failed")
 
     # Slack Interactivity шлёт application/x-www-form-urlencoded с полем payload
     if b"payload=" in body:

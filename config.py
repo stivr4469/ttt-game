@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     # Evidence Tracker
     evidence_api_key: str = "soc2-dev-key"
-    evidence_tracker_url: str = "http://localhost:8000"
+    evidence_tracker_url: str = "http://localhost:8001"
 
     # JWT
     jwt_secret_key: str = "dev-secret-change-in-prod-32chars!!"

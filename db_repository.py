@@ -13,11 +13,13 @@ Repository pattern поверх SQLAlchemy ORM-моделей.
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Sequence
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import AuditEvent, ControlStatus, Evidence, RiskEntry, Vendor, PolicyDraft, TrainingCompletion
@@ -61,9 +63,24 @@ class EvidenceRepository:
         evidence_id: Optional[str] = None,
     ) -> Evidence:
         """
-        Создаёт новое доказательство.
-        evidence_id можно передать явно (для миграции из JSON).
+        Идемпотентно создаёт доказательство.
+        Если запись с тем же (control_id, source, content_hash) уже существует —
+        возвращает её без INSERT. evidence_id можно передать явно (для миграции из JSON).
         """
+        content_hash = hashlib.sha256(content.encode()).hexdigest()
+
+        # Проверка дубликата по (control_id, source, content_hash)
+        existing = await self._session.execute(
+            select(Evidence).where(
+                Evidence.control_id == control_id,
+                Evidence.source == source,
+                Evidence.content_hash == content_hash,
+            )
+        )
+        found = existing.scalar_one_or_none()
+        if found:
+            return found  # идемпотентно — возвращаем существующий
+
         ev = Evidence(
             id=evidence_id or _new_uuid(),
             control_id=control_id,
@@ -71,10 +88,23 @@ class EvidenceRepository:
             content=content[:99_000],    # лимит 100 KB
             source=source,
             confidence_score=confidence_score,
+            content_hash=content_hash,
             created_at=_utcnow(),
         )
         self._session.add(ev)
-        await self._session.flush()  # получаем id без commit
+        try:
+            await self._session.flush()  # получаем id без commit
+        except IntegrityError:
+            await self._session.rollback()
+            # Гонка — другой воркер вставил первым, достаём его запись
+            result = await self._session.execute(
+                select(Evidence).where(
+                    Evidence.control_id == control_id,
+                    Evidence.source == source,
+                    Evidence.content_hash == content_hash,
+                )
+            )
+            return result.scalar_one()
         return ev
 
     async def get(self, evidence_id: str) -> Optional[Evidence]:
