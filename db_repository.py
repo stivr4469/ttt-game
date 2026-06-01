@@ -124,6 +124,7 @@ class EvidenceRepository:
             .order_by(Evidence.created_at.desc())
             .limit(1)
         )
+        prev_stmt = _apply_tenant_filter(prev_stmt, self._session, Evidence)
         if _IS_POSTGRES:
             prev_stmt = prev_stmt.with_for_update()
         _prev_result = await self._session.execute(prev_stmt)
