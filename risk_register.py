@@ -1,13 +1,24 @@
-import json
-import os
+import asyncio
 import uuid
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import Optional, List, Dict
 
+
+def _run_async(coro):
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
 class RiskRegister:
-    RISK_FILE = Path(__file__).parent / "risk_register.json"
-    
     # Маппинг контролей на категории рисков
     CONTROL_CATEGORY_MAP = {
         "CC6.1": "access_control", "CC6.2": "access_control",
@@ -19,20 +30,107 @@ class RiskRegister:
         "CC1.4": "compliance",     "CC3.4": "change_management",
     }
     
+    # ── Async DB helpers ──────────────────────────────────────────────────────
+
+    async def _load_db(self) -> List[Dict]:
+        """Загружает риски из SQLite. Возвращает список dict."""
+        from database import AsyncSessionLocal
+        from models import RiskEntry
+        from sqlalchemy import select as sa_select
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                sa_select(RiskEntry).order_by(RiskEntry.created_at)
+            )
+            rows = result.scalars().all()
+            if not rows:
+                return []
+            return [
+                {
+                    "id":             r.id,
+                    "title":          r.title,
+                    "description":    r.description,
+                    "source":         r.source,
+                    "control_id":     r.control_id,
+                    "likelihood":     r.likelihood,
+                    "impact":         r.impact,
+                    "risk_score":     r.score,
+                    "category":       r.category,
+                    "owner":          r.owner or "",
+                    "treatment":      r.treatment,
+                    "treatment_plan": r.treatment_plan,
+                    "status":         r.status,
+                    "jira_ticket":    r.jira_ticket,
+                    "target_date":    r.target_date,
+                    "created_at":     r.created_at.isoformat(),
+                    "updated_at":     r.updated_at.isoformat() if r.updated_at else r.created_at.isoformat(),
+                }
+                for r in rows
+            ]
+
+    async def _save_db(self, risks: List[Dict]) -> None:
+        """Upsert рисков в SQLite по полю id."""
+        from database import AsyncSessionLocal
+        from models import RiskEntry
+        from sqlalchemy import select as sa_select
+        async with AsyncSessionLocal() as session:
+            for risk in risks:
+                risk_id = risk.get("id")
+                if not risk_id:
+                    continue
+                result = await session.execute(
+                    sa_select(RiskEntry).where(RiskEntry.id == risk_id)
+                )
+                existing = result.scalar_one_or_none()
+                if existing:
+                    existing.title          = risk.get("title", existing.title)
+                    existing.description    = risk.get("description", existing.description)
+                    existing.source         = risk.get("source", existing.source)
+                    existing.control_id     = risk.get("control_id", existing.control_id)
+                    existing.likelihood     = int(risk.get("likelihood", existing.likelihood))
+                    existing.impact         = int(risk.get("impact", existing.impact))
+                    existing.score          = int(risk.get("risk_score", existing.score))
+                    existing.category       = risk.get("category", existing.category)
+                    existing.owner          = risk.get("owner", existing.owner)
+                    existing.treatment      = risk.get("treatment", existing.treatment)
+                    existing.treatment_plan = risk.get("treatment_plan", existing.treatment_plan)
+                    existing.status         = risk.get("status", existing.status)
+                    existing.jira_ticket    = risk.get("jira_ticket", existing.jira_ticket)
+                    existing.target_date    = risk.get("target_date", existing.target_date)
+                    existing.updated_at     = datetime.now(timezone.utc)
+                else:
+                    entry = RiskEntry(
+                        id=risk_id,
+                        title=risk.get("title", "Untitled Risk"),
+                        description=risk.get("description", ""),
+                        source=risk.get("source", "manual"),
+                        control_id=risk.get("control_id"),
+                        likelihood=int(risk.get("likelihood", 3)),
+                        impact=int(risk.get("impact", 3)),
+                        score=int(risk.get("risk_score", 9)),
+                        category=risk.get("category", "operational"),
+                        owner=risk.get("owner"),
+                        treatment=risk.get("treatment", "mitigate"),
+                        treatment_plan=risk.get("treatment_plan", ""),
+                        status=risk.get("status", "open"),
+                        jira_ticket=risk.get("jira_ticket"),
+                        target_date=risk.get("target_date"),
+                    )
+                    session.add(entry)
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    # ── JSON helpers (fallback) ───────────────────────────────────────────────
+
     def _load(self) -> List[Dict]:
-        """Загружает риски из risk_register.json."""
-        if not self.RISK_FILE.exists():
-            return []
-        try:
-            with open(self.RISK_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return []
-    
+        """Загружает риски из SQLite."""
+        return _run_async(self._load_db())
+
     def _save(self, risks: List[Dict]):
-        """Сохраняет риски в risk_register.json."""
-        with open(self.RISK_FILE, "w", encoding="utf-8") as f:
-            json.dump(risks, f, indent=2, ensure_ascii=False)
+        """Сохраняет риски в SQLite."""
+        _run_async(self._save_db(risks))
     
     def get_all(self, status: str = None, category: str = None) -> List[Dict]:
         """Возвращает все риски с фильтрацией."""

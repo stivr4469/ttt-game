@@ -14,7 +14,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
+from auth import require_auditor
 from pydantic import BaseModel
 
 from compliance_state_engine import (
@@ -135,6 +136,7 @@ async def explain_control_fail(control_id: str) -> Dict[str, Any]:
 async def recalculate(
     request: RecalculateRequest,
     background_tasks: BackgroundTasks,
+    _: dict = Depends(require_auditor),
 ) -> RecalculateResponse:
     """POST /api/state/recalculate"""
     engine = get_state_engine()
@@ -187,7 +189,7 @@ async def get_state_snapshot() -> Dict[str, Any]:
         "Публикует CONTROL_STATUS_CHANGED для изменившихся контролей."
     ),
 )
-async def restore_from_snapshot(request: RestoreRequest) -> Dict[str, Any]:
+async def restore_from_snapshot(request: RestoreRequest, _: dict = Depends(require_auditor)) -> Dict[str, Any]:
     """POST /api/state/restore"""
     engine = get_state_engine()
     snapshot = request.snapshot

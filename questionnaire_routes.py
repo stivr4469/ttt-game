@@ -1,10 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException, Body
+from fastapi import APIRouter, Depends, HTTPException, Body, Query
 from fastapi.responses import Response
+from typing import Optional
 from auth import require_auth, require_admin
 from questionnaire_agent import QuestionnaireAgent
+from questionnaire_kb import QuestionnaireKB
 
 router = APIRouter(prefix="/api/questionnaires", tags=["questionnaires"])
 _agent = QuestionnaireAgent()
+_kb = QuestionnaireKB()
 
 @router.get("")
 async def list_questionnaires(payload: dict = Depends(require_auth)):
@@ -67,10 +70,56 @@ async def export_response(response_id: str, payload: dict = Depends(require_auth
     """Текстовый экспорт ответов."""
     if payload.get("role") not in ("admin", "auditor"):
          raise HTTPException(status_code=403, detail="Insufficient permissions")
-         
+
     text = _agent.export_to_text(response_id)
     return Response(
         content=text,
         media_type="text/plain",
         headers={"Content-Disposition": f"attachment; filename=questionnaire_{response_id}.txt"}
     )
+
+
+# ── Knowledge Base endpoints ──────────────────────────────────────────────────
+
+@router.get("/kb/search")
+async def kb_search(
+    q: str = Query(..., min_length=1, description="Question text to search for"),
+    limit: int = Query(default=3, ge=1, le=10),
+    payload: dict = Depends(require_auth),
+):
+    """
+    Поиск похожих ответов из Knowledge Base.
+
+    GET /api/questionnaires/kb/search?q=<question>&limit=3
+    Возвращает список похожих ответов: [{id, question, answer, score, created_at}]
+    """
+    results = await _kb.find_similar(q, limit=limit)
+    return results
+
+
+@router.post("/kb/accept")
+async def kb_accept(
+    question: str = Body(..., embed=True),
+    answer: str = Body(..., embed=True),
+    original_id: Optional[str] = Body(default=None, embed=True),
+    payload: dict = Depends(require_auth),
+):
+    """
+    Сохранить принятый ответ в Knowledge Base.
+
+    POST /api/questionnaires/kb/accept
+    body: {question: str, answer: str, original_id: str | null}
+    Возвращает {id, saved: true}
+    """
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="question must not be empty")
+    if not answer.strip():
+        raise HTTPException(status_code=400, detail="answer must not be empty")
+
+    response_id = await _kb.record_accepted(
+        question=question,
+        answer=answer,
+        source="kb" if original_id else "manual",
+        original_id=original_id,
+    )
+    return {"id": response_id, "saved": True}

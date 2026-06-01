@@ -14,6 +14,7 @@ SOC2 контрол для Vendor Risk: CC9.2
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import time
@@ -24,9 +25,12 @@ from pathlib import Path
 from typing import Optional
 
 from dotenv import load_dotenv
+from sqlalchemy import select
 
+from database import AsyncSessionLocal
 from log_config import get_logger
 from evidence_client import EvidenceClient
+import models as _models
 
 load_dotenv()
 
@@ -36,8 +40,8 @@ SOC2_VENDOR_CONTROL = "CC9.2"
 
 # ── Пути к файлам данных ──────────────────────────────────────────────────────
 _DATA_DIR = Path(__file__).parent / "data"
-_VENDORS_FILE = _DATA_DIR / "vendors.json"
-_ASSESSMENTS_FILE = _DATA_DIR / "vendor_assessments.json"
+_VENDORS_FILE = _DATA_DIR / "vendors.json"          # Legacy: vendors now stored in DB
+_ASSESSMENTS_FILE = _DATA_DIR / "vendor_assessments.json"  # TODO: migrate when VendorAssessment DB model is added
 
 # ── LLM-настройки (тот же паттерн что в gap_analysis_agent.py) ───────────────
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -393,6 +397,96 @@ def _mock_assessment(vendor_name: str) -> dict:
     }
 
 
+# ── DB helpers для Vendor ─────────────────────────────────────────────────────
+
+def _vendor_dict_to_db(d: dict) -> _models.Vendor:
+    """Преобразует dict вендора в ORM-модель Vendor."""
+    extra = {k: v for k, v in d.items() if k not in ("id", "name", "status", "dpa_signed", "last_review_date")}
+    return _models.Vendor(
+        id=d["id"],
+        name=d["name"],
+        tier=d.get("criticality", "medium"),
+        status=d.get("status", "under_review"),
+        dpa_signed=bool(d.get("dpa_signed", False)),
+        last_review_date=d.get("last_review_date"),
+        data=extra,
+    )
+
+
+def _db_vendor_to_dict(row: _models.Vendor) -> dict:
+    """Преобразует ORM-запись Vendor обратно в dict (совместимость с _vendor_from_dict)."""
+    d: dict = {"id": row.id, "name": row.name, "status": row.status,
+               "dpa_signed": row.dpa_signed, "last_review_date": row.last_review_date,
+               "criticality": row.tier}
+    if row.data:
+        d.update(row.data)
+    return d
+
+
+def _run_async(coro):
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
+async def _db_load_vendors_async() -> list[dict]:
+    """Загружает всех вендоров из БД."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(_models.Vendor))
+        rows = result.scalars().all()
+        return [_db_vendor_to_dict(r) for r in rows]
+
+
+async def _db_save_vendor_async(vendor_dict: dict) -> None:
+    """Создаёт или обновляет вендора в БД (upsert по id)."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(_models.Vendor).where(_models.Vendor.id == vendor_dict["id"])
+        )
+        existing = result.scalar_one_or_none()
+        if existing is None:
+            session.add(_vendor_dict_to_db(vendor_dict))
+        else:
+            extra = {k: v for k, v in vendor_dict.items()
+                     if k not in ("id", "name", "status", "dpa_signed", "last_review_date")}
+            existing.name = vendor_dict["name"]
+            existing.tier = vendor_dict.get("criticality", "medium")
+            existing.status = vendor_dict.get("status", "under_review")
+            existing.dpa_signed = bool(vendor_dict.get("dpa_signed", False))
+            existing.last_review_date = vendor_dict.get("last_review_date")
+            existing.data = extra
+        await session.commit()
+
+
+async def _db_delete_vendor_async(vendor_id: str) -> bool:
+    """Удаляет вендора из БД. Возвращает True если удалён."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(_models.Vendor).where(_models.Vendor.id == vendor_id)
+        )
+        row = result.scalar_one_or_none()
+        if row is None:
+            return False
+        await session.delete(row)
+        await session.commit()
+        return True
+
+
+async def _db_vendor_count_async() -> int:
+    """Возвращает количество вендоров в БД."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(_models.Vendor))
+        return len(result.scalars().all())
+
+
 # ── Основной агент ────────────────────────────────────────────────────────────
 
 class VendorRiskAgent:
@@ -411,9 +505,9 @@ class VendorRiskAgent:
     # ── Seed ──────────────────────────────────────────────────────────────────
 
     def _ensure_seed(self) -> None:
-        """Заполняет vendors.json seed-данными если файл пуст. Risk score рассчитывается из формулы."""
-        vendors = _load_json(_VENDORS_FILE, [])
-        if vendors:
+        """Заполняет БД seed-данными если таблица vendor пуста."""
+        count = _run_async(_db_vendor_count_async())
+        if count > 0:
             return
 
         seeded: list[dict] = []
@@ -422,20 +516,21 @@ class VendorRiskAgent:
             v.risk_score = self._calculate_risk_score(v, None)
             d = asdict(v)
             seeded.append(d)
+            _run_async(_db_save_vendor_async(d))
 
-        _save_json(_VENDORS_FILE, seeded)
-        log.info(f"Seed: создано {len(seeded)} вендоров")
+        log.info(f"Seed: создано {len(seeded)} вендоров в БД")
 
     # ── Внутренние helpers ────────────────────────────────────────────────────
 
     def _load_vendors(self) -> list[dict]:
-        return _load_json(_VENDORS_FILE, [])
+        return _run_async(_db_load_vendors_async())
 
     def load_vendors(self) -> list[Vendor]:
         return [_vendor_from_dict(d) for d in self._load_vendors()]
 
     def _save_vendors(self, vendors: list[dict]) -> None:
-        _save_json(_VENDORS_FILE, vendors)
+        for vendor_dict in vendors:
+            _run_async(_db_save_vendor_async(vendor_dict))
 
     def _load_assessments(self) -> list[dict]:
         return _load_json(_ASSESSMENTS_FILE, [])
@@ -617,14 +712,10 @@ class VendorRiskAgent:
 
     def delete_vendor(self, vendor_id: str) -> bool:
         """Удаляет вендора. Возвращает True если удалён."""
-        vendors = self._load_vendors()
-        initial_len = len(vendors)
-        vendors = [v for v in vendors if v.get("id") != vendor_id]
-        if len(vendors) < initial_len:
-            self._save_vendors(vendors)
+        deleted = _run_async(_db_delete_vendor_async(vendor_id))
+        if deleted:
             log.info(f"Вендор удалён: {vendor_id}")
-            return True
-        return False
+        return deleted
 
     # ── Assessments ───────────────────────────────────────────────────────────
 

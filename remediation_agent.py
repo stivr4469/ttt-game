@@ -1,19 +1,36 @@
 """
 Remediation Agent — создаёт Jira-тикеты для FAIL-контролей,
 обновляет evidence, отслеживает статус.
+
+Хранение: SQLite (через async ORM).
 """
-import os, json
+import asyncio
+import os
+import json
+import uuid
 from datetime import datetime, timezone
 from typing import List, Dict, Optional
 from log_config import get_logger
 from evidence_client import EvidenceClient
 
+
+def _run_async(coro):
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
 log = get_logger(__name__)
 
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
 JIRA_PROJECT_KEY     = os.getenv("JIRA_PROJECT_KEY", "SEC")
-REMEDIATIONS_FILE    = "remediations.json"
-DATABASE_URL         = os.getenv("DATABASE_URL", "")
 
 PRIORITY_MAP = {
     "CC6.1": "Critical", "CC6.2": "Critical", "CC6.3": "High",
@@ -47,74 +64,83 @@ class RemediationAgent:
             self._jira = JiraClient(self.jira_url, self.jira_user, self.jira_token)
         return self._jira
 
+    # ── Async DB helpers ──────────────────────────────────────────────────────
+
+    async def _load_db(self) -> dict:
+        """Загружает все ремедиации из SQLite. Возвращает {"remediations": {...}}."""
+        from database import AsyncSessionLocal
+        from models import Remediation
+        from sqlalchemy import select as sa_select
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                sa_select(Remediation).order_by(Remediation.created_at)
+            )
+            rows = result.scalars().all()
+            if not rows:
+                return {"remediations": {}}
+            remediations = {}
+            for r in rows:
+                remediations[r.control_code] = {
+                    "control_code": r.control_code,
+                    "jira_key":     r.jira_key or "",
+                    "jira_url":     r.jira_url or "",
+                    "finding":      r.finding,
+                    "priority":     r.priority,
+                    "created_at":   r.created_at.isoformat(),
+                    "status":       r.status,
+                    "mock":         r.is_mock,
+                }
+            return {"remediations": remediations}
+
+    async def _save_db(self, data: dict) -> None:
+        """Сохраняет/обновляет ремедиации в SQLite. Upsert по control_code (unique)."""
+        from database import AsyncSessionLocal
+        from models import Remediation
+        from sqlalchemy import select as sa_select
+        async with AsyncSessionLocal() as session:
+            for control_code, record in data.get("remediations", {}).items():
+                result = await session.execute(
+                    sa_select(Remediation).where(Remediation.control_code == control_code)
+                )
+                existing = result.scalar_one_or_none()
+                if existing:
+                    existing.jira_key = record.get("jira_key") or existing.jira_key
+                    existing.jira_url = record.get("jira_url") or existing.jira_url
+                    existing.finding  = record.get("finding", existing.finding)
+                    existing.priority = record.get("priority", existing.priority)
+                    existing.status   = record.get("status", existing.status)
+                    existing.is_mock  = record.get("mock", existing.is_mock)
+                else:
+                    entry = Remediation(
+                        id=str(uuid.uuid4()),
+                        control_code=control_code,
+                        jira_key=record.get("jira_key", ""),
+                        jira_url=record.get("jira_url", ""),
+                        finding=record.get("finding", ""),
+                        priority=record.get("priority", "Medium"),
+                        status=record.get("status", "open"),
+                        is_mock=record.get("mock", False),
+                    )
+                    session.add(entry)
+            try:
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+
+    # ── Persistence ───────────────────────────────────────────────────────────
+
     def _load_remediations(self) -> dict:
-        if not os.path.exists(REMEDIATIONS_FILE):
-            data = {"remediations": {}}
-            with open(REMEDIATIONS_FILE, "w") as f:
-                json.dump(data, f, indent=2)
-            return data
-        with open(REMEDIATIONS_FILE) as f:
-            return json.load(f)
+        return _run_async(self._load_db())
 
     def _save_remediations(self, data: dict) -> None:
-        with open(REMEDIATIONS_FILE, "w") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-
-    def _get_existing_ticket_db(self, control_code: str) -> Optional[dict]:
-        """Читает существующий тикет из SQLite (DB-режим). Возвращает dict или None."""
-        import asyncio
-        from database import get_async_session
-        from models import RemediationTicket
-        from sqlalchemy import select as sa_select
-
-        async def _query():
-            async for session in get_async_session():
-                result = await session.execute(
-                    sa_select(RemediationTicket).where(RemediationTicket.control_id == control_code)
-                )
-                ticket = result.scalar_one_or_none()
-                if ticket is None:
-                    return None
-                return {
-                    "control_code": ticket.control_id,
-                    "jira_key":     ticket.issue_key,
-                    "jira_url":     ticket.jira_url or "",
-                    "created_at":   ticket.created_at.isoformat(),
-                    "status":       "open",
-                    "mock":         False,
-                }
-
-        return asyncio.run(_query())
-
-    def _save_ticket_db(self, control_code: str, issue_key: str, jira_url: str = "") -> None:
-        """Сохраняет тикет в SQLite (DB-режим)."""
-        import asyncio
-        from database import get_async_session
-        from models import RemediationTicket
-
-        async def _insert():
-            async for session in get_async_session():
-                ticket = RemediationTicket(
-                    control_id=control_code,
-                    issue_key=issue_key,
-                    jira_url=jira_url,
-                )
-                session.add(ticket)
-                try:
-                    await session.commit()
-                except Exception:
-                    await session.rollback()
-
-        asyncio.run(_insert())
+        _run_async(self._save_db(data))
 
     def create_remediation_ticket(self, control_code: str, finding: str) -> dict:
         """Создаёт Jira-тикет для FAIL-контроля. Идемпотентно."""
-        # Проверка дубликата: DB-режим или JSON-режим
-        if DATABASE_URL:
-            existing_record = self._get_existing_ticket_db(control_code)
-        else:
-            data = self._load_remediations()
-            existing_record = data["remediations"].get(control_code)
+        # Проверка дубликата: unified _load_remediations обрабатывает оба режима
+        data = self._load_remediations()
+        existing_record = data["remediations"].get(control_code)
 
         if existing_record:
             log.info("Remediation ticket already exists", extra={"control_code": control_code, "key": existing_record.get("jira_key")})
@@ -162,13 +188,10 @@ class RemediationAgent:
             "mock":         ticket.get("mock", False),
         }
 
-        # Сохранение: DB-режим или JSON-режим
-        if DATABASE_URL:
-            self._save_ticket_db(control_code, ticket["key"], ticket["url"])
-        else:
-            data = self._load_remediations()
-            data["remediations"][control_code] = record
-            self._save_remediations(data)
+        # Сохранение: unified _save_remediations обрабатывает оба режима
+        data = self._load_remediations()
+        data["remediations"][control_code] = record
+        self._save_remediations(data)
 
         return record
 
@@ -188,39 +211,13 @@ class RemediationAgent:
                 results.append({"control_code": code, "error": str(e)})
         return results
 
-    def _get_all_tickets_db_as_dict(self) -> dict:
-        """Читает все RemediationTicket из SQLite и возвращает в формате remediations.json."""
-        import asyncio
-        from database import get_async_session
-        from models import RemediationTicket
-        from sqlalchemy import select as sa_select
-
-        async def _query():
-            rows = {}
-            async for session in get_async_session():
-                result = await session.execute(sa_select(RemediationTicket))
-                for ticket in result.scalars().all():
-                    rows[ticket.control_id] = {
-                        "jira_key":   ticket.issue_key,
-                        "jira_url":   ticket.jira_url or "",
-                        "created_at": ticket.created_at.isoformat(),
-                        "status":     "open",
-                        "mock":       False,
-                    }
-                return {"remediations": rows}
-        return asyncio.run(_query())
-
     def get_all_remediations(self) -> dict:
-        if DATABASE_URL:
-            return self._get_all_tickets_db_as_dict()
         return self._load_remediations()
 
     def sync_statuses(self) -> List[dict]:
         if not (self.jira_url and self.jira_user and self.jira_token):
             return []
-        if DATABASE_URL:
-            log.info("DB-режим: sync_statuses пропущен — RemediationTicket не хранит статус Jira")
-            return []
+        log.info("sync_statuses синхронизирует статусы через DB")
         data    = self._load_remediations()
         updated = []
         for code, record in data["remediations"].items():

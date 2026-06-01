@@ -1,363 +1,474 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Marineso Security & Trust Center</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0f1117;
-            --card: #1a1d27;
-            --accent: #00d4aa;
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --border: #2d313e;
-            --success: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', sans-serif;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-        header {
-            text-align: center;
-            margin-bottom: 60px;
-        }
-        header h1 {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 12px;
-            color: #fff;
-        }
-        header p {
-            font-size: 18px;
-            color: var(--muted);
-            font-style: italic;
-        }
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Marineso Security &amp; Trust Center</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:       #f8fafc;
+      --surface:  #ffffff;
+      --border:   #e2e8f0;
+      --text:     #1e293b;
+      --muted:    #64748b;
+      --accent:   #0f766e;
+      --accent-lt:#f0fdf9;
+      --pass:     #16a34a;
+      --pass-bg:  #dcfce7;
+      --fail:     #dc2626;
+      --fail-bg:  #fee2e2;
+      --gray:     #6b7280;
+      --gray-bg:  #f3f4f6;
+      --radius:   10px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      font-size: 15px;
+      line-height: 1.6;
+    }
 
-        /* Frameworks */
-        .frameworks {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 60px;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            transition: transform 0.2s;
-        }
-        .card:hover {
-            transform: translateY(-4px);
-            border-color: var(--accent);
-        }
-        .framework-card h3 {
-            font-size: 20px;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            margin-bottom: 12px;
-        }
-        .status-certified { background: rgba(0, 212, 170, 0.1); color: var(--accent); }
-        .status-in_progress { background: rgba(59, 130, 246, 0.1); color: #60a5fa; }
+    /* ── Topbar ── */
+    .topbar {
+      position: fixed; top: 0; right: 0; z-index: 50;
+      padding: 10px 20px;
+    }
+    .topbar a {
+      font-size: 13px; color: var(--muted); text-decoration: none;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 6px; padding: 5px 14px;
+      transition: color .15s, border-color .15s;
+    }
+    .topbar a:hover { color: var(--accent); border-color: var(--accent); }
 
-        /* Counters */
-        .counters {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 60px;
-            background: var(--card);
-            padding: 40px;
-            border-radius: 12px;
-            text-align: center;
-        }
-        .counter-item .val {
-            font-size: 48px;
-            font-weight: 700;
-            color: var(--accent);
-            display: block;
-        }
-        .counter-item .lbl {
-            color: var(--muted);
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
+    /* ── Layout ── */
+    .container { max-width: 980px; margin: 0 auto; padding: 0 24px; }
 
-        /* Security Practices */
-        .practices {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 60px;
-        }
-        .practice-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-size: 16px;
-        }
-        .practice-item .check { color: var(--accent); font-weight: bold; }
+    /* ── Hero ── */
+    .hero {
+      background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
+      color: #fff;
+      padding: 80px 0 60px;
+      text-align: center;
+    }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
+      border-radius: 20px; padding: 5px 16px; font-size: 13px; font-weight: 500;
+      margin-bottom: 24px; letter-spacing: .4px;
+    }
+    .hero h1 {
+      font-size: clamp(28px, 5vw, 42px);
+      font-weight: 700; letter-spacing: -.5px; margin-bottom: 16px;
+    }
+    .hero p {
+      font-size: 18px; opacity: .85; margin-bottom: 32px;
+    }
+    .overall-status {
+      display: inline-flex; align-items: center; gap: 10px;
+      background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
+      border-radius: 8px; padding: 10px 24px; font-size: 15px; font-weight: 500;
+    }
+    .status-dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 0 3px rgba(74,222,128,.35);
+    }
+    .status-dot.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.35); }
+    .status-dot.outage   { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.35); }
 
-        /* CTA */
-        .cta {
-            text-align: center;
-            padding: 60px 0;
-            border-top: 1px solid var(--border);
-        }
-        .cta h2 { margin-bottom: 24px; }
-        .btn {
-            background: var(--accent);
-            color: var(--bg);
-            border: none;
-            padding: 16px 32px;
-            border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .btn:hover { opacity: 0.9; }
+    /* ── Section titles ── */
+    section { padding: 56px 0; }
+    .section-header { margin-bottom: 28px; }
+    .section-header h2 { font-size: 22px; font-weight: 700; }
+    .section-header p  { color: var(--muted); margin-top: 4px; font-size: 14px; }
 
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.8);
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-        }
-        .modal-content {
-            background: var(--card);
-            padding: 32px;
-            border-radius: 12px;
-            width: 100%;
-            max-width: 450px;
-        }
-        .modal-content h3 { margin-bottom: 20px; }
-        .form-group { margin-bottom: 16px; }
-        .form-group label { display: block; margin-bottom: 8px; color: var(--muted); }
-        .form-control {
-            width: 100%;
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 12px;
-            color: #fff;
-            border-radius: 6px;
-            outline: none;
-        }
-        .form-control:focus { border-color: var(--accent); }
+    /* ── Summary cards ── */
+    .summary-cards {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+      margin-bottom: 32px;
+    }
+    .summary-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 24px; text-align: center;
+    }
+    .summary-card .val {
+      font-size: 36px; font-weight: 700; display: block; color: var(--accent);
+    }
+    .summary-card .lbl {
+      font-size: 13px; color: var(--muted); text-transform: uppercase;
+      letter-spacing: .8px; margin-top: 4px; display: block;
+    }
 
-        footer {
-            text-align: center;
-            margin-top: 60px;
-            color: var(--muted);
-            font-size: 14px;
-        }
+    /* ── Controls table ── */
+    .table-wrap {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); overflow: hidden;
+    }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      background: #f1f5f9; text-align: left;
+      padding: 12px 16px; font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
+      border-bottom: 1px solid var(--border);
+    }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #f8fafc; }
+    tbody td { padding: 12px 16px; font-size: 14px; vertical-align: middle; }
+    .badge {
+      display: inline-block; padding: 3px 10px; border-radius: 20px;
+      font-size: 12px; font-weight: 600; letter-spacing: .3px;
+    }
+    .badge-pass        { background: var(--pass-bg); color: var(--pass); }
+    .badge-fail        { background: var(--fail-bg); color: var(--fail); }
+    .badge-not_started { background: var(--gray-bg); color: var(--gray); }
+    .badge-unknown     { background: var(--gray-bg); color: var(--gray); }
 
-        /* ── Верхняя полоса с ссылкой на Dashboard (только для внутренних пользователей) ── */
-        .trust-topbar {
-            position: fixed; top: 0; right: 0; z-index: 100;
-            padding: 8px 16px; display: flex; align-items: center; gap: 10px;
-        }
-        .trust-topbar a {
-            color: var(--muted); text-decoration: none; font-size: 12px;
-            background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-            padding: 5px 12px; transition: all .15s;
-        }
-        .trust-topbar a:hover { color: var(--accent); border-color: var(--accent); }
+    .no-data { text-align: center; padding: 48px 24px; color: var(--muted); }
 
-        /* Animations */
-        @keyframes countUp {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .counter-item { animation: countUp 0.5s ease-out forwards; }
-    </style>
+    /* ── Form section ── */
+    .form-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 36px;
+      max-width: 560px;
+    }
+    .form-grid { display: grid; gap: 20px; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .field label {
+      display: block; font-size: 13px; font-weight: 500;
+      margin-bottom: 6px; color: var(--text);
+    }
+    .field input, .field textarea {
+      width: 100%; border: 1px solid var(--border); border-radius: 6px;
+      padding: 10px 14px; font-size: 14px; font-family: inherit;
+      outline: none; background: #fff; color: var(--text);
+      transition: border-color .15s;
+    }
+    .field input:focus, .field textarea:focus {
+      border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-lt);
+    }
+    .field textarea { resize: vertical; min-height: 80px; }
+    .btn-primary {
+      background: var(--accent); color: #fff; border: none;
+      padding: 12px 28px; border-radius: 7px; font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: opacity .15s;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+    .success-banner {
+      display: none; background: var(--pass-bg); border: 1px solid #86efac;
+      border-radius: 8px; padding: 16px 20px; color: var(--pass);
+      font-size: 14px; font-weight: 500; margin-top: 16px;
+    }
+    .error-banner {
+      display: none; background: var(--fail-bg); border: 1px solid #fca5a5;
+      border-radius: 8px; padding: 16px 20px; color: var(--fail);
+      font-size: 14px; font-weight: 500; margin-top: 16px;
+    }
+
+    /* ── Subprocessors ── */
+    .subprocessors-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 16px;
+    }
+    .sp-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 20px;
+    }
+    .sp-card .sp-name {
+      font-weight: 600; font-size: 15px; margin-bottom: 4px;
+    }
+    .sp-card .sp-purpose { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
+    .sp-card .sp-country {
+      display: inline-block; font-size: 12px; background: var(--accent-lt);
+      color: var(--accent); border-radius: 4px; padding: 2px 8px; font-weight: 500;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 28px 0; text-align: center;
+      color: var(--muted); font-size: 13px;
+    }
+
+    /* ── Divider ── */
+    .divider { border: none; border-top: 1px solid var(--border); }
+
+    @media (max-width: 640px) {
+      .summary-cards { grid-template-columns: 1fr; }
+      .form-row { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
-    <!-- Ссылка на Dashboard для внутренних пользователей -->
-    <div class="trust-topbar">
-        <a href="/">← Dashboard</a>
-    </div>
 
+  <div class="topbar"><a href="/">← Dashboard</a></div>
+
+  <!-- Hero -->
+  <div class="hero">
     <div class="container">
-        <header>
-            <h1>🛡️ Marineso Security &amp; Trust Center</h1>
-            <p>"We believe security should be transparent"</p>
-        </header>
-
-        <div class="frameworks" id="frameworksList">
-            <!-- Loaded via JS -->
-        </div>
-
-        <div class="counters">
-            <div class="counter-item">
-                <span class="val" id="totalControls">0</span>
-                <span class="lbl">Controls</span>
-            </div>
-            <div class="counter-item">
-                <span class="val" id="passingControls">0</span>
-                <span class="lbl">Passing</span>
-            </div>
-            <div class="counter-item">
-                <span class="val" id="uptime">0%</span>
-                <span class="lbl">Uptime</span>
-            </div>
-        </div>
-
-        <div class="practices">
-            <div class="practice-item"><span class="check">✅</span> MFA Enforced</div>
-            <div class="practice-item"><span class="check">✅</span> Encryption at Rest</div>
-            <div class="practice-item"><span class="check">✅</span> Annual Pen Test</div>
-            <div class="practice-item"><span class="check">✅</span> 24h Critical Patch SLA</div>
-            <div class="practice-item"><span class="check">✅</span> Security Training</div>
-            <div class="practice-item"><span class="check">✅</span> SOC 2 Annual Audit</div>
-        </div>
-
-        <div class="cta">
-            <h2>Need the full audit report?</h2>
-            <button class="btn" onclick="openModal()">Request Detailed Report</button>
-        </div>
-
-        <footer id="footer">
-            Last updated: <span id="lastUpdated">-</span> | Powered by Compliance Sandbox
-        </footer>
+      <div class="hero-badge">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Security &amp; Compliance
+      </div>
+      <h1>Our Security &amp; Trust Center</h1>
+      <p>Transparent security practices built for enterprise confidence.</p>
+      <div class="overall-status" id="overallStatus">
+        <span class="status-dot" id="statusDot"></span>
+        <span id="statusText">Loading...</span>
+      </div>
     </div>
+  </div>
 
-    <div class="modal" id="requestModal">
-        <div class="modal-content">
-            <h3>Request Detailed Report</h3>
-            <form id="requestForm">
-                <div class="form-group">
-                    <label>Email</label>
-                    <input type="email" id="email" class="form-control" required placeholder="your@email.com">
-                </div>
-                <div class="form-group">
-                    <label>Company</label>
-                    <input type="text" id="company" class="form-control" required placeholder="Acme Inc.">
-                </div>
-                <div class="form-group">
-                    <label>Reason</label>
-                    <select id="reason" class="form-control">
-                        <option value="due diligence">Due Diligence</option>
-                        <option value="vendor review">Vendor Review</option>
-                        <option value="partnership">Partnership</option>
-                    </select>
-                </div>
-                <div style="display: flex; gap: 10px; margin-top: 20px;">
-                    <button type="submit" class="btn" style="flex: 1;">Submit</button>
-                    <button type="button" class="btn" style="background: var(--muted); flex: 1;" onclick="closeModal()">Cancel</button>
-                </div>
-            </form>
-            <div id="successMsg" style="display: none; text-align: center; padding: 20px;">
-                <p>Check your email for the access link</p>
-                <p style="font-size: 12px; margin-top: 10px; color: var(--accent); overflow-wrap: break-word;" id="tokenDisplay"></p>
-                <button class="btn" style="margin-top: 20px; background: var(--muted);" onclick="closeModal()">Close</button>
-            </div>
+  <!-- Controls Status -->
+  <div class="container">
+    <section>
+      <div class="section-header">
+        <h2>Compliance Controls</h2>
+        <p>Real-time status of our SOC 2 control implementation.</p>
+      </div>
+
+      <div class="summary-cards">
+        <div class="summary-card">
+          <span class="val" id="totalControls">—</span>
+          <span class="lbl">Total Controls</span>
         </div>
+        <div class="summary-card">
+          <span class="val" id="passingControls" style="color:#16a34a">—</span>
+          <span class="lbl">Passing</span>
+        </div>
+        <div class="summary-card">
+          <span class="val" id="failingControls" style="color:#dc2626">—</span>
+          <span class="lbl">Failing</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Code</th>
+              <th>Title</th>
+              <th>Category</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="controlsBody">
+            <tr><td colspan="4" class="no-data">Loading controls...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- Request Access -->
+    <section>
+      <div class="section-header">
+        <h2>Request Document Access</h2>
+        <p>Receive our SOC 2 report, security questionnaire answers, and DPA under NDA.</p>
+      </div>
+
+      <div class="form-card">
+        <form id="accessForm">
+          <div class="form-grid">
+            <div class="form-row">
+              <div class="field">
+                <label for="fieldName">Full Name *</label>
+                <input type="text" id="fieldName" placeholder="Jane Smith" required>
+              </div>
+              <div class="field">
+                <label for="fieldEmail">Work Email *</label>
+                <input type="email" id="fieldEmail" placeholder="jane@company.com" required>
+              </div>
+            </div>
+            <div class="field">
+              <label for="fieldCompany">Company *</label>
+              <input type="text" id="fieldCompany" placeholder="Acme Corp" required>
+            </div>
+            <div class="field">
+              <label for="fieldReason">Reason for Access</label>
+              <textarea id="fieldReason" placeholder="e.g., Vendor security review prior to procurement"></textarea>
+            </div>
+            <div>
+              <button type="submit" class="btn-primary" id="submitBtn">Submit Request</button>
+            </div>
+          </div>
+        </form>
+        <div class="success-banner" id="successBanner">
+          Your request has been received. We'll be in touch within 1 business day.
+        </div>
+        <div class="error-banner" id="errorBanner">
+          Something went wrong. Please try again or email us directly.
+        </div>
+      </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- Subprocessors -->
+    <section>
+      <div class="section-header">
+        <h2>Subprocessors</h2>
+        <p>Third-party providers we use to deliver our services and process data.</p>
+      </div>
+      <div class="subprocessors-grid" id="subprocessorsGrid">
+        <p style="color:var(--muted);font-size:14px;">Loading...</p>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <div class="container">
+      Last updated: <span id="lastUpdated">—</span> &nbsp;|&nbsp; Powered by Compliance Sandbox
     </div>
+  </footer>
 
-    <script>
-        function animateValue(id, start, end, duration) {
-            const obj = document.getElementById(id);
-            let startTimestamp = null;
-            const step = (timestamp) => {
-                if (!startTimestamp) startTimestamp = timestamp;
-                const progress = Math.min((timestamp - startTimestamp) / duration, 1);
-                const current = Math.floor(progress * (end - start) + start);
-                if (id === 'uptime') {
-                    obj.innerHTML = (progress * (end - start) + start).toFixed(1) + '%';
-                } else {
-                    obj.innerHTML = current;
-                }
-                if (progress < 1) {
-                    window.requestAnimationFrame(step);
-                }
-            };
-            window.requestAnimationFrame(step);
+  <script>
+    function escHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function statusBadge(status) {
+      const s = (status || 'UNKNOWN').toUpperCase();
+      const cls = {
+        'PASS':        'badge-pass',
+        'FAIL':        'badge-fail',
+        'NOT_STARTED': 'badge-not_started',
+        'UNKNOWN':     'badge-unknown',
+        'PARTIAL':     'badge-not_started',
+      }[s] || 'badge-unknown';
+      return `<span class="badge ${cls}">${escHtml(s)}</span>`;
+    }
+
+    async function loadStatus() {
+      try {
+        const r = await fetch('/trust/status');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+
+        // Hero status
+        const overall = data.overall || 'operational';
+        const dot = document.getElementById('statusDot');
+        const txt = document.getElementById('statusText');
+        if (overall === 'operational') {
+          txt.textContent = 'All Systems Operational';
+          dot.className = 'status-dot';
+        } else if (overall === 'degraded') {
+          txt.textContent = 'Some Controls Degraded';
+          dot.className = 'status-dot degraded';
+        } else {
+          txt.textContent = 'Service Disruption';
+          dot.className = 'status-dot outage';
         }
 
-        async function loadSnapshot() {
-            try {
-                const r = await fetch('/api/trust/snapshot');
-                const data = await r.json();
-                
-                animateValue('totalControls', 0, data.controls_summary.total, 1000);
-                animateValue('passingControls', 0, data.controls_summary.pass, 1000);
-                animateValue('uptime', 0, data.uptime_30d, 1000);
-                
-                document.getElementById('lastUpdated').innerText = new Date(data.last_updated).toLocaleString();
+        // Summary
+        const s = data.summary || {};
+        document.getElementById('totalControls').textContent = s.total ?? 0;
+        document.getElementById('passingControls').textContent = s.passing ?? 0;
+        document.getElementById('failingControls').textContent = s.failing ?? 0;
 
-                const fwList = document.getElementById('frameworksList');
-                fwList.innerHTML = data.frameworks.map(fw => `
-                    <div class="card framework-card">
-                        <span class="status-badge status-${fw.status}">${fw.status.replace('_', ' ')}</span>
-                        <h3>${fw.name.includes('SOC 2') ? '🛡️' : '📋'} ${fw.name}</h3>
-                        <p style="color: var(--muted); font-size: 14px;">
-                            ${fw.last_audit ? 'Last audit: ' + fw.last_audit : 'Estimated: Q4 2026'}
-                        </p>
-                        ${fw.auditor ? `<p style="font-size: 12px; margin-top: 8px;">Auditor: ${fw.auditor}</p>` : ''}
-                    </div>
-                `).join('');
-
-            } catch (e) {
-                console.error("Failed to load snapshot", e);
-            }
+        // Controls table
+        const body = document.getElementById('controlsBody');
+        const controls = data.controls || [];
+        if (controls.length === 0) {
+          body.innerHTML = '<tr><td colspan="4" class="no-data">No controls data available.</td></tr>';
+        } else {
+          body.innerHTML = controls.map(c => `
+            <tr>
+              <td><code style="font-size:13px;color:var(--accent)">${escHtml(c.code)}</code></td>
+              <td>${escHtml(c.title)}</td>
+              <td style="color:var(--muted);font-size:13px">${escHtml(c.category || '—')}</td>
+              <td>${statusBadge(c.status)}</td>
+            </tr>
+          `).join('');
         }
 
-        function openModal() { document.getElementById('requestModal').style.display = 'flex'; }
-        function closeModal() { 
-            document.getElementById('requestModal').style.display = 'none';
-            document.getElementById('requestForm').style.display = 'block';
-            document.getElementById('successMsg').style.display = 'none';
+        // Footer timestamp
+        if (data.updated_at) {
+          document.getElementById('lastUpdated').textContent =
+            new Date(data.updated_at).toLocaleString();
         }
+      } catch (e) {
+        console.error('Failed to load trust status', e);
+        document.getElementById('statusText').textContent = 'Status unavailable';
+        document.getElementById('controlsBody').innerHTML =
+          '<tr><td colspan="4" class="no-data">Could not load controls data.</td></tr>';
+      }
+    }
 
-        document.getElementById('requestForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const email = document.getElementById('email').value;
-            const company = document.getElementById('company').value;
-            const reason = document.getElementById('reason').value;
+    async function loadSubprocessors() {
+      try {
+        const r = await fetch('/trust/subprocessors');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        const grid = document.getElementById('subprocessorsGrid');
+        if (!data || data.length === 0) {
+          grid.innerHTML = '<p style="color:var(--muted);font-size:14px;">No subprocessors listed.</p>';
+          return;
+        }
+        grid.innerHTML = data.map(sp => `
+          <div class="sp-card">
+            <div class="sp-name">${escHtml(sp.name)}</div>
+            <div class="sp-purpose">${escHtml(sp.purpose)}</div>
+            <span class="sp-country">${escHtml(sp.country)}</span>
+          </div>
+        `).join('');
+      } catch (e) {
+        console.error('Failed to load subprocessors', e);
+        document.getElementById('subprocessorsGrid').innerHTML =
+          '<p style="color:var(--muted);font-size:14px;">Could not load subprocessors.</p>';
+      }
+    }
 
-            try {
-                const r = await fetch('/api/trust/request-access', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, company, reason })
-                });
-                const data = await r.json();
-                if (data.token) {
-                    document.getElementById('requestForm').style.display = 'none';
-                    document.getElementById('successMsg').style.display = 'block';
-                    document.getElementById('tokenDisplay').innerText = "Temporary token: " + data.token;
-                }
-            } catch (e) {
-                alert("Request failed");
-            }
-        };
+    document.getElementById('accessForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const btn = document.getElementById('submitBtn');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
 
-        window.onload = loadSnapshot;
-    </script>
+      const name    = document.getElementById('fieldName').value.trim();
+      const email   = document.getElementById('fieldEmail').value.trim();
+      const company = document.getElementById('fieldCompany').value.trim();
+      const reason  = document.getElementById('fieldReason').value.trim();
+
+      document.getElementById('successBanner').style.display = 'none';
+      document.getElementById('errorBanner').style.display = 'none';
+
+      try {
+        const r = await fetch('/trust/access-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, company, reason }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || 'Request failed');
+        }
+        document.getElementById('successBanner').style.display = 'block';
+        e.target.reset();
+      } catch (err) {
+        console.error('Access request failed', err);
+        document.getElementById('errorBanner').style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Request';
+      }
+    });
+
+    // Bootstrap
+    loadStatus();
+    loadSubprocessors();
+  </script>
 </body>
 </html>

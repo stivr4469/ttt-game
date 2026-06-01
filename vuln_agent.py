@@ -2,7 +2,6 @@ import os
 import json
 import time
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
 from typing import List, Dict, Optional
 
 from log_config import get_logger
@@ -38,7 +37,6 @@ class VulnAgent:
     def __init__(self):
         self.token = GITHUB_TOKEN
         self.repo = GITHUB_REPO
-        self.vulns_file = Path(__file__).parent / "vulnerabilities.json"
         self.client = BaseHTTPClient(base_url="https://api.github.com")
         self._ec = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="vuln_agent")
 
@@ -139,9 +137,6 @@ class VulnAgent:
             if sla["status"] == "breached": sla_breached += 1
             if sla["status"] == "at_risk": sla_at_risk += 1
             
-        # Сохранение в файл
-        self.vulns_file.write_text(json.dumps(processed_vulns, indent=2, ensure_ascii=False), encoding="utf-8")
-        
         result = {
             "total": len(processed_vulns),
             "by_severity": stats,

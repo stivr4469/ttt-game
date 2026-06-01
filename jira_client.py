@@ -1,19 +1,25 @@
 import os, requests
 from typing import Dict, List, Optional, Any
 from log_config import get_logger
+from secret_store import get_connector_secret
 
 log = get_logger(__name__)
-
-JIRA_URL         = os.getenv("JIRA_URL", "")
-JIRA_USER        = os.getenv("JIRA_USER", "")
-JIRA_TOKEN       = os.getenv("JIRA_API_TOKEN", "")
-JIRA_PROJECT_KEY = os.getenv("JIRA_PROJECT_KEY", "SEC")
 
 
 class JiraClient:
     """Клиент Jira REST API v3."""
 
-    def __init__(self, base_url: str, email: str, api_token: str):
+    def __init__(
+        self,
+        base_url: str = "",
+        email: str = "",
+        api_token: str = "",
+        project_key: str = "",
+    ):
+        base_url    = base_url    or get_connector_secret("JIRA_URL", "")
+        email       = email       or get_connector_secret("JIRA_USER", "")
+        api_token   = api_token   or get_connector_secret("JIRA_API_TOKEN", "")
+        self.project_key = project_key or get_connector_secret("JIRA_PROJECT_KEY", "SEC")
         self.base_url = base_url.rstrip("/")
         self._session = requests.Session()
         self._session.auth = (email, api_token)

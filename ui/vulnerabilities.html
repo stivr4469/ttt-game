@@ -266,6 +266,15 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         let currentVulnId = null;
 
         async function init() {
@@ -297,14 +306,14 @@
             const content = document.getElementById('vulnTableContent');
             content.innerHTML = vulns.map(v => `
                 <tr class="vuln-row ${v.sla_status === 'breached' ? 'breached' : ''}">
-                    <td style="font-family: monospace; font-weight: 600;">${v.cve_id || 'N/A'}</td>
-                    <td>${v.package}</td>
-                    <td><span class="severity-badge severity-${v.severity}">${v.severity}</span></td>
-                    <td>${v.affected_version}</td>
-                    <td><span class="sla-pill sla-${v.sla_status}">${v.sla_status.replace('_', ' ')}</span></td>
+                    <td style="font-family: monospace; font-weight: 600;">${escHtml(v.cve_id) || 'N/A'}</td>
+                    <td>${escHtml(v.package)}</td>
+                    <td><span class="severity-badge severity-${escHtml(v.severity)}">${escHtml(v.severity)}</span></td>
+                    <td>${escHtml(v.affected_version)}</td>
+                    <td><span class="sla-pill sla-${escHtml(v.sla_status)}">${escHtml(v.sla_status).replace('_', ' ')}</span></td>
                     <td style="color: var(--muted);">${new Date(v.sla_deadline).toLocaleDateString()}</td>
                     <td>
-                        <button class="btn" style="padding: 4px 10px; font-size: 11px;" onclick="viewVuln('${v.id}')">View</button>
+                        <button class="btn" style="padding: 4px 10px; font-size: 11px;" data-id="${escHtml(v.id)}" onclick="viewVuln(this.dataset.id)">View</button>
                     </td>
                 </tr>
             `).join('');

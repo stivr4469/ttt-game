@@ -15,7 +15,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from auth import require_auth
 from pydantic import BaseModel
 
 from compliance_engine import (
@@ -209,6 +210,7 @@ def evaluate_control(
 def evaluate_control_with_evidence(
     control_id: str,
     body: EvaluateRequest,
+    _: dict = Depends(require_auth),
 ) -> VerdictResponse:
     """
     Оценивает контроль на основе evidence из тела запроса.

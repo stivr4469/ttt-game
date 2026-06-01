@@ -12,8 +12,9 @@ Prod-режим: asyncpg через переменную окружения DATA
 from __future__ import annotations
 
 import os
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Optional
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -57,13 +58,20 @@ def _create_engine(url: str) -> AsyncEngine:
         # SQLite требует check_same_thread=False для async
         connect_args["check_same_thread"] = False
 
-    return create_async_engine(
-        url,
-        echo=os.getenv("DB_ECHO", "false").lower() == "true",
-        connect_args=connect_args,
-        # pool_pre_ping для PostgreSQL: автоматически проверяет соединения
-        pool_pre_ping=not is_sqlite,
-    )
+    common_kwargs: dict = {
+        "echo": os.getenv("DB_ECHO", "false").lower() == "true",
+        "connect_args": connect_args,
+        "pool_pre_ping": True,
+    }
+
+    if not is_sqlite:
+        # SQLite не поддерживает pool_size/max_overflow (использует StaticPool)
+        common_kwargs["pool_size"] = int(os.getenv("DB_POOL_SIZE", "20"))
+        common_kwargs["max_overflow"] = int(os.getenv("DB_MAX_OVERFLOW", "10"))
+        common_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "30"))
+        common_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "1800"))
+
+    return create_async_engine(url, **common_kwargs)
 
 
 DATABASE_URL: str = _get_database_url()
@@ -81,10 +89,16 @@ AsyncSessionLocal: async_sessionmaker[AsyncSession] = async_sessionmaker(
 
 # ── FastAPI dependency ────────────────────────────────────────────────────────
 
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
+async def get_db(request=None) -> AsyncGenerator[AsyncSession, None]:
     """
     FastAPI dependency для инъекции async DB-сессии.
     Гарантирует закрытие сессии после запроса.
+    Выставляет tenant_id в session.info для app-level tenant isolation (SQLite RLS).
+    Для PostgreSQL дополнительно выполняет SET LOCAL app.tenant_id для RLS на уровне БД.
+
+    Контракт commit/rollback:
+        Routes must call ``await session.commit()`` explicitly.
+        get_db only rolls back on exception — it never auto-commits.
 
     Использование в роутере:
         from fastapi import Depends
@@ -94,10 +108,19 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
         async def list_items(db: AsyncSession = Depends(get_db)):
             ...
     """
+    from tenant_context import get_current_tenant_id
     async with AsyncSessionLocal() as session:
+        tenant_id = get_current_tenant_id()
+        if tenant_id:
+            # Для всех БД: сохраняем в info сессии (app-level isolation)
+            session.info["tenant_id"] = tenant_id
+            # Для PostgreSQL: выставляем app.tenant_id через SET LOCAL для row-level security
+            if not DATABASE_URL.startswith("sqlite"):
+                await session.execute(
+                    text("SET LOCAL app.tenant_id = :tid"), {"tid": str(tenant_id)}
+                )
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
@@ -107,11 +130,35 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """
-    Создаёт все таблицы если их нет (CREATE TABLE IF NOT EXISTS).
-    Вызывать при старте приложения один раз.
+    Creates all tables for SQLite dev mode (CREATE TABLE IF NOT EXISTS).
+    For PostgreSQL, run Alembic migrations instead: `alembic upgrade head`.
+    Call once at application startup.
     """
+    import models  # noqa: F401 — registers ORM classes in Base.metadata
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+
+# Алиас для совместимости с кодом агентов
+get_async_session = get_db
+
+
+async def check_db_health() -> bool:
+    """
+    Проверяет доступность БД через простой SELECT 1.
+    Возвращает True если соединение успешно, False при любой ошибке.
+    """
+    try:
+        async with AsyncSessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        return True
+    except Exception:
+        return False
+
+
+def get_tenant_id_from_session(session: AsyncSession) -> Optional[str]:
+    """Получить tenant_id из session.info (выставляется tenant-aware get_db)."""
+    return session.info.get("tenant_id")
 
 
 # ── Флаг: доступна ли БД ─────────────────────────────────────────────────────

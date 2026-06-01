@@ -585,7 +585,7 @@ class ComplianceAsCodeEngine:
         return result
 
     def _execute_remediation_command(self, control: CaCControl, triggered_by: str) -> dict:
-        """Выполнить команду ремедиации через subprocess."""
+        """Выполнить команду ремедиации через изолированную песочницу (cac_sandbox)."""
         command = control.remediation.get("command", "")
         if not command:
             return {
@@ -596,39 +596,32 @@ class ComplianceAsCodeEngine:
 
         log.info("Выполнение ремедиации %s: %s (triggered_by=%s)", control.control_id, command, triggered_by)
         try:
-            result = subprocess.run(
-                command,
-                shell=True,  # noqa: S602 — команды из доверенных YAML-файлов
-                capture_output=True,
-                text=True,
-                timeout=120,
-                cwd=str(Path(__file__).parent),
-            )
-            success = result.returncode == 0
+            from cac_sandbox import run_command
+            import asyncio
+
+            loop = asyncio.new_event_loop()
+            try:
+                sandbox_result = loop.run_until_complete(run_command(command, dry_run=False))
+            finally:
+                loop.close()
+
+            success = sandbox_result.success and sandbox_result.exit_code == 0
             status = "executed" if success else "failed"
-            detail = result.stdout.strip() or result.stderr.strip() or "Команда выполнена без вывода"
-            log.info("Ремедиация %s: %s (exit_code=%d)", control.control_id, status, result.returncode)
+            detail = sandbox_result.stdout.strip() or sandbox_result.stderr.strip() or "Команда выполнена без вывода"
+            log.info("Ремедиация %s: %s (exit_code=%d, duration=%dms)",
+                     control.control_id, status, sandbox_result.exit_code, sandbox_result.duration_ms)
             return {
                 "control_id": control.control_id,
                 "status": status,
-                "exit_code": result.returncode,
-                "stdout": result.stdout.strip(),
-                "stderr": result.stderr.strip(),
+                "exit_code": sandbox_result.exit_code,
+                "stdout": sandbox_result.stdout.strip(),
+                "stderr": sandbox_result.stderr.strip(),
                 "detail": detail,
                 "triggered_by": triggered_by,
                 "executed_at": _now_iso(),
             }
-        except subprocess.TimeoutExpired:
-            log.error("Ремедиация %s: timeout", control.control_id)
-            return {
-                "control_id": control.control_id,
-                "status": "failed",
-                "detail": "Команда ремедиации превысила таймаут (120 сек)",
-                "triggered_by": triggered_by,
-                "executed_at": _now_iso(),
-            }
         except Exception as exc:
-            log.exception("Ремедиация %s: неожиданная ошибка", control.control_id)
+            log.error("Ремедиация %s: ошибка выполнения: %s", control.control_id, exc, exc_info=True)
             return {
                 "control_id": control.control_id,
                 "status": "failed",

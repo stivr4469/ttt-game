@@ -1,11 +1,12 @@
+import os
 from fastapi import APIRouter, Depends, HTTPException, Cookie
 from typing import Optional
 from auth import decode_token, ROLES
-from gap_analysis_agent import GapAnalysisAgent, load_cache, save_cache
+from gap_analysis_agent import GapAnalysisAgent, load_cache, save_cache, GAP_CACHE_FILE
 from pathlib import Path
 
 router = APIRouter(prefix="/api/gap-analysis", tags=["gap-analysis"])
-CACHE_FILE = Path(__file__).parent / "gap_analysis_cache.json"
+CACHE_FILE = GAP_CACHE_FILE
 
 
 def _get_current_user(access_token: Optional[str] = Cookie(default=None)) -> dict:

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import os
 import uuid
@@ -11,6 +12,21 @@ from slack_notifier import SlackNotifier
 
 log = get_logger(__name__)
 
+
+# ── Async helper ──────────────────────────────────────────────────────────────
+
+def _run_async(coro):
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
@@ -22,7 +38,7 @@ TRAINING_COURSES = {
         "required": True,
         "passing_score": 80,
         "questions": [
-            {"id": 1, "text": "Can you use company devices for personal social media?", 
+            {"id": 1, "text": "Can you use company devices for personal social media?",
              "options": ["Yes, always", "No, never", "Only during breaks on personal accounts", "Yes, for work-related social media only"],
              "correct": 2},
             {"id": 2, "text": "What should you do if you find a USB drive in the parking lot?",
@@ -137,30 +153,109 @@ TRAINING_COURSES = {
     }
 }
 
+HR_ROSTER_FILE = Path(__file__).parent / "hr_roster.json"
+
 class TrainingAgent:
-    COMPLETIONS_FILE = Path(__file__).parent / "training_completions.json"
-    HR_ROSTER_FILE = Path(__file__).parent / "hr_roster.json"
 
     def __init__(self):
         self._evidence_client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="training_agent")
         self._notifier = SlackNotifier(SLACK_WEBHOOK_URL) if SLACK_WEBHOOK_URL else None
 
-    def _load(self) -> dict:
-        """Читать training_completions.json."""
-        if not self.COMPLETIONS_FILE.exists():
-            return {}
-        try:
-            return json.loads(self.COMPLETIONS_FILE.read_text(encoding="utf-8"))
-        except Exception as e:
-            log.error(f"Error loading training completions: {e}")
-            return {}
+    # ── DB helpers ────────────────────────────────────────────────────────────
 
-    def _save(self, data: dict):
-        """Записать training_completions.json."""
-        try:
-            self.COMPLETIONS_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        except Exception as e:
-            log.error(f"Error saving training completions: {e}")
+    async def _load_db(self, user_email: str) -> dict:
+        """SELECT TrainingCompletionDetail WHERE employee_email = user_email → dict {course_id: {...}}."""
+        from database import AsyncSessionLocal
+        from models import TrainingCompletionDetail
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(TrainingCompletionDetail).where(
+                    TrainingCompletionDetail.employee_email == user_email
+                )
+            )
+            rows = result.scalars().all()
+
+        user_data: dict = {}
+        for row in rows:
+            user_data[row.course_id] = {
+                "course_id": row.course_id,
+                "course_title": row.course_title,
+                "status": row.status,
+                "score": row.score or 0,
+                "certificate_id": row.certificate_id,
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "attempts": row.attempts,
+            }
+        return user_data
+
+    async def _save_db(self, user_email: str, course_id: str, completion_data: dict) -> None:
+        """Upsert TrainingCompletionDetail (unique: employee_email + course_id)."""
+        from database import AsyncSessionLocal
+        from models import TrainingCompletionDetail
+        from sqlalchemy import select
+
+        completed_at = None
+        if completion_data.get("completed_at"):
+            try:
+                completed_at = datetime.fromisoformat(completion_data["completed_at"])
+            except (ValueError, TypeError):
+                completed_at = None
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(TrainingCompletionDetail).where(
+                    TrainingCompletionDetail.employee_email == user_email,
+                    TrainingCompletionDetail.course_id == course_id,
+                )
+            )
+            existing = result.scalars().first()
+            if existing:
+                existing.course_title = completion_data.get("course_title", existing.course_title)
+                existing.status = completion_data.get("status", existing.status)
+                existing.score = completion_data.get("score")
+                existing.certificate_id = completion_data.get("certificate_id")
+                existing.attempts = completion_data.get("attempts", existing.attempts)
+                existing.completed_at = completed_at
+            else:
+                session.add(TrainingCompletionDetail(
+                    id=str(uuid.uuid4()),
+                    employee_email=user_email,
+                    course_id=course_id,
+                    course_title=completion_data.get("course_title", ""),
+                    status=completion_data.get("status", "not_started"),
+                    score=completion_data.get("score"),
+                    certificate_id=completion_data.get("certificate_id"),
+                    attempts=completion_data.get("attempts", 1),
+                    completed_at=completed_at,
+                ))
+            await session.commit()
+
+    async def _load_all_db(self) -> dict:
+        """SELECT all TrainingCompletionDetail rows → dict {email: {course_id: {...}}}."""
+        from database import AsyncSessionLocal
+        from models import TrainingCompletionDetail
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(TrainingCompletionDetail))
+            rows = result.scalars().all()
+
+        all_data: dict = {}
+        for row in rows:
+            if row.employee_email not in all_data:
+                all_data[row.employee_email] = {}
+            all_data[row.employee_email][row.course_id] = {
+                "course_id": row.course_id,
+                "course_title": row.course_title,
+                "status": row.status,
+                "score": row.score or 0,
+                "certificate_id": row.certificate_id,
+                "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+                "attempts": row.attempts,
+            }
+        return all_data
 
     def get_all_courses(self) -> list:
         """Список курсов без вопросов (только метаданные)."""
@@ -181,7 +276,7 @@ class TrainingAgent:
         course = TRAINING_COURSES.get(course_id)
         if not course:
             return None
-        
+
         # Clone to avoid modifying the original
         c = dict(course)
         c["questions"] = []
@@ -189,14 +284,13 @@ class TrainingAgent:
             q_copy = dict(q)
             q_copy.pop("correct", None)
             c["questions"].append(q_copy)
-        
+
         return c
 
     def get_user_completions(self, user_email: str) -> list:
         """Прогресс конкретного пользователя по всем курсам."""
-        data = self._load()
-        user_data = data.get(user_email, {})
-        
+        user_data = _run_async(self._load_db(user_email))
+
         completions = []
         for cid, c in TRAINING_COURSES.items():
             comp = user_data.get(cid, {
@@ -220,20 +314,20 @@ class TrainingAgent:
 
         correct_count = 0
         total_questions = len(course["questions"])
-        
+
         for q in course["questions"]:
             q_id = str(q["id"])
             if q_id in answers and int(answers[q_id]) == q["correct"]:
                 correct_count += 1
-        
+
         score = int((correct_count / total_questions) * 100)
         passed = score >= course["passing_score"]
         certificate_id = f"CERT-{str(uuid.uuid4())[:8].upper()}" if passed else None
 
-        data = self._load()
-        if user_email not in data:
-            data[user_email] = {}
-        
+        # Load current user data from DB to get attempt count
+        user_data = _run_async(self._load_db(user_email))
+        prev = user_data.get(course_id, {})
+
         completion_data = {
             "course_id": course_id,
             "course_title": course["title"],
@@ -241,14 +335,12 @@ class TrainingAgent:
             "score": score,
             "certificate_id": certificate_id,
             "completed_at": datetime.now(timezone.utc).isoformat() if passed else None,
-            "attempts": data[user_email].get(course_id, {}).get("attempts", 0) + 1
+            "attempts": prev.get("attempts", 0) + 1
         }
-        
+
         # Only overwrite if previously not passed or if score is higher
-        prev = data[user_email].get(course_id, {})
         if prev.get("status") != "passed" or passed:
-             data[user_email][course_id] = completion_data
-             self._save(data)
+            _run_async(self._save_db(user_email, course_id, completion_data))
 
         return {
             "passed": passed,
@@ -260,46 +352,46 @@ class TrainingAgent:
 
     def get_compliance_report(self) -> dict:
         """Читать hr_roster.json для списка сотрудников."""
-        if not self.HR_ROSTER_FILE.exists():
+        if not HR_ROSTER_FILE.exists():
             return {"error": "HR roster not found"}
-        
-        roster = json.loads(self.HR_ROSTER_FILE.read_text(encoding="utf-8"))
+
+        roster = json.loads(HR_ROSTER_FILE.read_text(encoding="utf-8"))
         employees = roster.get("employees", [])
-        completions = self._load()
-        
+        completions = _run_async(self._load_all_db())
+
         report_employees = []
         fully_compliant_count = 0
-        
+
         required_courses = [cid for cid, c in TRAINING_COURSES.items() if c["required"]]
-        
+
         for emp in employees:
             if emp["status"] != "active":
                 continue
-                
+
             email = emp["email"]
             user_comp = completions.get(email, {})
-            
+
             emp_report = {
                 "email": email,
                 "name": emp["name"],
                 "courses": {},
                 "all_required_done": True
             }
-            
+
             for cid in required_courses:
                 status = user_comp.get(cid, {}).get("status", "not_started")
                 emp_report["courses"][cid] = status
                 if status != "passed":
                     emp_report["all_required_done"] = False
-            
+
             if emp_report["all_required_done"]:
                 fully_compliant_count += 1
-            
+
             report_employees.append(emp_report)
-            
+
         total_active = len(report_employees)
         compliance_pct = (fully_compliant_count / total_active * 100) if total_active > 0 else 0
-        
+
         return {
             "report_date": datetime.now(timezone.utc).isoformat(),
             "total_employees": total_active,
@@ -313,12 +405,12 @@ class TrainingAgent:
         report = self.get_compliance_report()
         if "error" in report:
             return 0
-            
+
         reminder_count = 0
         for emp in report["employees"]:
             if not emp["all_required_done"]:
                 missing = [TRAINING_COURSES[cid]["title"] for cid, status in emp["courses"].items() if status != "passed"]
-                
+
                 if self._notifier:
                     msg = {
                         "text": f"🔔 *Security Training Reminder*\n"
@@ -328,7 +420,7 @@ class TrainingAgent:
                     }
                     self._notifier.send(msg)
                     reminder_count += 1
-        
+
         return reminder_count
 
     def collect_evidence(self, controls_map: dict = None) -> dict:
@@ -336,7 +428,7 @@ class TrainingAgent:
         report = self.get_compliance_report()
         if "error" in report:
             return {}
-            
+
         evidence_data = {
             "control_code": "CC1.4",
             "pct_trained": report["compliance_pct"],
@@ -344,7 +436,7 @@ class TrainingAgent:
             "compliant": report["fully_compliant"],
             "timestamp": report["report_date"]
         }
-        
+
         if controls_map and "CC1.4" in controls_map:
             control_id = controls_map["CC1.4"]
             self._evidence_client.create_evidence(
@@ -353,8 +445,8 @@ class TrainingAgent:
                 content=json.dumps(report, indent=2),
                 source="HR_AUDIT"
             )
-            
+
             status = "PASS" if report["compliance_pct"] >= 80 else "FAIL"
             self._evidence_client.update_control_status(control_id, status)
-            
+
         return evidence_data

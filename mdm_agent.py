@@ -1,6 +1,8 @@
+import asyncio
 import os
 import json
 import sys
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -13,8 +15,22 @@ from constants import CONTROLS_MAP_FILE, SEVERITY_HIGH, SEVERITY_CRITICAL
 load_dotenv()
 log = get_logger(__name__)
 
+
+# ── Async helper ──────────────────────────────────────────────────────────────
+
+def _run_async(coro):
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
-MDM_INVENTORY_FILE = "mdm_device_inventory.json"
 
 POLICY = {
     "screen_lock_max_minutes": 10,
@@ -66,18 +82,86 @@ class MDMAgent:
             except Exception as e:
                 log.warning("Intune unavailable, falling back", extra={"error": str(e)})
 
-        # 3. Fallback: статический inventory
+        # 3. Fallback: DB inventory
         return self._load_from_file()
 
     def _load_from_file(self) -> list:
-        mdm_file = MDM_INVENTORY_FILE
-        if not os.path.exists(mdm_file):
-            return []
-        with open(mdm_file) as f:
-            data = json.load(f)
-        devices = data.get("devices", [])
-        log.info("MDM inventory loaded from file", extra={"device_count": len(devices)})
+        devices = _run_async(self._load_inventory_db())
+        log.info("MDM inventory loaded from DB", extra={"device_count": len(devices)})
         return devices
+
+    async def _load_inventory_db(self) -> list:
+        """Загрузить устройства из SQLite через ORM."""
+        from database import AsyncSessionLocal
+        from models import MDMDevice
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(MDMDevice))
+            rows = result.scalars().all()
+
+        devices = []
+        for row in rows:
+            devices.append({
+                "device_id": row.device_id,
+                "hostname": row.hostname,
+                "owner": row.owner,
+                "os": row.os,
+                "device_type": row.device_type,
+                "filevault_enabled": row.filevault_enabled,
+                "screen_lock_minutes": row.screen_lock_minutes,
+                "edr_installed": row.edr_installed,
+                "edr_name": row.edr_name,
+                "os_up_to_date": row.os_up_to_date,
+                "last_check_in": row.last_check_in,
+                "compliant": row.compliant,
+            })
+        return devices
+
+    async def _save_inventory_db(self, devices: list) -> None:
+        """Upsert устройств в SQLite (по device_id — unique)."""
+        from database import AsyncSessionLocal
+        from models import MDMDevice
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            for dev in devices:
+                device_id = dev.get("device_id", "")
+                if not device_id:
+                    continue
+                result = await session.execute(
+                    select(MDMDevice).where(MDMDevice.device_id == device_id)
+                )
+                existing = result.scalars().first()
+                if existing:
+                    existing.hostname = dev.get("hostname", existing.hostname)
+                    existing.owner = dev.get("owner", existing.owner)
+                    existing.os = dev.get("os", existing.os)
+                    existing.device_type = dev.get("device_type", existing.device_type)
+                    existing.filevault_enabled = bool(dev.get("filevault_enabled", False))
+                    existing.screen_lock_minutes = int(dev.get("screen_lock_minutes", 5))
+                    existing.edr_installed = bool(dev.get("edr_installed", False))
+                    existing.edr_name = dev.get("edr_name")
+                    existing.os_up_to_date = bool(dev.get("os_up_to_date", False))
+                    existing.last_check_in = dev.get("last_check_in")
+                    existing.compliant = bool(dev.get("compliant", False))
+                else:
+                    session.add(MDMDevice(
+                        id=str(uuid.uuid4()),
+                        device_id=device_id,
+                        hostname=dev.get("hostname", ""),
+                        owner=dev.get("owner", ""),
+                        os=dev.get("os", ""),
+                        device_type=dev.get("device_type", "laptop"),
+                        filevault_enabled=bool(dev.get("filevault_enabled", False)),
+                        screen_lock_minutes=int(dev.get("screen_lock_minutes", 5)),
+                        edr_installed=bool(dev.get("edr_installed", False)),
+                        edr_name=dev.get("edr_name"),
+                        os_up_to_date=bool(dev.get("os_up_to_date", False)),
+                        last_check_in=dev.get("last_check_in"),
+                        compliant=bool(dev.get("compliant", False)),
+                    ))
+            await session.commit()
 
     def check_device(self, device: dict) -> dict:
         violations = []
@@ -162,6 +246,19 @@ class MDMAgent:
                     "Device compliant",
                     extra={"device_id": result["device_id"], "hostname": result["hostname"]},
                 )
+
+        # Persist compliance state back to DB
+        if devices:
+            compliant_by_id = {r["device_id"]: r["compliant"] for r in device_results}
+            enriched = []
+            for dev in devices:
+                dev_copy = dict(dev)
+                dev_copy["compliant"] = compliant_by_id.get(dev.get("device_id", ""), False)
+                enriched.append(dev_copy)
+            try:
+                _run_async(self._save_inventory_db(enriched))
+            except Exception as exc:
+                log.warning(f"DB save MDM devices failed: {exc}")
 
         total = len(device_results)
         compliant_count = sum(1 for r in device_results if r["compliant"])

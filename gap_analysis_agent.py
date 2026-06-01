@@ -31,8 +31,13 @@ OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku")
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
 
-# Файл кеша — рядом со скриптом
-GAP_CACHE_FILE = Path(__file__).parent / "gap_analysis_cache.json"
+# Файл кеша — рядом со скриптом, с fallback на /tmp если нет прав на запись
+_default_gap_cache = Path(__file__).parent / "gap_analysis_cache.json"
+GAP_CACHE_FILE = (
+    Path("/tmp/gap_analysis_cache.json")
+    if _default_gap_cache.exists() and not os.access(_default_gap_cache, os.W_OK)
+    else _default_gap_cache
+)
 
 logging.basicConfig(
     level=logging.INFO,

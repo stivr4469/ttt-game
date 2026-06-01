@@ -1,19 +1,15 @@
 """
 HTTP-клиент для Evidence Tracker API.
 Retry с exponential backoff, явные таймауты, API-ключ, structured logging.
-
-DB Mode (опциональный):
-  Если DATABASE_URL задан в окружении, методы create_evidence/get_evidence
-  используют EvidenceRepository из db_repository.py вместо HTTP-запросов.
-  Это позволяет работать без внешнего Evidence Tracker сервиса.
-
-  Включить: DATABASE_URL=sqlite+aiosqlite:///./compliance.db
-  Backward compat: если DATABASE_URL не задан, работает как раньше (HTTP).
+При исчерпании всех попыток evidence записывается в EventQueue для последующей доставки.
 """
 
 import asyncio
+import json
 import os
 import time
+import uuid
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 import requests
@@ -31,38 +27,41 @@ class EvidenceClientError(RuntimeError):
     pass
 
 
-def _run_async(coro: Any) -> Any:
-    """Запускает async корутину из синхронного контекста."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Уже в async контексте (например FastAPI) — создаём задачу через run_coroutine_threadsafe
-            import concurrent.futures
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=30)
-        else:
-            return loop.run_until_complete(coro)
-    except RuntimeError:
-        return asyncio.run(coro)
-
-
 class EvidenceClient:
-    def __init__(self, base_url: str, agent_name: str = "default", timeout: int = _DEFAULT_TIMEOUT):
-        self.base_url = base_url.rstrip("/")
-        self.timeout  = timeout
+    def __init__(
+        self,
+        base_url: str,
+        agent_name: str = "default",
+        timeout: int = _DEFAULT_TIMEOUT,
+        tenant_id: Optional[str] = None,
+    ):
+        self.base_url    = base_url.rstrip("/")
+        self.timeout     = timeout
+        self._agent_name = agent_name
 
         # Сначала пробует {AGENT_NAME}_API_KEY, потом EVIDENCE_API_KEY как fallback
         env_var = f"{agent_name.upper()}_API_KEY"
-        api_key = os.getenv(env_var) or os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
+        api_key = os.getenv(env_var) or os.getenv("EVIDENCE_API_KEY", "")
 
-        self._session = requests.Session()
-        self._session.headers.update({
+        # tenant_id: явный аргумент → contextvar → None
+        if tenant_id is None:
+            try:
+                from tenant_context import get_current_tenant_id
+                tenant_id = get_current_tenant_id()
+            except ImportError:
+                pass
+
+        self._tenant_id = tenant_id
+
+        headers: dict = {
             "X-API-Key":    api_key,
             "Content-Type": "application/json",
-        })
+        }
+        if tenant_id:
+            headers["X-Tenant-ID"] = str(tenant_id)
 
-        # DB mode: активен если DATABASE_URL задан явно
-        self._db_mode: bool = bool(os.getenv("DATABASE_URL", ""))
+        self._session = requests.Session()
+        self._session.headers.update(headers)
 
     def _request(self, method: str, path: str, **kwargs) -> Dict[str, Any]:
         url = f"{self.base_url}{path}"
@@ -107,7 +106,31 @@ class EvidenceClient:
     # ── Controls ────────────────────────────────────────────────────────────
     def get_controls(self, framework_id: Optional[str] = None) -> List[Dict[str, Any]]:
         params = {"framework_id": framework_id} if framework_id else {}
-        return self._request("GET", "/api/v1/controls/", params=params)
+        try:
+            result = self._request("GET", "/api/v1/controls/", params=params)
+            if result:
+                return result
+        except (EvidenceClientError, Exception) as _exc:
+            log.warning(
+                "get_controls: HTTP failed, falling back to control_mapping",
+                extra={"error": str(_exc)},
+            )
+        try:
+            from control_mapping import CONTROL_MAPPINGS
+            return [
+                {
+                    "id": m.soc2,
+                    "code": m.soc2,
+                    "title": m.description,
+                    "framework": "SOC2",
+                    "category": m.category,
+                    "status": "UNKNOWN",
+                }
+                for m in CONTROL_MAPPINGS
+            ]
+        except Exception as _map_exc:
+            log.error("get_controls: fallback also failed", extra={"error": str(_map_exc)})
+            return []
 
     def create_control(self, framework_id: str, code: str, title: str, description: str) -> Dict[str, Any]:
         return self._request("POST", "/api/v1/controls/", json={
@@ -127,17 +150,21 @@ class EvidenceClient:
             content = content[:99_000] + "…[truncated]"
         title_safe = title[:490]   # лимит сервера 500
 
-        # DB mode: используем репозиторий напрямую (публикация события внутри метода)
-        if self._db_mode:
-            return _run_async(self._create_evidence_db(control_id, title_safe, content, source))
+        try:
+            result = self._request("POST", "/api/v1/evidence/", json={
+                "control_id": control_id,
+                "title":      title_safe,
+                "content":    content,
+                "source":     source,
+            })
+        except EvidenceClientError as exc:
+            log.error(
+                "evidence_client: все попытки исчерпаны, ставим в retry-очередь",
+                extra={"control_id": control_id, "source": source, "error": str(exc)},
+            )
+            self._enqueue_retry(control_id, title_safe, content, source)
+            return {"queued": True, "control_id": control_id, "source": source}
 
-        # HTTP mode: отправляем запрос, затем публикуем событие
-        result = self._request("POST", "/api/v1/evidence/", json={
-            "control_id": control_id,
-            "title":      title_safe,
-            "content":    content,
-            "source":     source,
-        })
         # Публикуем EVIDENCE_ADDED (best-effort)
         try:
             from event_bus import get_event_bus, ComplianceEvent, ComplianceEventType
@@ -163,97 +190,60 @@ class EvidenceClient:
             )
         return result
 
-    async def _create_evidence_db(
-        self,
-        control_id: str,
-        title: str,
-        content: str,
-        source: str,
-    ) -> Dict[str, Any]:
-        """Создаёт доказательство через EvidenceRepository (DB mode)."""
-        from database import AsyncSessionLocal
-        from db_repository import EvidenceRepository
+    def _enqueue_retry(self, control_id: str, title: str, content: str, source: str) -> None:
+        """Записать неудавшееся evidence в EventQueue для последующей доставки."""
+        async def _insert() -> None:
+            from database import AsyncSessionLocal
+            from models import EventQueue
+            async with AsyncSessionLocal() as session:
+                entry = EventQueue(
+                    id=str(uuid.uuid4()),
+                    event_type="evidence.retry",
+                    entity_id=control_id,
+                    payload=json.dumps({
+                        "control_id": control_id,
+                        "title":      title,
+                        "content":    content,
+                        "source":     source,
+                        "base_url":   self.base_url,
+                    }),
+                    status="pending",
+                    created_at=datetime.now(timezone.utc),
+                    tenant_id=self._tenant_id,
+                )
+                session.add(entry)
+                await session.commit()
 
-        async with AsyncSessionLocal() as session:
-            repo = EvidenceRepository(session)
-            ev = await repo.create(
-                control_id=control_id,
-                title=title,
-                content=content,
-                source=source,
-            )
-            await session.commit()
-            log.info(
-                "Evidence сохранено в БД",
-                extra={"id": ev.id, "control_id": control_id, "source": source},
-            )
-            result = {
-                "id": ev.id,
-                "control_id": ev.control_id,
-                "title": ev.title,
-                "source": ev.source,
-                "created_at": ev.created_at.isoformat() if ev.created_at else None,
-            }
-
-        # Публикуем EVIDENCE_ADDED в EventBus (best-effort)
         try:
-            from event_bus import get_event_bus, ComplianceEvent, ComplianceEventType
-            bus = get_event_bus()
-            ev_event = ComplianceEvent.create(
-                event_type=ComplianceEventType.EVIDENCE_ADDED,
-                entity_type="evidence",
-                entity_id=result["id"],
-                actor=f"agent:{source}",
-                payload={
-                    "control_id": control_id,
-                    "title":      title,
-                    "source":     source,
-                    "created_at": result.get("created_at"),
-                },
-                severity="info",
-            )
-            bus.publish(ev_event)
-        except Exception as _bus_exc:
-            log.debug(
-                "evidence_client: не удалось опубликовать EVIDENCE_ADDED (DB mode)",
-                extra={"error": str(_bus_exc)},
+            asyncio.run(_insert())
+        except RuntimeError:
+            # Already inside a running event loop (unlikely in Celery/agent context)
+            log.warning("evidence_client: _enqueue_retry вызван внутри event loop, retry потерян")
+        except Exception as eq_exc:
+            log.error(
+                "evidence_client: не удалось записать в EventQueue",
+                extra={"error": str(eq_exc)},
             )
 
-        return result
+    def submit_test_results(self, producer: str, results: list[dict],
+                            run_id: str | None = None,
+                            trigger: str = "scheduled") -> dict:
+        """Отправить результаты тестов батчем в Test Engine API."""
+        payload = {
+            "producer": producer,
+            "trigger": trigger,
+            "results": results,
+        }
+        if run_id:
+            payload["run_id"] = run_id
+        try:
+            return self._request("POST", "/api/v1/test-results/batch", json=payload)
+        except Exception as e:
+            log.warning("submit_test_results failed: %s", e)
+            return {"error": str(e), "inserted": 0, "skipped": len(results)}
 
     def get_evidence(self, control_id: Optional[str] = None, limit: int = 100) -> List[Dict[str, Any]]:
-        # DB mode: получаем из репозитория
-        if self._db_mode:
-            return _run_async(self._get_evidence_db(control_id, limit))
-
         params: Dict[str, Any] = {"limit": limit}
         if control_id:
             params["control_id"] = control_id
         return self._request("GET", "/api/v1/evidence/", params=params)
-
-    async def _get_evidence_db(
-        self,
-        control_id: Optional[str],
-        limit: int,
-    ) -> List[Dict[str, Any]]:
-        """Получает доказательства из БД (DB mode)."""
-        from database import AsyncSessionLocal
-        from db_repository import EvidenceRepository
-
-        async with AsyncSessionLocal() as session:
-            repo = EvidenceRepository(session)
-            if control_id:
-                items = await repo.list_by_control(control_id, limit=limit)
-            else:
-                items = await repo.list_all(limit=limit)
-            return [
-                {
-                    "id": ev.id,
-                    "control_id": ev.control_id,
-                    "title": ev.title,
-                    "source": ev.source,
-                    "confidence_score": ev.confidence_score,
-                    "created_at": ev.created_at.isoformat() if ev.created_at else None,
-                }
-                for ev in items
-            ]

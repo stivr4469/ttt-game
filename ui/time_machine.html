@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Time Machine — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --critical: #ef4444;
+            --high: #f59e0b;
+            --medium: #3b82f6;
+            --low: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+
+        .btn {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
+        .btn.primary:hover { opacity: 0.9; }
+
+        select.btn, input.btn {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+        input.btn { background-image: none; padding-right: 14px; min-width: 220px; }
+
+        /* Controls row */
+        .controls {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Stats grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .stat-card .label {
+            font-size: 11px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+        .stat-card .value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+        }
+        .stat-card.pass .value { color: var(--low); }
+        .stat-card.fail .value { color: var(--critical); }
+        .stat-card.error .value { color: var(--high); }
+        .stat-card.na .value { color: var(--muted); }
+        .stat-card.rate .value { color: var(--accent); }
+
+        /* Table */
+        .table-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+        td { padding: 13px 16px; border-top: 1px solid var(--border); vertical-align: middle; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .status-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 3px 10px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .status-PASS { background: rgba(16, 185, 129, 0.18); color: var(--low); border: 1px solid var(--low); }
+        .status-FAIL { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .status-ERROR { background: rgba(245, 158, 11, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .status-NA { background: rgba(148, 163, 184, 0.18); color: var(--muted); border: 1px solid var(--muted); }
+
+        .severity-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .severity-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .severity-high { background: rgba(245, 158, 11, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .severity-medium { background: rgba(59, 130, 246, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+        .severity-low { background: rgba(16, 185, 129, 0.2); color: var(--low); border: 1px solid var(--low); }
+
+        .producer-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        .key-mono { font-family: monospace; font-size: 12px; color: var(--accent); }
+        .ts-mono { font-family: monospace; font-size: 11px; color: var(--muted); }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+
+        .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+        .as-of-label {
+            font-size: 12px;
+            color: var(--muted);
+            font-family: monospace;
+            margin-top: 4px;
+        }
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 14px 20px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+            font-size: 14px; font-weight: 500; max-width: 320px;
+        }
+        .toast.error { border-color: var(--critical); color: var(--critical); }
+        .toast.info { border-color: var(--medium); color: var(--medium); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⏱ Time Machine</h1>
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <a href="/tests-catalog">🧪 Tests</a>
+                <a href="/time-machine" class="active">⏱ Time Machine</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <p style="color: var(--muted); margin-bottom: 24px; font-size: 14px;">
+            Reconstruct compliance posture from test-result history. Pick a date below to see
+            the latest <code style="color: var(--accent);">TestResult</code> for each (test, resource) pair
+            as of that moment.
+        </p>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="atInput">Point in time</label>
+                <input class="btn" type="datetime-local" id="atInput">
+            </div>
+            <div class="control-group">
+                <label for="producerSelect">Producer</label>
+                <select class="btn" id="producerSelect">
+                    <option value="">All Producers</option>
+                    <option value="scanner">scanner</option>
+                    <option value="github">github</option>
+                    <option value="hr">hr</option>
+                    <option value="mdm">mdm</option>
+                    <option value="vuln">vuln</option>
+                    <option value="custom">custom</option>
+                </select>
+            </div>
+            <button class="btn primary" id="viewBtn" onclick="loadSnapshot()">View state at this time</button>
+            <button class="btn" onclick="setNow()">Now</button>
+        </div>
+
+        <div class="as-of-label" id="asOfLabel"></div>
+
+        <div class="stats-grid" id="statsGrid" style="display: none;">
+            <div class="stat-card rate">
+                <div class="label">Pass Rate</div>
+                <div class="value" id="statPassRate">—</div>
+            </div>
+            <div class="stat-card">
+                <div class="label">Total Results</div>
+                <div class="value" id="statTotal">—</div>
+            </div>
+            <div class="stat-card pass">
+                <div class="label">PASS</div>
+                <div class="value" id="statPass">—</div>
+            </div>
+            <div class="stat-card fail">
+                <div class="label">FAIL</div>
+                <div class="value" id="statFail">—</div>
+            </div>
+            <div class="stat-card error">
+                <div class="label">ERROR</div>
+                <div class="value" id="statError">—</div>
+            </div>
+            <div class="stat-card na">
+                <div class="label">N/A</div>
+                <div class="value" id="statNa">—</div>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Title</th>
+                        <th>Producer</th>
+                        <th>Severity</th>
+                        <th>Resource</th>
+                        <th>Status</th>
+                        <th>Evaluated At</th>
+                    </tr>
+                </thead>
+                <tbody id="resultsBody">
+                    <tr><td colspan="7" class="loading">Select a date and click "View state at this time".</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── Auth ──────────────────────────────────────────────────────────────
+        async function checkAuth() {
+            const r = await fetch('/api/auth/me');
+            if (r.status === 401) {
+                window.location.href = '/login';
+                return false;
+            }
+            return true;
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function pad2(n) { return String(n).padStart(2, '0'); }
+
+        function nowLocalIsoForInput() {
+            const d = new Date();
+            return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate())
+                + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+        }
+
+        function setNow() {
+            document.getElementById('atInput').value = nowLocalIsoForInput();
+        }
+
+        let _toastTimer = null;
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${type}`;
+            t.style.display = 'block';
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        // ── Load Snapshot ─────────────────────────────────────────────────────
+        async function loadSnapshot() {
+            const atLocal = document.getElementById('atInput').value;
+            if (!atLocal) {
+                showToast('Pick a date/time first', 'error');
+                return;
+            }
+            const producer = document.getElementById('producerSelect').value;
+
+            // datetime-local has no timezone; treat it as local, convert to ISO UTC
+            const dt = new Date(atLocal);
+            if (isNaN(dt.getTime())) {
+                showToast('Invalid date/time', 'error');
+                return;
+            }
+            const atIso = dt.toISOString();
+
+            const tbody = document.getElementById('resultsBody');
+            const grid = document.getElementById('statsGrid');
+            const label = document.getElementById('asOfLabel');
+            tbody.innerHTML = '<tr><td colspan="7" class="loading">Loading compliance snapshot…</td></tr>';
+            label.textContent = `Querying as_of = ${atIso}` + (producer ? ` (producer = ${producer})` : '');
+
+            const params = new URLSearchParams({ at: atIso });
+            if (producer) params.set('producer', producer);
+
+            try {
+                const r = await fetch('/api/v1/time-machine?' + params.toString());
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    showToast(err.detail || `Failed: HTTP ${r.status}`, 'error');
+                    tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
+                        <div class="icon">⚠️</div>
+                        <p>${escHtml(err.detail || `Request failed (HTTP ${r.status})`)}</p>
+                    </td></tr>`;
+                    grid.style.display = 'none';
+                    return;
+                }
+                const data = await r.json();
+                renderSnapshot(data);
+            } catch (e) {
+                showToast('Network error', 'error');
+                tbody.innerHTML = `<tr><td colspan="7" class="empty-state">
+                    <div class="icon">⚠️</div>
+                    <p>Network error: ${escHtml(String(e))}</p>
+                </td></tr>`;
+                grid.style.display = 'none';
+            }
+        }
+
+        function renderSnapshot(data) {
+            const grid = document.getElementById('statsGrid');
+            const label = document.getElementById('asOfLabel');
+            const tbody = document.getElementById('resultsBody');
+
+            label.textContent = `Snapshot as_of = ${data.as_of} — ${data.total} result(s)`;
+
+            document.getElementById('statPassRate').textContent = (data.pass_rate ?? 0).toFixed(1) + '%';
+            document.getElementById('statTotal').textContent = data.total ?? 0;
+            document.getElementById('statPass').textContent = (data.counts && data.counts.PASS) || 0;
+            document.getElementById('statFail').textContent = (data.counts && data.counts.FAIL) || 0;
+            document.getElementById('statError').textContent = (data.counts && data.counts.ERROR) || 0;
+            document.getElementById('statNa').textContent = (data.counts && data.counts.NA) || 0;
+            grid.style.display = 'grid';
+
+            const results = Array.isArray(data.results) ? data.results : [];
+            if (!results.length) {
+                tbody.innerHTML = `<tr><td colspan="7">
+                    <div class="empty-state">
+                        <div class="icon">🕰️</div>
+                        <p>No test results recorded as of this point in time.</p>
+                    </div>
+                </td></tr>`;
+                return;
+            }
+
+            // Sort: FAIL > ERROR > NA > PASS, then by severity
+            const statusOrder = { FAIL: 0, ERROR: 1, NA: 2, PASS: 3 };
+            results.sort((a, b) => {
+                const sa = statusOrder[a.status] ?? 9;
+                const sb = statusOrder[b.status] ?? 9;
+                if (sa !== sb) return sa - sb;
+                return (a.test_key || '').localeCompare(b.test_key || '');
+            });
+
+            tbody.innerHTML = results.map(r => `
+                <tr>
+                    <td><span class="key-mono">${escHtml(r.test_key)}</span></td>
+                    <td style="max-width: 260px; word-break: break-word;">${escHtml(r.title)}</td>
+                    <td><span class="producer-badge">${escHtml(r.producer)}</span></td>
+                    <td><span class="severity-badge severity-${(r.severity || '').toLowerCase()}">${escHtml(r.severity)}</span></td>
+                    <td style="font-family: monospace; font-size: 12px; color: var(--muted); max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${escHtml(r.resource_id)}</td>
+                    <td><span class="status-badge status-${escHtml(r.status)}">${escHtml(r.status)}</span></td>
+                    <td><span class="ts-mono">${escHtml(r.evaluated_at || '—')}</span></td>
+                </tr>
+            `).join('');
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        async function init() {
+            const ok = await checkAuth();
+            if (!ok) return;
+            setNow();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

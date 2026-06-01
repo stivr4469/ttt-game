@@ -1,19 +1,20 @@
 """
 Модуль управления временной шкалой аудита и мастером определения области (scoping wizard).
-Хранит данные в audit_timeline.json рядом с файлом.
+Данные хранятся в таблице AuditEvent (БД).
 """
 
-import json
+import asyncio
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from pathlib import Path
 from typing import Optional
 
+from sqlalchemy import select
+
+from database import AsyncSessionLocal
 from log_config import get_logger
+from models import AuditEvent
 
 log = get_logger(__name__)
-
-TIMELINE_FILE = Path(__file__).parent / "audit_timeline.json"
 
 # Стандартные milestone-шаблоны (weeks_before: недель ДО даты аудита)
 MILESTONE_TEMPLATES: dict[str, list[dict]] = {
@@ -249,31 +250,84 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _load_timelines() -> list[dict]:
-    """Загружает все timelines из JSON файла."""
-    if not TIMELINE_FILE.exists():
-        TIMELINE_FILE.write_text(json.dumps([], indent=2))
-        return []
+# ── Внутренние async-хелперы для работы с БД ─────────────────────────────────
+
+async def _db_load_timelines() -> list[dict]:
+    """Загружает все timelines из AuditEvent в БД."""
+    async with AsyncSessionLocal() as session:
+        # Читаем все события timeline в хронологическом порядке
+        result = await session.execute(
+            select(AuditEvent)
+            .where(AuditEvent.entity_type == "timeline")
+            .order_by(AuditEvent.created_at.asc())
+        )
+        events = result.scalars().all()
+
+    # Восстанавливаем состояние timelines из событий
+    timelines: dict[str, dict] = {}
+    for ev in events:
+        payload = ev.payload or {}
+        if ev.event_type == "timeline.created":
+            tl_id = ev.entity_id
+            timelines[tl_id] = payload.get("timeline", {})
+        elif ev.event_type == "timeline.archived":
+            tl_id = ev.entity_id
+            if tl_id in timelines:
+                timelines[tl_id]["status"] = "archived"
+        elif ev.event_type == "milestone.updated":
+            tl_id = payload.get("timeline_id")
+            ms_id = ev.entity_id
+            if tl_id and tl_id in timelines:
+                for ms in timelines[tl_id].get("milestones", []):
+                    if ms["id"] == ms_id:
+                        ms.update(payload.get("milestone_patch", {}))
+                        break
+
+    return list(timelines.values())
+
+
+async def _db_write_event(
+    event_type: str,
+    entity_id: str,
+    actor: str,
+    payload: dict,
+) -> None:
+    """Записывает одно событие в таблицу AuditEvent."""
+    async with AsyncSessionLocal() as session:
+        event = AuditEvent(
+            event_type=event_type,
+            entity_type="timeline",
+            entity_id=entity_id,
+            actor=actor,
+            payload=payload,
+        )
+        session.add(event)
+        await session.commit()
+
+
+# ── Синхронные обёртки (для совместимости с sync-вызовами если нужно) ─────────
+
+def _run(coro):
+    """Запускает корутину: через текущий event loop или создаёт новый."""
     try:
-        data = json.loads(TIMELINE_FILE.read_text())
-        return data if isinstance(data, list) else []
-    except Exception as e:
-        log.error("Ошибка чтения audit_timeline.json", extra={"error": str(e)})
-        return []
-
-
-def _save_timelines(timelines: list[dict]) -> None:
-    """Сохраняет все timelines в JSON файл."""
-    TIMELINE_FILE.write_text(json.dumps(timelines, indent=2, ensure_ascii=False))
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Если уже в async-контексте — возвращаем корутину для await
+            return coro
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
 
 
 class AuditTimeline:
     """
     Управляет временной шкалой аудита: создание, обновление, статус.
-    Данные хранятся в audit_timeline.json.
+    Данные хранятся в таблице AuditEvent (БД, append-only event log).
     """
 
-    def create_timeline(
+    # ── Async-методы (основной публичный API) ─────────────────────────────────
+
+    async def create_timeline_async(
         self,
         audit_date: str,
         framework: str,
@@ -291,7 +345,6 @@ class AuditTimeline:
         if framework not in MILESTONE_TEMPLATES:
             raise ValueError(f"Неизвестный фреймворк: {framework}. Доступно: {list(MILESTONE_TEMPLATES.keys())}")
 
-        # Парсим дату аудита
         try:
             target_date = date.fromisoformat(audit_date)
         except ValueError:
@@ -316,7 +369,6 @@ class AuditTimeline:
                 "updated_by": None,
             })
 
-        # Сортируем по дате
         milestones.sort(key=lambda m: m["date"])
 
         timeline = {
@@ -331,13 +383,54 @@ class AuditTimeline:
         }
 
         # Деактивируем предыдущие активные timelines
-        timelines = _load_timelines()
-        for tl in timelines:
-            if tl.get("status") == "active":
-                tl["status"] = "archived"
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.entity_type == "timeline",
+                    AuditEvent.event_type == "timeline.created",
+                )
+                .order_by(AuditEvent.created_at.asc())
+            )
+            created_events = result.scalars().all()
 
-        timelines.append(timeline)
-        _save_timelines(timelines)
+            # Собираем ID активных timelines
+            active_ids = set()
+            archived_ids = set()
+            for ev in created_events:
+                active_ids.add(ev.entity_id)
+
+            arch_result = await session.execute(
+                select(AuditEvent)
+                .where(
+                    AuditEvent.entity_type == "timeline",
+                    AuditEvent.event_type == "timeline.archived",
+                )
+            )
+            for ev in arch_result.scalars().all():
+                archived_ids.add(ev.entity_id)
+
+            truly_active = active_ids - archived_ids
+
+            # Архивируем все активные
+            for tl_id in truly_active:
+                session.add(AuditEvent(
+                    event_type="timeline.archived",
+                    entity_type="timeline",
+                    entity_id=tl_id,
+                    actor=created_by,
+                    payload={"archived_by": created_by, "reason": "новый timeline создан"},
+                ))
+
+            # Записываем событие создания нового timeline
+            session.add(AuditEvent(
+                event_type="timeline.created",
+                entity_type="timeline",
+                entity_id=timeline["id"],
+                actor=created_by,
+                payload={"timeline": timeline},
+            ))
+            await session.commit()
 
         log.info(
             "Создан новый audit timeline",
@@ -345,27 +438,27 @@ class AuditTimeline:
         )
         return timeline
 
-    def get_active_timeline(self) -> Optional[dict]:
+    async def get_active_timeline_async(self) -> Optional[dict]:
         """Возвращает текущий активный timeline или None."""
-        timelines = _load_timelines()
-        for tl in reversed(timelines):  # последний созданный первым
+        timelines = await _db_load_timelines()
+        for tl in reversed(timelines):
             if tl.get("status") == "active":
                 return tl
         return None
 
-    def get_all_timelines(self) -> list[dict]:
+    async def get_all_timelines_async(self) -> list[dict]:
         """Возвращает все timelines (активные и архивные)."""
-        return _load_timelines()
+        return await _db_load_timelines()
 
-    def get_timeline_by_id(self, timeline_id: str) -> Optional[dict]:
+    async def get_timeline_by_id_async(self, timeline_id: str) -> Optional[dict]:
         """Возвращает timeline по ID или None."""
-        timelines = _load_timelines()
+        timelines = await _db_load_timelines()
         for tl in timelines:
             if tl["id"] == timeline_id:
                 return tl
         return None
 
-    def update_milestone_status(
+    async def update_milestone_status_async(
         self,
         timeline_id: str,
         milestone_id: str,
@@ -381,31 +474,50 @@ class AuditTimeline:
         if status not in valid_statuses:
             raise ValueError(f"Недопустимый статус: {status}. Допустимые: {valid_statuses}")
 
-        timelines = _load_timelines()
+        timelines = await _db_load_timelines()
+        target_ms = None
+        found_tl = False
         for tl in timelines:
             if tl["id"] == timeline_id:
-                for ms in tl["milestones"]:
+                found_tl = True
+                for ms in tl.get("milestones", []):
                     if ms["id"] == milestone_id:
-                        ms["status"] = status
-                        ms["notes"] = notes
-                        ms["updated_at"] = _now_iso()
-                        ms["updated_by"] = updated_by
-                        _save_timelines(timelines)
-                        log.info(
-                            "Обновлён статус milestone",
-                            extra={"timeline_id": timeline_id, "milestone": ms["name"], "status": status},
-                        )
-                        return ms
-                raise ValueError(f"Milestone {milestone_id} не найден в timeline {timeline_id}")
-        raise ValueError(f"Timeline {timeline_id} не найден")
+                        target_ms = ms
+                        break
+                break
 
-    def get_current_status(self) -> dict:
+        if not found_tl:
+            raise ValueError(f"Timeline {timeline_id} не найден")
+        if target_ms is None:
+            raise ValueError(f"Milestone {milestone_id} не найден в timeline {timeline_id}")
+
+        patch = {
+            "status": status,
+            "notes": notes,
+            "updated_at": _now_iso(),
+            "updated_by": updated_by,
+        }
+        target_ms.update(patch)
+
+        await _db_write_event(
+            event_type="milestone.updated",
+            entity_id=milestone_id,
+            actor=updated_by,
+            payload={"timeline_id": timeline_id, "milestone_patch": patch},
+        )
+        log.info(
+            "Обновлён статус milestone",
+            extra={"timeline_id": timeline_id, "milestone": target_ms["name"], "status": status},
+        )
+        return target_ms
+
+    async def get_current_status_async(self) -> dict:
         """
         Возвращает текущий статус активного timeline:
         days_to_audit, current_phase, overdue_milestones, upcoming_milestones,
         overall_progress_pct, risk_level: green|yellow|red
         """
-        tl = self.get_active_timeline()
+        tl = await self.get_active_timeline_async()
         if not tl:
             return {"active": False, "message": "Нет активного audit timeline"}
 
@@ -418,19 +530,16 @@ class AuditTimeline:
         completed = [m for m in milestones if m["status"] == "completed"]
         progress_pct = round(len(completed) / total * 100) if total > 0 else 0
 
-        # Просроченные milestones — дата прошла, но не completed
         overdue = [
             m for m in milestones
             if date.fromisoformat(m["date"]) < today and m["status"] not in ("completed",)
         ]
 
-        # Ближайшие незавершённые milestones (следующие 3)
         upcoming = sorted(
             [m for m in milestones if date.fromisoformat(m["date"]) >= today and m["status"] != "completed"],
             key=lambda m: m["date"],
         )[:3]
 
-        # Текущая фаза — первый milestone in_progress или ближайший не_начатый
         current_phase = None
         for m in milestones:
             if m["status"] == "in_progress":
@@ -439,7 +548,6 @@ class AuditTimeline:
         if not current_phase and upcoming:
             current_phase = upcoming[0]["name"]
 
-        # Оценка риска
         if overdue:
             risk_level = "red"
         elif days_to_audit < 28 and progress_pct < 70:
@@ -472,12 +580,12 @@ class AuditTimeline:
             "completed_milestones": len(completed),
         }
 
-    def generate_checklist(self, timeline_id: str) -> list[dict]:
+    async def generate_checklist_async(self, timeline_id: str) -> list[dict]:
         """
         Генерирует детальный чеклист задач для каждого milestone.
         Основан на MILESTONE_TASKS + scope контролей.
         """
-        tl = self.get_timeline_by_id(timeline_id)
+        tl = await self.get_timeline_by_id_async(timeline_id)
         if not tl:
             raise ValueError(f"Timeline {timeline_id} не найден")
 
@@ -488,9 +596,8 @@ class AuditTimeline:
             base_tasks = MILESTONE_TASKS.get(ms["name"], [])
             tasks = [{"text": t, "type": "general"} for t in base_tasks]
 
-            # Добавляем задачи для контролей в области (только для milestone Evidence Collection)
             if ms["name"] == "Evidence Collection Start" and scope_controls:
-                for ctrl in scope_controls[:10]:  # топ-10 чтобы не перегружать
+                for ctrl in scope_controls[:10]:
                     tasks.append({
                         "text": f"Собрать evidence для контроля {ctrl}",
                         "type": "control",
@@ -507,3 +614,41 @@ class AuditTimeline:
             })
 
         return checklist
+
+    # ── Синхронные публичные методы (сохраняют исходный API) ──────────────────
+
+    def create_timeline(
+        self,
+        audit_date: str,
+        framework: str,
+        scope: dict,
+        created_by: str,
+    ) -> dict:
+        return asyncio.run(self.create_timeline_async(audit_date, framework, scope, created_by))
+
+    def get_active_timeline(self) -> Optional[dict]:
+        return asyncio.run(self.get_active_timeline_async())
+
+    def get_all_timelines(self) -> list[dict]:
+        return asyncio.run(self.get_all_timelines_async())
+
+    def get_timeline_by_id(self, timeline_id: str) -> Optional[dict]:
+        return asyncio.run(self.get_timeline_by_id_async(timeline_id))
+
+    def update_milestone_status(
+        self,
+        timeline_id: str,
+        milestone_id: str,
+        status: str,
+        notes: str,
+        updated_by: str = "system",
+    ) -> dict:
+        return asyncio.run(
+            self.update_milestone_status_async(timeline_id, milestone_id, status, notes, updated_by)
+        )
+
+    def get_current_status(self) -> dict:
+        return asyncio.run(self.get_current_status_async())
+
+    def generate_checklist(self, timeline_id: str) -> list[dict]:
+        return asyncio.run(self.generate_checklist_async(timeline_id))

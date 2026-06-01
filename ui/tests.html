@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Catalog — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --critical: #ef4444;
+            --high: #f59e0b;
+            --medium: #3b82f6;
+            --low: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
+        .btn.primary:hover { opacity: 0.9; }
+        .btn.danger { background: rgba(239, 68, 68, 0.15); color: var(--critical); border: 1px solid var(--critical); }
+        .btn.danger:hover { background: rgba(239, 68, 68, 0.25); }
+
+        select.btn { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+
+        /* Table */
+        .table-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); }
+        td { padding: 13px 16px; border-top: 1px solid var(--border); vertical-align: middle; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .severity-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .severity-critical { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .severity-high { background: rgba(245, 158, 11, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .severity-medium { background: rgba(59, 130, 246, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+        .severity-low { background: rgba(16, 185, 129, 0.2); color: var(--low); border: 1px solid var(--low); }
+
+        .producer-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+        }
+
+        /* Toggle switch */
+        .toggle-wrap { display: flex; align-items: center; gap: 8px; }
+        .toggle {
+            position: relative;
+            width: 36px;
+            height: 20px;
+            flex-shrink: 0;
+        }
+        .toggle input { opacity: 0; width: 0; height: 0; }
+        .toggle-slider {
+            position: absolute;
+            inset: 0;
+            background: var(--border);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .toggle-slider:before {
+            content: '';
+            position: absolute;
+            width: 14px;
+            height: 14px;
+            left: 3px;
+            top: 3px;
+            background: #fff;
+            border-radius: 50%;
+            transition: 0.2s;
+        }
+        .toggle input:checked + .toggle-slider { background: var(--accent); }
+        .toggle input:checked + .toggle-slider:before { transform: translateX(16px); }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 620px;
+            padding: 30px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 24px;
+        }
+        .form-row {
+            margin-bottom: 16px;
+        }
+        .form-row label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-row input,
+        .form-row select,
+        .form-row textarea {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-row input:focus,
+        .form-row select:focus,
+        .form-row textarea:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .form-row textarea { resize: vertical; min-height: 80px; }
+        .form-row select { appearance: none; cursor: pointer; }
+        .form-row input::placeholder,
+        .form-row textarea::placeholder { color: var(--muted); }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        @media (max-width: 520px) { .form-grid { grid-template-columns: 1fr; } }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+            margin-top: 24px;
+        }
+        .modal-actions .btn { flex: 1; justify-content: center; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 14px 20px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+            font-size: 14px; font-weight: 500; max-width: 320px;
+        }
+        .toast.success { border-color: var(--low); color: var(--low); }
+        .toast.error { border-color: var(--critical); color: var(--critical); }
+        .toast.info { border-color: var(--medium); color: var(--medium); }
+
+        /* Empty state */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+
+        /* Loading */
+        .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+        /* Nav */
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+        .key-mono { font-family: monospace; font-size: 12px; color: var(--accent); }
+        .action-btn { padding: 4px 10px; font-size: 11px; }
+        .action-group { display: flex; gap: 6px; align-items: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧪 Test Catalog</h1>
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <a href="/tests-catalog" class="active">🧪 Tests</a>
+                <a href="/time-machine">⏱ Time Machine</a>
+                <span class="nav-sep"></span>
+                <a href="/onboarding">🚀 Onboarding</a>
+                <span class="nav-sep"></span>
+                <a href="/ai-decisions">🤖 AI Decisions</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <div class="toolbar">
+            <button class="btn primary" onclick="openCreateModal()">+ Add Test</button>
+            <div style="flex:1;"></div>
+            <select class="btn" id="filterProducer" onchange="loadTests()">
+                <option value="">All Producers</option>
+                <option value="scanner">scanner</option>
+                <option value="github">github</option>
+                <option value="hr">hr</option>
+                <option value="mdm">mdm</option>
+                <option value="vuln">vuln</option>
+                <option value="custom">custom</option>
+            </select>
+            <select class="btn" id="filterSeverity" onchange="loadTests()">
+                <option value="">All Severities</option>
+                <option value="CRITICAL">Critical</option>
+                <option value="HIGH">High</option>
+                <option value="MEDIUM">Medium</option>
+                <option value="LOW">Low</option>
+            </select>
+            <select class="btn" id="filterEnabled" onchange="loadTests()">
+                <option value="true">Enabled only</option>
+                <option value="false">Disabled only</option>
+                <option value="">All</option>
+            </select>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Key</th>
+                        <th>Title</th>
+                        <th>Producer</th>
+                        <th>Assertion Type</th>
+                        <th>Severity</th>
+                        <th>Frequency</th>
+                        <th>Enabled</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="testsTableBody">
+                    <tr><td colspan="8" class="loading">Loading tests...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Create Test Modal -->
+    <div class="modal" id="createModal">
+        <div class="modal-content">
+            <div class="modal-title">Add Test Definition</div>
+
+            <div class="form-row">
+                <label>Key *</label>
+                <input type="text" id="fKey" placeholder="aws.s3.bucket_not_public">
+            </div>
+            <div class="form-row">
+                <label>Title *</label>
+                <input type="text" id="fTitle" placeholder="S3 Bucket Not Public">
+            </div>
+            <div class="form-row">
+                <label>Description</label>
+                <textarea id="fDescription" placeholder="Optional description of what this test checks..."></textarea>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Producer *</label>
+                    <select id="fProducer">
+                        <option value="scanner">scanner</option>
+                        <option value="github">github</option>
+                        <option value="hr">hr</option>
+                        <option value="mdm">mdm</option>
+                        <option value="vuln">vuln</option>
+                        <option value="custom">custom</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Assertion Type *</label>
+                    <select id="fAssertionType">
+                        <option value="field_truthy">field_truthy</option>
+                        <option value="field_falsy">field_falsy</option>
+                        <option value="field_equals">field_equals</option>
+                        <option value="age_less_than">age_less_than</option>
+                        <option value="count_at_least">count_at_least</option>
+                        <option value="not_public">not_public</option>
+                        <option value="regex_match">regex_match</option>
+                        <option value="always_pass">always_pass</option>
+                        <option value="__other__">other (type below)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row" id="assertionTypeCustomRow" style="display:none;">
+                <label>Custom Assertion Type</label>
+                <input type="text" id="fAssertionTypeCustom" placeholder="e.g. custom_check">
+            </div>
+
+            <div class="form-row">
+                <label>Params (JSON)</label>
+                <textarea id="fParams" placeholder='{"field": "mfa_enabled"}'></textarea>
+            </div>
+
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Severity *</label>
+                    <select id="fSeverity">
+                        <option value="CRITICAL">CRITICAL</option>
+                        <option value="HIGH">HIGH</option>
+                        <option value="MEDIUM" selected>MEDIUM</option>
+                        <option value="LOW">LOW</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Frequency (minutes)</label>
+                    <input type="number" id="fFrequency" value="1440" min="1">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <label>Controls</label>
+                <input type="text" id="fControls" placeholder="CC6.1, CC8.1">
+            </div>
+
+            <div class="form-row">
+                <label>Remediation</label>
+                <textarea id="fRemediation" placeholder="Optional remediation guidance..."></textarea>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn primary" onclick="createTest()">Create Test</button>
+                <button class="btn" onclick="closeCreateModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── Auth ──────────────────────────────────────────────────────────────
+        async function checkAuth() {
+            const r = await fetch('/api/auth/me');
+            if (r.status === 401) {
+                window.location.href = '/login';
+                return false;
+            }
+            return true;
+        }
+
+        // ── Load Tests ────────────────────────────────────────────────────────
+        async function loadTests() {
+            const producer = document.getElementById('filterProducer').value;
+            const severity = document.getElementById('filterSeverity').value;
+            const enabledVal = document.getElementById('filterEnabled').value;
+
+            let url = '/api/v1/tests';
+            const params = new URLSearchParams();
+            if (producer) params.set('producer', producer);
+            if (enabledVal !== '') params.set('enabled', enabledVal);
+            if (params.toString()) url += '?' + params.toString();
+
+            const tbody = document.getElementById('testsTableBody');
+            tbody.innerHTML = '<tr><td colspan="8" class="loading">Loading...</td></tr>';
+
+            try {
+                const r = await fetch(url);
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                let tests = await r.json();
+
+                // Client-side severity filter (API doesn't always support it in GET /tests)
+                if (severity) {
+                    tests = tests.filter(t => t.severity === severity);
+                }
+
+                if (!tests.length) {
+                    tbody.innerHTML = `<tr><td colspan="8">
+                        <div class="empty-state">
+                            <div class="icon">🔬</div>
+                            <p>No tests found. Adjust filters or add a new test.</p>
+                        </div>
+                    </td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = tests.map(t => `
+                    <tr>
+                        <td><span class="key-mono">${escHtml(t.key)}</span></td>
+                        <td style="max-width: 220px; word-break: break-word;">${escHtml(t.title)}</td>
+                        <td><span class="producer-badge">${escHtml(t.producer)}</span></td>
+                        <td style="font-family: monospace; font-size: 12px; color: var(--muted);">${escHtml(t.assertion_type)}</td>
+                        <td><span class="severity-badge severity-${(t.severity || '').toLowerCase()}">${escHtml(t.severity)}</span></td>
+                        <td style="color: var(--muted); font-size: 12px;">${formatFrequency(t.frequency_minutes)}</td>
+                        <td>
+                            <label class="toggle" title="${t.enabled ? 'Disable' : 'Enable'} this test">
+                                <input type="checkbox" data-key="${escHtml(t.key)}" ${t.enabled ? 'checked' : ''} onchange="toggleTest(this.dataset.key, this.checked)">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </td>
+                        <td>
+                            <div class="action-group">
+                                <button class="btn danger action-btn" data-key="${escHtml(t.key)}" data-title="${escHtml(t.title)}" onclick="deleteTest(this.dataset.key, this.dataset.title)">Delete</button>
+                            </div>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="8" style="color: var(--critical); text-align: center; padding: 30px;">Failed to load tests: ${escHtml(String(e))}</td></tr>`;
+            }
+        }
+
+        // ── Toggle enabled ────────────────────────────────────────────────────
+        async function toggleTest(key, enabled) {
+            try {
+                const r = await fetch(`/api/v1/tests/${encodeURIComponent(key)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled }),
+                });
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    showToast(err.detail || 'Failed to update test', 'error');
+                    loadTests(); // revert UI
+                    return;
+                }
+                showToast(`Test ${enabled ? 'enabled' : 'disabled'}`, 'success');
+            } catch (e) {
+                showToast('Network error', 'error');
+                loadTests();
+            }
+        }
+
+        // ── Delete test ───────────────────────────────────────────────────────
+        async function deleteTest(key, title) {
+            if (!confirm(`Delete test "${title}" (${key})?\n\nThis will soft-delete it (set enabled=false). Use hard=true via API for physical deletion.`)) return;
+            try {
+                const r = await fetch(`/api/v1/tests/${encodeURIComponent(key)}`, { method: 'DELETE' });
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    showToast(err.detail || 'Failed to delete test', 'error');
+                    return;
+                }
+                showToast('Test deleted', 'success');
+                loadTests();
+            } catch (e) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        // ── Create Modal ──────────────────────────────────────────────────────
+        function openCreateModal() {
+            document.getElementById('createModal').classList.add('open');
+            // Reset form
+            ['fKey','fTitle','fDescription','fParams','fControls','fRemediation','fAssertionTypeCustom'].forEach(id => {
+                document.getElementById(id).value = '';
+            });
+            document.getElementById('fProducer').value = 'scanner';
+            document.getElementById('fAssertionType').value = 'field_truthy';
+            document.getElementById('fSeverity').value = 'MEDIUM';
+            document.getElementById('fFrequency').value = '1440';
+            document.getElementById('assertionTypeCustomRow').style.display = 'none';
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.remove('open');
+        }
+
+        document.getElementById('fAssertionType').addEventListener('change', function() {
+            const customRow = document.getElementById('assertionTypeCustomRow');
+            customRow.style.display = this.value === '__other__' ? 'block' : 'none';
+        });
+
+        async function createTest() {
+            const key = document.getElementById('fKey').value.trim();
+            const title = document.getElementById('fTitle').value.trim();
+            const description = document.getElementById('fDescription').value.trim();
+            const producer = document.getElementById('fProducer').value;
+            const assertionTypeSelect = document.getElementById('fAssertionType').value;
+            const assertionType = assertionTypeSelect === '__other__'
+                ? document.getElementById('fAssertionTypeCustom').value.trim()
+                : assertionTypeSelect;
+            const paramsRaw = document.getElementById('fParams').value.trim();
+            const severity = document.getElementById('fSeverity').value;
+            const frequency = parseInt(document.getElementById('fFrequency').value, 10) || 1440;
+            const controlsRaw = document.getElementById('fControls').value.trim();
+            const remediation = document.getElementById('fRemediation').value.trim();
+
+            if (!key || !title || !assertionType) {
+                showToast('Key, Title, and Assertion Type are required', 'error');
+                return;
+            }
+
+            let params = {};
+            if (paramsRaw) {
+                try {
+                    params = JSON.parse(paramsRaw);
+                } catch {
+                    showToast('Params must be valid JSON', 'error');
+                    return;
+                }
+            }
+
+            const controls = controlsRaw
+                ? controlsRaw.split(',').map(s => s.trim()).filter(Boolean)
+                : [];
+
+            const body = {
+                key,
+                title,
+                description: description || null,
+                producer,
+                assertion_type: assertionType,
+                params,
+                severity,
+                frequency_minutes: frequency,
+                controls: controls,
+                default_remediation: remediation || null,
+            };
+
+            try {
+                const r = await fetch('/api/v1/tests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    showToast(err.detail || 'Failed to create test', 'error');
+                    return;
+                }
+                closeCreateModal();
+                showToast('Test created successfully', 'success');
+                loadTests();
+            } catch (e) {
+                showToast('Network error', 'error');
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+        function formatFrequency(minutes) {
+            if (!minutes) return '—';
+            if (minutes < 60) return `${minutes}m`;
+            if (minutes < 1440) return `${Math.round(minutes / 60)}h`;
+            return `${Math.round(minutes / 1440)}d`;
+        }
+
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function escAttr(str) {
+            return String(str ?? '').replace(/'/g, "\\'");
+        }
+
+        let _toastTimer = null;
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${type}`;
+            t.style.display = 'block';
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        // Close modal on backdrop click
+        document.getElementById('createModal').addEventListener('click', function(e) {
+            if (e.target === this) closeCreateModal();
+        });
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        async function init() {
+            const ok = await checkAuth();
+            if (ok) loadTests();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

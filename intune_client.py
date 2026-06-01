@@ -2,12 +2,9 @@ import os
 import requests
 from typing import List, Dict, Any
 from log_config import get_logger
+from secret_store import get_connector_secret
 
 log = get_logger(__name__)
-
-INTUNE_TENANT_ID     = os.getenv("INTUNE_TENANT_ID", "")
-INTUNE_CLIENT_ID     = os.getenv("INTUNE_CLIENT_ID", "")
-INTUNE_CLIENT_SECRET = os.getenv("INTUNE_CLIENT_SECRET", "")
 
 GRAPH_URL = "https://graph.microsoft.com/v1.0"
 
@@ -15,7 +12,15 @@ GRAPH_URL = "https://graph.microsoft.com/v1.0"
 class IntuneClient:
     """Клиент для Microsoft Intune через Graph API."""
 
-    def __init__(self, tenant_id: str, client_id: str, client_secret: str):
+    def __init__(
+        self,
+        tenant_id: str = "",
+        client_id: str = "",
+        client_secret: str = "",
+    ):
+        tenant_id     = tenant_id     or get_connector_secret("INTUNE_TENANT_ID", "")
+        client_id     = client_id     or get_connector_secret("INTUNE_CLIENT_ID", "")
+        client_secret = client_secret or get_connector_secret("INTUNE_CLIENT_SECRET", "")
         self.tenant_id     = tenant_id
         self.client_id     = client_id
         self.client_secret = client_secret

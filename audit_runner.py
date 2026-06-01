@@ -26,7 +26,7 @@ load_dotenv()
 
 # ── Константы ────────────────────────────────────────────────────────────────
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
-EVIDENCE_API_KEY     = os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
+EVIDENCE_API_KEY     = os.getenv("EVIDENCE_API_KEY", "")
 CONTROLS_MAP_FILE    = "controls_map.json"
 
 # Ширина блока отчёта

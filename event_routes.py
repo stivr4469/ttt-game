@@ -14,7 +14,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from auth import require_auth, require_admin
 from pydantic import BaseModel
 
 from event_bus import ComplianceEventType, get_event_bus
@@ -159,7 +160,7 @@ async def get_events_stats() -> List[StatsResponse]:
 
 
 @router.post("/api/events/replay", response_model=ReplayResponse)
-async def replay_events(body: ReplayRequest) -> ReplayResponse:
+async def replay_events(body: ReplayRequest, _: dict = Depends(require_auth)) -> ReplayResponse:
     """
     Replay событий из AuditEventRepository за указанный период.
 
@@ -297,7 +298,7 @@ async def get_event(event_id: str) -> Optional[EventResponse]:
 
 
 @router.delete("/api/events/history", status_code=204)
-async def clear_event_history() -> None:
+async def clear_event_history(_: dict = Depends(require_admin)) -> None:
     """
     Очищает историю событий в памяти EventBus.
 

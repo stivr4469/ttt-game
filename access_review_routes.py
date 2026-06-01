@@ -1,17 +1,21 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+from auth import require_auditor
 import json
 import os
-from datetime import datetime, timezone, date, timedelta
+import uuid
+from datetime import datetime, timezone, date
 from log_config import get_logger
 from evidence_client import EvidenceClient
 from constants import CONTROLS_MAP_FILE
+from database import AsyncSessionLocal
+from models import AccessReviewDecision
+from sqlalchemy import select, delete
 
 router = APIRouter(prefix="/api/access-review", tags=["access-review"])
 log = get_logger(__name__)
 
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
-REVIEW_DATA_FILE = "access_review_data.json"
 
 _USERS = [
     {
@@ -113,19 +117,48 @@ _USERS = [
 ]
 
 
-def _load_decisions() -> dict:
-    if not os.path.exists(REVIEW_DATA_FILE):
-        return {}
-    try:
-        with open(REVIEW_DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, OSError):
-        return {}
+async def _load_decisions() -> dict:
+    """Загружает решения из DB."""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(AccessReviewDecision))
+        rows = result.scalars().all()
+    return {
+        row.user_id: {
+            "decision": row.decision,
+            "reviewer": row.reviewer,
+            "reason": row.reason,
+            "decided_at": row.decided_at.isoformat() if row.decided_at else None,
+        }
+        for row in rows
+    }
 
 
-def _save_decisions(data: dict) -> None:
-    with open(REVIEW_DATA_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+async def _save_decisions(data: dict) -> None:
+    """Сохраняет решения в DB."""
+    async with AsyncSessionLocal() as session:
+        for user_id, d in data.items():
+            # Upsert: удаляем старую запись и вставляем новую
+            await session.execute(
+                delete(AccessReviewDecision).where(
+                    AccessReviewDecision.user_id == user_id
+                )
+            )
+            decided_at = None
+            if d.get("decided_at"):
+                try:
+                    decided_at = datetime.fromisoformat(d["decided_at"].replace("Z", "+00:00"))
+                except Exception:
+                    decided_at = None
+            obj = AccessReviewDecision(
+                id=str(uuid.uuid4()),
+                user_id=user_id,
+                decision=d["decision"],
+                reviewer=d.get("reviewer", ""),
+                reason=d.get("reason", ""),
+                decided_at=decided_at,
+            )
+            session.add(obj)
+        await session.commit()
 
 
 def _is_dormant(last_login_str: str) -> bool:
@@ -138,7 +171,7 @@ def _is_dormant(last_login_str: str) -> bool:
 
 @router.get("/users")
 async def get_users():
-    decisions = _load_decisions()
+    decisions = await _load_decisions()
     users_out = []
     for u in _USERS:
         entry = dict(u)
@@ -153,7 +186,7 @@ async def get_users():
 
 
 @router.post("/decision")
-async def post_decision(body: dict):
+async def post_decision(body: dict, _: dict = Depends(require_auditor)):
     user_id = body.get("user_id", "")
     decision = body.get("decision", "")
     reviewer = body.get("reviewer", "")
@@ -169,21 +202,21 @@ async def post_decision(body: dict):
     if user_id not in known_ids:
         return JSONResponse({"error": "unknown user_id"}, status_code=404)
 
-    decisions = _load_decisions()
+    decisions = await _load_decisions()
     decisions[user_id] = {
         "decision": decision,
         "reviewer": reviewer,
         "reason": reason,
         "decided_at": datetime.now(timezone.utc).isoformat(),
     }
-    _save_decisions(decisions)
+    await _save_decisions(decisions)
     log.info("access_review_decision", extra={"user_id": user_id, "decision": decision, "reviewer": reviewer})
     return {"status": "saved", "user_id": user_id, "decision": decision}
 
 
 @router.post("/submit")
-async def submit_review():
-    decisions = _load_decisions()
+async def submit_review(_: dict = Depends(require_auditor)):
+    decisions = await _load_decisions()
 
     total = len(_USERS)
     approved = sum(1 for d in decisions.values() if d["decision"] == "approve")
@@ -233,7 +266,7 @@ async def submit_review():
 
 @router.get("/status")
 async def get_status():
-    decisions = _load_decisions()
+    decisions = await _load_decisions()
     total = len(_USERS)
     approved = sum(1 for d in decisions.values() if d["decision"] == "approve")
     revoked = sum(1 for d in decisions.values() if d["decision"] == "revoke")

@@ -5,12 +5,16 @@ FastAPI роутер Time-Machine Audit.
 Паттерн аналогичен audit_timeline_routes.py.
 """
 
+from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Header, Query
+from sqlalchemy import func, select
 
-from auth import decode_token
+from auth import decode_token, require_auth
+from database import AsyncSessionLocal
 from log_config import get_logger
+from models import TestDefinition, TestResult
 from time_machine import TimeMachineEngine, _parse_target_date
 
 log = get_logger(__name__)
@@ -217,4 +221,100 @@ async def get_available_dates(
         "dates": dates,
         "earliest": dates[0] if dates else None,
         "latest": dates[-1] if dates else None,
+    }
+
+
+# ── /api/v1/time-machine — compliance-позиция по TestResult ────────────────────
+#
+# Отдельный роутер с префиксом /api/v1/time-machine: для каждого теста
+# возвращает последний TestResult ≤ указанного timestamp.
+# Используется UI-страницей /time-machine.
+
+compliance_router = APIRouter(prefix="/api/v1/time-machine", tags=["time-machine"])
+
+
+@compliance_router.get("")
+async def compliance_at(
+    at: str = Query(..., description="ISO8601 datetime, e.g. 2025-12-01T00:00:00Z"),
+    producer: Optional[str] = Query(None),
+    payload: dict = Depends(require_auth),
+) -> dict:
+    """
+    Возвращает compliance-позицию на указанный момент времени.
+    Для каждого (test_id, resource_id) — последний результат ДО или В указанный timestamp.
+    """
+    try:
+        as_of = datetime.fromisoformat(at.replace("Z", "+00:00"))
+    except ValueError:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid datetime format: {at!r}. Use ISO8601 e.g. 2025-12-01T00:00:00Z",
+        )
+
+    async with AsyncSessionLocal() as session:
+        # Субзапрос: для каждой пары (test_id, resource_id) — max(evaluated_at) <= as_of
+        subq = (
+            select(
+                TestResult.test_id,
+                TestResult.resource_id,
+                func.max(TestResult.evaluated_at).label("latest_at"),
+            )
+            .where(TestResult.evaluated_at <= as_of)
+            .group_by(TestResult.test_id, TestResult.resource_id)
+            .subquery()
+        )
+
+        stmt = (
+            select(TestResult, TestDefinition)
+            .join(
+                subq,
+                (TestResult.test_id == subq.c.test_id)
+                & (TestResult.resource_id == subq.c.resource_id)
+                & (TestResult.evaluated_at == subq.c.latest_at),
+            )
+            .join(TestDefinition, TestDefinition.id == TestResult.test_id)
+        )
+
+        if producer:
+            stmt = stmt.where(TestDefinition.producer == producer)
+
+        rows = (await session.execute(stmt)).all()
+
+    results: list[dict] = []
+    counts = {"PASS": 0, "FAIL": 0, "ERROR": 0, "NA": 0}
+
+    for tr, td in rows:
+        results.append(
+            {
+                "test_key": td.key,
+                "title": td.title,
+                "producer": td.producer,
+                "severity": td.severity,
+                "resource_id": tr.resource_id,
+                "status": tr.status,
+                "evaluated_at": tr.evaluated_at.isoformat() if tr.evaluated_at else None,
+            }
+        )
+        counts[tr.status] = counts.get(tr.status, 0) + 1
+
+    total = len(results)
+    pass_rate = round(counts["PASS"] / total * 100, 1) if total > 0 else 0.0
+
+    log.info(
+        "Compliance-позиция запрошена",
+        extra={
+            "as_of": as_of.isoformat(),
+            "producer": producer,
+            "by": payload.get("sub"),
+            "total": total,
+            "pass_rate": pass_rate,
+        },
+    )
+
+    return {
+        "as_of": as_of.isoformat(),
+        "total": total,
+        "pass_rate": pass_rate,
+        "counts": counts,
+        "results": results,
     }

@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Onboarding Wizard — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --critical: #ef4444;
+            --high: #f59e0b;
+            --medium: #3b82f6;
+            --low: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+
+        /* Nav */
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+        /* Progress bar */
+        .progress-bar {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            margin-bottom: 40px;
+        }
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            position: relative;
+        }
+        .progress-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: var(--border);
+            z-index: 0;
+        }
+        .progress-step.done:not(:last-child)::after,
+        .progress-step.active:not(:last-child)::after {
+            background: var(--accent);
+        }
+        .step-circle {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border: 2px solid var(--border);
+            background: var(--bg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--muted);
+            z-index: 1;
+            position: relative;
+            transition: all 0.3s;
+        }
+        .progress-step.active .step-circle {
+            border-color: var(--accent);
+            background: rgba(0, 212, 170, 0.15);
+            color: var(--accent);
+        }
+        .progress-step.done .step-circle {
+            border-color: var(--accent);
+            background: var(--accent);
+            color: var(--bg);
+        }
+        .step-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--muted);
+            margin-top: 8px;
+            text-align: center;
+            white-space: nowrap;
+        }
+        .progress-step.active .step-label { color: var(--accent); }
+        .progress-step.done .step-label { color: var(--text); }
+
+        /* Step content */
+        .step {
+            display: none;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 36px;
+        }
+        .step.active { display: block; }
+
+        .step-title {
+            font-size: 22px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 8px;
+        }
+        .step-desc {
+            font-size: 14px;
+            color: var(--muted);
+            margin-bottom: 28px;
+        }
+
+        /* Form elements */
+        .form-row { margin-bottom: 18px; }
+        .form-row label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .form-row input {
+            width: 100%;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: inherit;
+            transition: border-color 0.2s;
+        }
+        .form-row input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        .form-row input::placeholder { color: var(--muted); }
+
+        /* Buttons */
+        .btn {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
+        .btn.primary:hover { opacity: 0.9; }
+        .btn.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn.secondary { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+        .btn.secondary:hover { color: var(--text); border-color: var(--text); }
+
+        /* Navigation buttons */
+        .step-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 32px;
+            gap: 12px;
+        }
+
+        /* Status indicator */
+        .status-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg);
+            margin-top: 16px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--muted);
+            flex-shrink: 0;
+        }
+        .status-dot.ok { background: var(--low); }
+        .status-dot.error { background: var(--critical); }
+        .status-dot.loading {
+            background: var(--accent);
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        /* Discovery stats */
+        .discovery-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .stat-card {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 40px;
+            font-weight: 700;
+            color: var(--accent);
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+        .stat-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Run ID box */
+        .run-id-box {
+            background: var(--bg);
+            border: 1px solid var(--accent);
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-top: 20px;
+        }
+        .run-id-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 6px;
+        }
+        .run-id-value {
+            font-family: monospace;
+            font-size: 16px;
+            color: var(--accent);
+            word-break: break-all;
+        }
+
+        /* Findings table */
+        .findings-list {
+            margin-top: 20px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        .finding-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            font-size: 13px;
+        }
+        .finding-row:first-child { border-top: none; }
+        .finding-row:hover { background: rgba(255,255,255,0.02); }
+        .finding-key {
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--accent);
+            flex: 1;
+            min-width: 0;
+            word-break: break-all;
+        }
+
+        /* Severity badge */
+        .severity-badge {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .severity-CRITICAL { background: rgba(239, 68, 68, 0.2); color: var(--critical); border: 1px solid var(--critical); }
+        .severity-HIGH { background: rgba(245, 158, 11, 0.2); color: var(--high); border: 1px solid var(--high); }
+        .severity-MEDIUM { background: rgba(59, 130, 246, 0.2); color: var(--medium); border: 1px solid var(--medium); }
+        .severity-LOW { background: rgba(16, 185, 129, 0.2); color: var(--low); border: 1px solid var(--low); }
+
+        /* Empty / loading / error states */
+        .state-box {
+            text-align: center;
+            padding: 40px 20px;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        .state-box .icon { font-size: 36px; margin-bottom: 12px; }
+        .state-box.error-state { color: var(--critical); }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 14px 20px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+            font-size: 14px; font-weight: 500; max-width: 320px;
+        }
+        .toast.success { border-color: var(--low); color: var(--low); }
+        .toast.error { border-color: var(--critical); color: var(--critical); }
+        .toast.info { border-color: var(--medium); color: var(--medium); }
+
+        /* Inline hint */
+        .hint {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 6px;
+        }
+
+        @media (max-width: 520px) {
+            .discovery-grid { grid-template-columns: 1fr; }
+            .step { padding: 24px 18px; }
+            .step-label { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🚀 Onboarding</h1>
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <a href="/tests-catalog">🧪 Tests</a>
+                <a href="/time-machine">⏱ Time Machine</a>
+                <span class="nav-sep"></span>
+                <a href="/onboarding" class="active">🚀 Onboarding</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <!-- Progress Bar -->
+        <div class="progress-bar" id="progressBar">
+            <div class="progress-step active" id="ps1">
+                <div class="step-circle">1</div>
+                <div class="step-label">Connect Stack</div>
+            </div>
+            <div class="progress-step" id="ps2">
+                <div class="step-circle">2</div>
+                <div class="step-label">Auto-Discovery</div>
+            </div>
+            <div class="progress-step" id="ps3">
+                <div class="step-circle">3</div>
+                <div class="step-label">Baseline Scan</div>
+            </div>
+            <div class="progress-step" id="ps4">
+                <div class="step-circle">4</div>
+                <div class="step-label">Gaps</div>
+            </div>
+        </div>
+
+        <!-- Step 1: Connect Stack -->
+        <div class="step active" id="step1">
+            <div class="step-title">Connect Your Stack</div>
+            <div class="step-desc">Enter the Evidence Tracker URL and API key. We'll verify the connection before proceeding.</div>
+
+            <div class="form-row">
+                <label>Evidence Tracker URL</label>
+                <input type="url" id="trackerUrl" placeholder="http://localhost:8000"
+                    value="">
+                <div class="hint">Base URL of your Evidence Tracker instance (without trailing slash).</div>
+            </div>
+            <div class="form-row">
+                <label>API Key</label>
+                <input type="password" id="apiKey" placeholder="your-api-key-here">
+                <div class="hint">Found in your Evidence Tracker settings or .env file.</div>
+            </div>
+
+            <div id="step1Status" style="display:none;" class="status-row">
+                <div class="status-dot" id="step1Dot"></div>
+                <span id="step1Msg"></span>
+            </div>
+
+            <div class="step-actions">
+                <div></div>
+                <button class="btn primary" id="btnStep1Next" onclick="verifyConnection()">Verify &amp; Continue</button>
+            </div>
+        </div>
+
+        <!-- Step 2: Auto-Discovery -->
+        <div class="step" id="step2">
+            <div class="step-title">Auto-Discovery</div>
+            <div class="step-desc">Scan your Evidence Tracker to discover existing controls and test definitions.</div>
+
+            <div style="text-align: center; padding: 10px 0 4px;">
+                <button class="btn primary" id="btnScan" onclick="runDiscovery()">🔍 Scan</button>
+            </div>
+
+            <div id="discoveryState" class="state-box">
+                <div class="icon">🔬</div>
+                <p>Press Scan to discover your controls and tests.</p>
+            </div>
+
+            <div class="discovery-grid" id="discoveryStats" style="display:none;">
+                <div class="stat-card">
+                    <div class="stat-number" id="controlsCount">0</div>
+                    <div class="stat-label">Controls Found</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="testsCount">0</div>
+                    <div class="stat-label">Tests Found</div>
+                </div>
+            </div>
+
+            <div class="step-actions">
+                <button class="btn secondary" onclick="goToStep(1)">Back</button>
+                <button class="btn primary" id="btnStep2Next" onclick="goToStep(3)" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- Step 3: Baseline Scan -->
+        <div class="step" id="step3">
+            <div class="step-title">Run Baseline Scan</div>
+            <div class="step-desc">Create an initial test run that establishes your compliance baseline. This will record an onboarding run in the system.</div>
+
+            <div style="text-align: center; padding: 10px 0 4px;">
+                <button class="btn primary" id="btnBaseline" onclick="runBaselineScan()">▶ Run Baseline Scan</button>
+            </div>
+
+            <div id="baselineState" class="state-box">
+                <div class="icon">📋</div>
+                <p>Press the button above to create your baseline scan run.</p>
+            </div>
+
+            <div id="baselineResult" style="display:none;">
+                <div class="run-id-box">
+                    <div class="run-id-label">Run ID</div>
+                    <div class="run-id-value" id="runIdValue"></div>
+                </div>
+                <p style="margin-top: 12px; font-size: 13px; color: var(--muted);">
+                    Baseline run created successfully. You can now proceed to review open gaps.
+                </p>
+            </div>
+
+            <div class="step-actions">
+                <button class="btn secondary" onclick="goToStep(2)">Back</button>
+                <button class="btn primary" id="btnStep3Next" onclick="goToStep(4)" disabled>Next</button>
+            </div>
+        </div>
+
+        <!-- Step 4: Gaps -->
+        <div class="step" id="step4">
+            <div class="step-title">Open Gaps</div>
+            <div class="step-desc">Review findings with OPEN status discovered in your environment. These require remediation.</div>
+
+            <div id="gapsState" class="state-box">
+                <div class="icon">🔄</div>
+                <p>Loading open findings...</p>
+            </div>
+
+            <div id="findingsList" class="findings-list" style="display:none;"></div>
+
+            <div class="step-actions">
+                <button class="btn secondary" onclick="goToStep(3)">Back</button>
+                <a href="/" class="btn primary">Go to Dashboard</a>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── State ─────────────────────────────────────────────────────────────
+        let currentStep = 1;
+        let connectionVerified = false;
+        let discoveryDone = false;
+        let baselineDone = false;
+        let savedUrl = '';
+        let savedKey = '';
+
+        // ── Auth ──────────────────────────────────────────────────────────────
+        async function checkAuth() {
+            const r = await fetch('/api/auth/me');
+            if (r.status === 401) {
+                window.location.href = '/login';
+                return false;
+            }
+            return true;
+        }
+
+        // ── Step navigation ───────────────────────────────────────────────────
+        function goToStep(n) {
+            // Hide current step content
+            document.getElementById('step' + currentStep).classList.remove('active');
+
+            // Update progress indicators
+            for (let i = 1; i <= 4; i++) {
+                const ps = document.getElementById('ps' + i);
+                ps.classList.remove('active', 'done');
+                if (i < n) ps.classList.add('done');
+                else if (i === n) ps.classList.add('active');
+            }
+
+            // Show new step
+            currentStep = n;
+            document.getElementById('step' + n).classList.add('active');
+
+            // Trigger side effects
+            if (n === 4 && !discoveryDone) {
+                loadGaps();
+            } else if (n === 4) {
+                loadGaps();
+            }
+        }
+
+        // ── Step 1: Verify Connection ─────────────────────────────────────────
+        async function verifyConnection() {
+            const url = document.getElementById('trackerUrl').value.trim().replace(/\/$/, '');
+            const key = document.getElementById('apiKey').value.trim();
+
+            if (!url) {
+                showToast('Please enter the Evidence Tracker URL', 'error');
+                return;
+            }
+
+            const statusRow = document.getElementById('step1Status');
+            const dot = document.getElementById('step1Dot');
+            const msg = document.getElementById('step1Msg');
+            const btn = document.getElementById('btnStep1Next');
+
+            statusRow.style.display = 'flex';
+            dot.className = 'status-dot loading';
+            msg.textContent = 'Connecting to Evidence Tracker…';
+            btn.disabled = true;
+
+            try {
+                // We proxy via the backend to avoid CORS issues; but for onboarding
+                // we call the local API health which calls the tracker.
+                // Alternatively hit /health which already checks evidence tracker.
+                const r = await fetch('/health');
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+                const data = await r.json();
+
+                if (data.evidence_tracker === 'ok') {
+                    dot.className = 'status-dot ok';
+                    msg.textContent = 'Connection successful — Evidence Tracker is reachable.';
+                    connectionVerified = true;
+                    savedUrl = url;
+                    savedKey = key;
+                    showToast('Connected successfully', 'success');
+                    btn.disabled = false;
+                    setTimeout(() => goToStep(2), 800);
+                } else {
+                    dot.className = 'status-dot error';
+                    msg.textContent = 'Evidence Tracker unreachable. Check URL and API key, then try again.';
+                    btn.disabled = false;
+                }
+            } catch (e) {
+                dot.className = 'status-dot error';
+                msg.textContent = 'Connection failed: ' + escHtml(String(e));
+                btn.disabled = false;
+                showToast('Connection failed', 'error');
+            }
+        }
+
+        // ── Step 2: Auto-Discovery ────────────────────────────────────────────
+        async function runDiscovery() {
+            const btn = document.getElementById('btnScan');
+            const stateEl = document.getElementById('discoveryState');
+            const statsEl = document.getElementById('discoveryStats');
+            const nextBtn = document.getElementById('btnStep2Next');
+
+            btn.disabled = true;
+            btn.textContent = 'Scanning…';
+            statsEl.style.display = 'none';
+            stateEl.style.display = 'block';
+            stateEl.className = 'state-box';
+            stateEl.innerHTML = '<div class="icon">⏳</div><p>Scanning controls and tests…</p>';
+
+            try {
+                const [postureRes, testsRes] = await Promise.all([
+                    fetch('/api/v1/posture'),
+                    fetch('/api/v1/tests'),
+                ]);
+
+                if (postureRes.status === 401 || testsRes.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                let controlsCount = 0;
+                let testsCount = 0;
+
+                if (postureRes.ok) {
+                    const posture = await postureRes.json();
+                    if (Array.isArray(posture)) {
+                        controlsCount = posture.length;
+                    } else if (posture && typeof posture === 'object') {
+                        controlsCount = posture.total_controls
+                            || posture.controls_count
+                            || (posture.controls ? posture.controls.length : 0)
+                            || Object.keys(posture).length;
+                    }
+                }
+
+                if (testsRes.ok) {
+                    const tests = await testsRes.json();
+                    if (Array.isArray(tests)) {
+                        testsCount = tests.length;
+                    } else if (tests && typeof tests === 'object') {
+                        testsCount = tests.total || tests.count || 0;
+                    }
+                }
+
+                document.getElementById('controlsCount').textContent = controlsCount;
+                document.getElementById('testsCount').textContent = testsCount;
+
+                stateEl.style.display = 'none';
+                statsEl.style.display = 'grid';
+                discoveryDone = true;
+                nextBtn.disabled = false;
+                showToast('Discovery complete', 'success');
+            } catch (e) {
+                stateEl.className = 'state-box error-state';
+                stateEl.innerHTML = '<div class="icon">⚠️</div><p>Scan failed: ' + escHtml(String(e)) + '</p>';
+                showToast('Discovery failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔍 Scan';
+            }
+        }
+
+        // ── Step 3: Baseline Scan ─────────────────────────────────────────────
+        async function runBaselineScan() {
+            const btn = document.getElementById('btnBaseline');
+            const stateEl = document.getElementById('baselineState');
+            const resultEl = document.getElementById('baselineResult');
+            const nextBtn = document.getElementById('btnStep3Next');
+
+            btn.disabled = true;
+            btn.textContent = 'Running…';
+            resultEl.style.display = 'none';
+            stateEl.style.display = 'block';
+            stateEl.className = 'state-box';
+            stateEl.innerHTML = '<div class="icon">⏳</div><p>Creating baseline run…</p>';
+
+            try {
+                const r = await fetch('/api/v1/test-results/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        producer: 'onboarding',
+                        trigger: 'onboarding',
+                        results: [],
+                    }),
+                });
+
+                if (r.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    throw new Error(err.detail || 'HTTP ' + r.status);
+                }
+
+                const data = await r.json();
+                const runId = data.run_id || data.id || JSON.stringify(data).slice(0, 60);
+
+                document.getElementById('runIdValue').textContent = runId;
+                stateEl.style.display = 'none';
+                resultEl.style.display = 'block';
+                baselineDone = true;
+                nextBtn.disabled = false;
+                showToast('Baseline run created', 'success');
+            } catch (e) {
+                stateEl.className = 'state-box error-state';
+                stateEl.innerHTML = '<div class="icon">⚠️</div><p>Failed: ' + escHtml(String(e)) + '</p>';
+                showToast('Baseline scan failed', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '▶ Run Baseline Scan';
+            }
+        }
+
+        // ── Step 4: Gaps ──────────────────────────────────────────────────────
+        async function loadGaps() {
+            const stateEl = document.getElementById('gapsState');
+            const listEl = document.getElementById('findingsList');
+
+            stateEl.style.display = 'block';
+            stateEl.className = 'state-box';
+            stateEl.innerHTML = '<div class="icon">🔄</div><p>Loading open findings…</p>';
+            listEl.style.display = 'none';
+
+            try {
+                const r = await fetch('/api/v1/findings?status=OPEN&limit=20');
+                if (r.status === 401) {
+                    window.location.href = '/login';
+                    return;
+                }
+                if (!r.ok) throw new Error('HTTP ' + r.status);
+
+                let findings = await r.json();
+                if (findings && typeof findings === 'object' && !Array.isArray(findings)) {
+                    findings = findings.items || findings.findings || findings.data || [];
+                }
+
+                if (!Array.isArray(findings) || findings.length === 0) {
+                    stateEl.className = 'state-box';
+                    stateEl.innerHTML = '<div class="icon">✅</div><p>No open findings — your environment looks clean!</p>';
+                    return;
+                }
+
+                stateEl.style.display = 'none';
+                listEl.style.display = 'block';
+                listEl.innerHTML = findings.map(f => {
+                    const sev = (f.severity || f.test_severity || 'UNKNOWN').toUpperCase();
+                    const key = f.test_key || f.key || f.finding_key || f.id || '—';
+                    const title = f.title || f.message || f.description || '';
+                    return `
+                        <div class="finding-row">
+                            <span class="severity-badge severity-${escHtml(sev)}">${escHtml(sev)}</span>
+                            <span class="finding-key">${escHtml(key)}</span>
+                            ${title ? `<span style="font-size:12px;color:var(--muted);flex:2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${escHtml(title)}">${escHtml(title)}</span>` : ''}
+                        </div>
+                    `;
+                }).join('');
+            } catch (e) {
+                stateEl.className = 'state-box error-state';
+                stateEl.innerHTML = '<div class="icon">⚠️</div><p>Failed to load findings: ' + escHtml(String(e)) + '</p>';
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        let _toastTimer = null;
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = 'toast ' + type;
+            t.style.display = 'block';
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        async function init() {
+            await checkAuth();
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

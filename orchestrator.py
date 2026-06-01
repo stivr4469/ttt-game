@@ -208,7 +208,7 @@ class Orchestrator:
         print(f"[REPORT] Fetching data from {EVIDENCE_TRACKER_URL}...")
         try:
             # Add API Key to headers for internal requests
-            headers = {"X-API-Key": os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")}
+            headers = {"X-API-Key": os.getenv("EVIDENCE_API_KEY", "")}
             controls_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/controls/?limit=100", headers=headers, timeout=10)
             evidence_resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/?limit=200", headers=headers, timeout=10)
             

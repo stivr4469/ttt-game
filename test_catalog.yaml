@@ -1,0 +1,322 @@
+# SOC2 Test Catalog — начальный набор тестов
+# Формат: key, title, producer, assertion_type, params, severity, controls, remediation, frequency_minutes
+
+- key: aws.s3.bucket_not_public
+  title: "S3 bucket is not publicly accessible"
+  description: "Checks that no S3 bucket has public access enabled"
+  producer: scanner
+  assertion_type: not_public
+  params: {}
+  severity: CRITICAL
+  controls: [CC6.1, CC6.6]
+  remediation: "Enable S3 Block Public Access at the account and bucket level."
+  frequency_minutes: 1440
+
+- key: aws.iam.mfa_enabled
+  title: "IAM user has MFA enabled"
+  description: "All IAM users must have MFA configured"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: mfa_active}
+  severity: HIGH
+  controls: [CC6.1, CC6.2]
+  remediation: "Enable virtual or hardware MFA for the IAM user."
+  frequency_minutes: 720
+
+- key: aws.iam.access_key_rotated
+  title: "IAM access key rotated within 90 days"
+  description: "Access keys must be rotated at least every 90 days"
+  producer: scanner
+  assertion_type: age_less_than
+  params: {field: last_rotated, max_days: 90}
+  severity: HIGH
+  controls: [CC6.1, CC6.3]
+  remediation: "Rotate the IAM access key and update all services using it."
+  frequency_minutes: 1440
+
+- key: aws.s3.versioning_enabled
+  title: "S3 bucket has versioning enabled"
+  description: "Object versioning must be enabled for data recovery"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: versioning}
+  severity: MEDIUM
+  controls: [A1.2, CC9.1]
+  remediation: "Enable versioning on the S3 bucket."
+  frequency_minutes: 1440
+
+- key: aws.ec2.security_group_no_open_ssh
+  title: "No security group exposes SSH to 0.0.0.0/0"
+  description: "SSH port should not be open to the internet"
+  producer: scanner
+  assertion_type: field_falsy
+  params: {field: open_ssh}
+  severity: CRITICAL
+  controls: [CC6.6, CC6.1]
+  remediation: "Restrict SSH access to specific IP ranges or use AWS Systems Manager."
+  frequency_minutes: 1440
+
+- key: github.repo.branch_protection
+  title: "Default branch has protection with required reviews"
+  description: "Branch protection rules require at least one review"
+  producer: github
+  assertion_type: field_truthy
+  params: {field: branch_protection_enabled}
+  severity: HIGH
+  controls: [CC8.1, CC5.3]
+  remediation: "Enable branch protection on the default branch and require at least one review."
+  frequency_minutes: 1440
+
+- key: github.repo.signed_commits
+  title: "Repository requires signed commits"
+  description: "All commits must be signed with GPG or SSH"
+  producer: github
+  assertion_type: field_truthy
+  params: {field: require_signed_commits}
+  severity: MEDIUM
+  controls: [CC8.1]
+  remediation: "Enable required commit signing in branch protection settings."
+  frequency_minutes: 1440
+
+- key: hr.user.mfa_enabled
+  title: "User account has MFA enabled"
+  description: "All user accounts require MFA"
+  producer: hr
+  assertion_type: field_truthy
+  params: {field: mfa_enabled}
+  severity: HIGH
+  controls: [CC6.1, CC6.2]
+  remediation: "Enable MFA for the user account in the identity provider."
+  frequency_minutes: 720
+
+- key: hr.user.training_completed
+  title: "User completed security awareness training"
+  description: "Annual security training must be completed"
+  producer: hr
+  assertion_type: age_less_than
+  params: {field: training_completed_at, max_days: 365}
+  severity: MEDIUM
+  controls: [CC1.4, CC2.2]
+  remediation: "Assign and complete the security awareness training course."
+  frequency_minutes: 10080
+
+- key: mdm.device.encrypted
+  title: "Device disk is encrypted"
+  description: "All managed devices must have full disk encryption"
+  producer: mdm
+  assertion_type: field_truthy
+  params: {field: encrypted}
+  severity: HIGH
+  controls: [CC6.7, CC6.1]
+  remediation: "Enable FileVault (macOS) or BitLocker (Windows) on the device."
+  frequency_minutes: 1440
+
+- key: mdm.device.screen_lock
+  title: "Device has screen lock enabled"
+  description: "Automatic screen lock must be configured on all devices"
+  producer: mdm
+  assertion_type: field_truthy
+  params: {field: screen_lock_enabled}
+  severity: MEDIUM
+  controls: [CC6.1]
+  remediation: "Enable automatic screen lock after 5 minutes of inactivity."
+  frequency_minutes: 1440
+
+- key: vuln.critical.no_open_findings
+  title: "No open critical vulnerabilities"
+  description: "All critical severity vulnerabilities must be remediated"
+  producer: vuln
+  assertion_type: field_falsy
+  params: {field: has_critical}
+  severity: CRITICAL
+  controls: [CC7.1, CC7.2]
+  remediation: "Remediate all critical vulnerabilities within the SLA window."
+  frequency_minutes: 480
+
+# ── HTTP / HTTPS ────────────────────────────────────────────────────────────────
+
+- key: http.endpoint.responds_200
+  title: "Service endpoint returns HTTP 200"
+  description: "Checks that the service health endpoint returns a 200 status code"
+  producer: scanner
+  assertion_type: field_equals
+  params: {field: status_code, value: 200}
+  severity: HIGH
+  controls: [A1.1, CC7.1]
+  remediation: "Investigate service health. Check logs and restart if necessary."
+  frequency_minutes: 60
+
+- key: http.endpoint.no_server_header
+  title: "HTTP response does not leak server version"
+  description: "The Server header should not expose the software version"
+  producer: scanner
+  assertion_type: field_falsy
+  params: {field: server_header_exposes_version}
+  severity: LOW
+  controls: [CC6.6]
+  remediation: "Configure the web server to suppress or anonymize the Server header."
+  frequency_minutes: 1440
+
+- key: http.cors.no_wildcard_origin
+  title: "CORS policy does not allow wildcard origin"
+  description: "Access-Control-Allow-Origin must not be '*' on authenticated endpoints"
+  producer: scanner
+  assertion_type: field_falsy
+  params: {field: cors_wildcard}
+  severity: HIGH
+  controls: [CC6.6, CC6.1]
+  remediation: "Restrict CORS origins to known, trusted domains."
+  frequency_minutes: 1440
+
+- key: http.ratelimit.enabled
+  title: "API rate limiting is active"
+  description: "Rate limiting headers (X-RateLimit-Limit) are present in responses"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: rate_limit_header_present}
+  severity: MEDIUM
+  controls: [CC6.6, CC9.1]
+  remediation: "Implement API rate limiting at the gateway or application layer."
+  frequency_minutes: 1440
+
+# ── TLS ────────────────────────────────────────────────────────────────────────
+
+- key: tls.certificate.not_expiring_soon
+  title: "TLS certificate is not expiring within 30 days"
+  description: "Certificates must be renewed before expiry"
+  producer: scanner
+  assertion_type: age_greater_than
+  params: {field: cert_expires_at, min_days: 30}
+  severity: HIGH
+  controls: [CC6.7]
+  remediation: "Renew the TLS certificate. Consider automating renewal with Let's Encrypt."
+  frequency_minutes: 1440
+
+- key: tls.protocol.min_version
+  title: "TLS minimum version is 1.2"
+  description: "Servers must not accept TLS 1.0 or 1.1 connections"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: tls12_or_higher}
+  severity: HIGH
+  controls: [CC6.7, CC6.1]
+  remediation: "Disable TLS 1.0 and 1.1 in the server configuration."
+  frequency_minutes: 1440
+
+- key: tls.hsts.enabled
+  title: "HSTS header is present and max-age >= 1 year"
+  description: "HTTP Strict Transport Security must be enforced"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: hsts_max_age_sufficient}
+  severity: MEDIUM
+  controls: [CC6.7]
+  remediation: "Set Strict-Transport-Security header with max-age >= 31536000."
+  frequency_minutes: 1440
+
+# ── IAM ────────────────────────────────────────────────────────────────────────
+
+- key: iam.admin.count_bounded
+  title: "Fewer than 5 admin users"
+  description: "Principle of least privilege: admin access must be limited"
+  producer: scanner
+  assertion_type: count_at_most
+  params: {field: admin_users, max: 5}
+  severity: HIGH
+  controls: [CC6.3, CC6.2]
+  remediation: "Review admin users and revoke unnecessary privilege."
+  frequency_minutes: 1440
+
+- key: iam.service_account.no_user_login
+  title: "Service accounts cannot log in interactively"
+  description: "Service accounts must have console access disabled"
+  producer: scanner
+  assertion_type: field_falsy
+  params: {field: console_login_enabled}
+  severity: HIGH
+  controls: [CC6.3, CC6.1]
+  remediation: "Disable console login for service accounts in the identity provider."
+  frequency_minutes: 1440
+
+- key: iam.offboarding.deprovisioned_within_sla
+  title: "Deprovisioned users removed within 24h"
+  description: "Access for terminated employees must be revoked within one business day"
+  producer: hr
+  assertion_type: age_less_than
+  params: {field: offboarded_at, max_days: 1}
+  severity: CRITICAL
+  controls: [CC6.2, CC6.5]
+  remediation: "Immediately deprovision access for terminated users."
+  frequency_minutes: 240
+
+# ── MFA ────────────────────────────────────────────────────────────────────────
+
+- key: mfa.admin.enforced
+  title: "MFA enforced for all admin accounts"
+  description: "Privileged accounts require multi-factor authentication"
+  producer: hr
+  assertion_type: field_truthy
+  params: {field: mfa_enforced}
+  severity: CRITICAL
+  controls: [CC6.1, CC6.2]
+  remediation: "Enforce MFA policy on all admin and privileged accounts."
+  frequency_minutes: 720
+
+- key: mfa.sso.required
+  title: "SSO/IdP enforces MFA at login"
+  description: "The identity provider must require MFA for all user sign-ins"
+  producer: scanner
+  assertion_type: field_truthy
+  params: {field: mfa_required_at_idp}
+  severity: HIGH
+  controls: [CC6.1]
+  remediation: "Enable MFA enforcement in the identity provider (Okta, Azure AD, etc.)."
+  frequency_minutes: 1440
+
+# ── GitHub / Code ───────────────────────────────────────────────────────────────
+
+- key: github.actions.secrets_not_logged
+  title: "GitHub Actions does not echo secrets to logs"
+  description: "Workflow logs must not contain secret values"
+  producer: github
+  assertion_type: field_falsy
+  params: {field: secrets_in_logs}
+  severity: CRITICAL
+  controls: [CC6.6, CC5.3]
+  remediation: "Mask secrets in workflow steps and avoid echo/print of secret env vars."
+  frequency_minutes: 1440
+
+- key: github.dependabot.enabled
+  title: "Dependabot alerts are enabled on repository"
+  description: "Dependency vulnerability scanning must be active"
+  producer: github
+  assertion_type: field_truthy
+  params: {field: dependabot_enabled}
+  severity: MEDIUM
+  controls: [CC6.8, CC7.2]
+  remediation: "Enable Dependabot alerts in the repository security settings."
+  frequency_minutes: 1440
+
+# ── MDM ────────────────────────────────────────────────────────────────────────
+
+- key: mdm.device.os_patched
+  title: "Device OS is within 30 days of latest patch"
+  description: "All managed devices must run an up-to-date OS version"
+  producer: mdm
+  assertion_type: age_less_than
+  params: {field: last_os_update, max_days: 30}
+  severity: HIGH
+  controls: [CC6.8, CC6.1]
+  remediation: "Apply pending OS updates on the device."
+  frequency_minutes: 1440
+
+- key: mdm.device.antivirus_running
+  title: "Endpoint protection agent is running"
+  description: "EDR/antivirus must be active on all managed endpoints"
+  producer: mdm
+  assertion_type: field_truthy
+  params: {field: antivirus_active}
+  severity: HIGH
+  controls: [CC6.8]
+  remediation: "Install or restart the endpoint protection agent on the device."
+  frequency_minutes: 1440

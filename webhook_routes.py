@@ -1,4 +1,4 @@
-import hmac, hashlib, json, os, datetime, time, urllib.parse
+import hmac, hashlib, json, os, datetime, time, urllib.parse, fcntl
 from pathlib import Path
 from fastapi import APIRouter, Request, HTTPException, Header, Depends
 from fastapi.responses import JSONResponse
@@ -50,18 +50,48 @@ def _log_webhook_event(source: str, event: str, controls: list):
         "controls": controls,
         "ts": datetime.datetime.utcnow().isoformat()
     }
-    events = []
-    if EVENTS_FILE.exists():
+    # Use exclusive file lock to prevent race conditions under concurrent writes
+    if not EVENTS_FILE.exists():
+        EVENTS_FILE.write_text("[]")
+    with open(EVENTS_FILE, "r+") as f:
+        fcntl.flock(f, fcntl.LOCK_EX)
         try:
-            events = json.loads(EVENTS_FILE.read_text())
-        except:
-            events = []
-    events.append(entry)
-    events = events[-100:]
-    EVENTS_FILE.write_text(json.dumps(events, indent=2, ensure_ascii=False))
+            try:
+                data = json.load(f)
+                if not isinstance(data, list):
+                    data = []
+            except (ValueError, json.JSONDecodeError):
+                data = []
+            data.append(entry)
+            data = data[-100:]
+            f.seek(0)
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.truncate()
+        finally:
+            fcntl.flock(f, fcntl.LOCK_UN)
+
+    # Push SSE notification to all connected browser clients
+    import asyncio
+    try:
+        from sse_routes import broadcast
+        try:
+            loop = asyncio.get_running_loop()
+            loop.create_task(broadcast("webhook_event", entry))
+        except RuntimeError:
+            asyncio.run(broadcast("webhook_event", entry))
+    except Exception:
+        pass  # SSE is best-effort; log already persisted
 
 @router.post("/webhooks/github")
-async def github_webhook(request: Request, x_hub_signature_256: str = Header(None), x_github_event: str = Header(None)):
+async def github_webhook(
+    request: Request,
+    x_hub_signature_256: str = Header(None),
+    x_github_event: str = Header(None),
+    x_github_delivery: str = Header(None),  # unique delivery ID; log for replay detection
+):
+    # Fail-closed: reject immediately if signature header is absent or empty
+    if not x_hub_signature_256:
+        raise HTTPException(status_code=401, detail="Missing GitHub signature")
     payload = await request.body()
     if not _verify_github_signature(payload, x_hub_signature_256, GITHUB_WEBHOOK_SECRET):
         raise HTTPException(status_code=401, detail="Invalid GitHub signature")
@@ -108,13 +138,20 @@ async def slack_webhook(request: Request):
     - Slack Interactivity (block_actions): application/x-www-form-urlencoded с полем payload
     - Обычные события Slack Events API: application/json
     """
+    body = await request.body()
     if not SLACK_SIGNING_SECRET:
-        raise HTTPException(status_code=403, detail="Webhook verification failed")
+        raise HTTPException(status_code=503, detail="Slack webhook not configured")
     timestamp = request.headers.get("X-Slack-Request-Timestamp", "")
     sig_header = request.headers.get("X-Slack-Signature", "")
     if not timestamp or not sig_header:
         raise HTTPException(status_code=403, detail="Webhook verification failed")
-    body = await request.body()
+    # Replay protection: reject requests older than 5 minutes
+    try:
+        slack_ts = int(timestamp)
+        if abs(time.time() - slack_ts) > 300:
+            raise HTTPException(status_code=403, detail="Request timestamp too old")
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Webhook verification failed")
     base = f"v0:{timestamp}:{body.decode()}"
     expected = "v0=" + hmac.new(SLACK_SIGNING_SECRET.encode(), base.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(expected, sig_header):
@@ -173,3 +210,76 @@ async def get_webhook_log(payload: dict = Depends(require_admin)):
         except:
             events = []
     return {"events": events[-50:], "total": len(events)}
+
+
+# ── Per-tenant webhook endpoints ───────────────────────────────────────────────
+# Register with: POST /webhooks/{tenant_id}/github
+# Secrets stored in vault: GITHUB_WEBHOOK_SECRET, OKTA_WEBHOOK_TOKEN
+
+def _set_tenant_ctx(tenant_id: str) -> None:
+    from tenant_context import set_current_tenant_id
+    set_current_tenant_id(tenant_id)
+
+
+@router.post("/webhooks/{tenant_id}/github")
+async def github_webhook_tenant(
+    tenant_id: str,
+    request: Request,
+    x_hub_signature_256: str = Header(None),
+    x_github_event: str = Header(None),
+    x_github_delivery: str = Header(None),
+):
+    """Per-tenant GitHub webhook. Secret resolved from vault first, then env fallback."""
+    if not x_hub_signature_256:
+        raise HTTPException(status_code=401, detail="Missing GitHub signature")
+
+    _set_tenant_ctx(tenant_id)
+    from secret_store import get_connector_secret
+    secret = get_connector_secret("GITHUB_WEBHOOK_SECRET", GITHUB_WEBHOOK_SECRET)
+    if not secret:
+        raise HTTPException(status_code=503, detail="GitHub webhook not configured for tenant")
+
+    payload = await request.body()
+    if not _verify_github_signature(payload, x_hub_signature_256, secret):
+        raise HTTPException(status_code=401, detail="Invalid GitHub signature")
+
+    controls = GITHUB_EVENT_CONTROL_MAP.get(x_github_event, [])
+    for ctrl in controls:
+        rescan_control.delay(ctrl, f"github_{x_github_event}", tenant_id=tenant_id)
+
+    _log_webhook_event("github", x_github_event, controls)
+    return {"received": True, "tenant_id": tenant_id, "controls_triggered": controls}
+
+
+@router.post("/webhooks/{tenant_id}/okta")
+async def okta_webhook_tenant(
+    tenant_id: str,
+    request: Request,
+    authorization: str = Header(None),
+):
+    """Per-tenant Okta webhook. Token resolved from vault first, then env fallback."""
+    _set_tenant_ctx(tenant_id)
+    from secret_store import get_connector_secret
+    expected_token = get_connector_secret("OKTA_WEBHOOK_TOKEN", OKTA_WEBHOOK_TOKEN)
+    if not expected_token:
+        raise HTTPException(status_code=503, detail="Okta webhook not configured for tenant")
+    if authorization != f"SSWS {expected_token}":
+        raise HTTPException(status_code=401, detail="Invalid Okta token")
+
+    data = await request.json()
+    triggered_controls = []
+    events = data.get("data", {}).get("events", [])
+    if not events and "eventType" in data:
+        events = [data]
+
+    for event in events:
+        event_type = event.get("eventType")
+        controls = OKTA_EVENT_CONTROL_MAP.get(event_type, [])
+        for ctrl in controls:
+            rescan_control.delay(ctrl, f"okta_{event_type}", tenant_id=tenant_id)
+            if ctrl not in triggered_controls:
+                triggered_controls.append(ctrl)
+        if event_type:
+            _log_webhook_event("okta", event_type, controls)
+
+    return {"received": True, "tenant_id": tenant_id, "controls_triggered": triggered_controls}

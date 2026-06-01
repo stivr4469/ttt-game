@@ -216,6 +216,15 @@
     <div class="toast" id="toast"></div>
 
     <script>
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         let currentUser = null;
         let currentCourseId = null;
         let selectedAnswers = {};
@@ -243,15 +252,15 @@
             list.innerHTML = data.map(c => `
                 <div class="card">
                     <div>
-                        <span class="status-badge status-${c.status}">${c.status.replace('_', ' ')}</span>
-                        <h3 style="margin-top:12px;">${c.course_title}</h3>
+                        <span class="status-badge status-${escHtml(c.status)}">${escHtml(c.status).replace('_', ' ')}</span>
+                        <h3 style="margin-top:12px;">${escHtml(c.course_title)}</h3>
                         <p>${TRAINING_DESCRIPTIONS[c.course_id] || ''}</p>
                     </div>
                     <div class="card-footer">
                         <div style="font-size: 12px; color: var(--muted);">
-                            ${c.status === 'passed' ? `Score: ${c.score}%<br><span style="color:var(--accent)">${c.certificate_id}</span>` : 'Required: 80%'}
+                            ${c.status === 'passed' ? `Score: ${escHtml(String(c.score))}%<br><span style="color:var(--accent)">${escHtml(c.certificate_id)}</span>` : 'Required: 80%'}
                         </div>
-                        <button class="btn" onclick="startCourse('${c.course_id}')">
+                        <button class="btn" data-course-id="${escHtml(c.course_id)}" onclick="startCourse(this.dataset.courseId)">
                             ${c.status === 'passed' ? 'Retake' : 'Start Course'}
                         </button>
                     </div>

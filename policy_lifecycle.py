@@ -5,27 +5,37 @@ Policy Lifecycle Manager — Segregation of Duties для SOC2 политик.
   AI генерирует → status: "draft"
   Human approves → status: "approved" → контрол = PASS
 
-Хранение: data/policies.json (аналогично vendor_risk_agent.py → data/vendors.json)
+Хранение: SQLite (AsyncSessionLocal / SQLAlchemy async).
 """
 
 from __future__ import annotations
 
-import json
+import asyncio
 import os
 import uuid
 from dataclasses import dataclass, asdict, field
 from datetime import datetime, timezone
 from enum import Enum
-from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from log_config import get_logger
 
 log = get_logger(__name__)
 
-# ── Пути к данным ─────────────────────────────────────────────────────────────
-_DATA_DIR = Path(__file__).parent / "data"
-_POLICIES_FILE = _DATA_DIR / "policies.json"
+
+def _run_async(coro: Any) -> Any:
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            future = asyncio.run_coroutine_threadsafe(coro, loop)
+            return future.result(timeout=30)
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
 
 # ── Evidence Tracker URL ───────────────────────────────────────────────────────
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
@@ -68,23 +78,92 @@ def _now_iso() -> str:
 
 
 def _load_policies() -> list[dict]:
-    """Загрузить все политики из JSON-файла."""
-    if not _POLICIES_FILE.exists():
-        return []
-    try:
-        return json.loads(_POLICIES_FILE.read_text(encoding="utf-8"))
-    except Exception as exc:
-        log.error(f"Ошибка чтения {_POLICIES_FILE}: {exc}")
-        return []
+    """Загрузить все политики из БД."""
+    return _run_async(_load_policies_db())
+
+
+async def _load_policies_db() -> list[dict]:
+    """Загрузить все политики из БД (PolicyVersion)."""
+    from database import AsyncSessionLocal
+    from models import PolicyVersion
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(PolicyVersion))
+        rows = result.scalars().all()
+        records = []
+        for row in rows:
+            records.append({
+                "id": row.id,
+                "control_id": row.control_id,
+                "control_code": row.control_id,  # control_code хранится как control_id
+                "title": row.title,
+                "content": row.content,
+                "status": row.status,
+                "created_by": row.created_by,
+                "approved_by": row.approved_by,
+                "rejected_by": None,
+                "rejection_reason": None,
+                "created_at": row.created_at.isoformat() if row.created_at else None,
+                "updated_at": row.approved_at.isoformat() if row.approved_at else (
+                    row.created_at.isoformat() if row.created_at else None
+                ),
+                "approved_at": row.approved_at.isoformat() if row.approved_at else None,
+                "version": int(row.version) if row.version and row.version.isdigit() else 1,
+            })
+        return records
 
 
 def _save_policies(records: list[dict]) -> None:
-    """Сохранить все политики в JSON-файл."""
-    _DATA_DIR.mkdir(parents=True, exist_ok=True)
-    _POLICIES_FILE.write_text(
-        json.dumps(records, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    """Сохранить все политики в БД."""
+    _run_async(_save_policies_db(records))
+
+
+async def _save_policies_db(records: list[dict]) -> None:
+    """Upsert всех политик в БД (PolicyVersion) по id."""
+    from database import AsyncSessionLocal
+    from models import PolicyVersion
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        for d in records:
+            result = await session.execute(
+                select(PolicyVersion).where(PolicyVersion.id == d["id"])
+            )
+            existing = result.scalar_one_or_none()
+
+            approved_at = None
+            if d.get("approved_at"):
+                try:
+                    approved_at = datetime.fromisoformat(d["approved_at"])
+                except Exception:
+                    pass
+
+            version_str = str(d.get("version", 1))
+
+            if existing is None:
+                row = PolicyVersion(
+                    id=d["id"],
+                    control_id=d.get("control_code") or d.get("control_id", ""),
+                    title=d.get("title", ""),
+                    content=d.get("content", ""),
+                    version=version_str,
+                    status=d.get("status", "draft"),
+                    created_by=d.get("created_by", "system"),
+                    approved_by=d.get("approved_by"),
+                    approved_at=approved_at,
+                )
+                session.add(row)
+            else:
+                existing.control_id = d.get("control_code") or d.get("control_id", existing.control_id)
+                existing.title = d.get("title", existing.title)
+                existing.content = d.get("content", existing.content)
+                existing.version = version_str
+                existing.status = d.get("status", existing.status)
+                existing.created_by = d.get("created_by", existing.created_by)
+                existing.approved_by = d.get("approved_by", existing.approved_by)
+                existing.approved_at = approved_at if approved_at else existing.approved_at
+        await session.commit()
 
 
 def _record_from_dict(d: dict) -> PolicyRecord:

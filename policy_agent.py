@@ -3,7 +3,7 @@ import json
 import time
 import argparse
 import logging
-import requests
+from base_http_client import BaseHTTPClient
 import subprocess
 from typing import Optional, Dict, List, Union
 from openai import OpenAI, RateLimitError
@@ -630,12 +630,11 @@ class PolicyAgent:
                 }
             )
             self.model = model
+        self._http = BaseHTTPClient(base_url=EVIDENCE_TRACKER_URL, timeout=10)
 
     def fetch_recent_violations(self) -> List[str]:
         try:
-            resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/?limit=50", timeout=10)
-            resp.raise_for_status()
-            evidence = resp.json()
+            evidence = self._http._get("/api/v1/evidence/?limit=50")
             return [f"{ev.get('title')} ({ev.get('source')})" for ev in evidence]
         except Exception as e:
             logger.warning(f"Could not fetch recent violations: {e}")
@@ -643,9 +642,7 @@ class PolicyAgent:
 
     def fetch_failed_controls(self) -> List[str]:
         try:
-            resp = requests.get(f"{EVIDENCE_TRACKER_URL}/api/v1/controls/?limit=100", timeout=10)
-            resp.raise_for_status()
-            controls = resp.json()
+            controls = self._http._get("/api/v1/controls/?limit=100")
             return [c['code'] for c in controls if c.get('status', '').upper() == "FAIL"]
         except Exception as e:
             logger.warning(f"Could not fetch failed controls: {e}")

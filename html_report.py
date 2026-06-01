@@ -178,7 +178,7 @@ class HTMLReportGenerator:
         try:
             import requests
 
-            api_key = os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
+            api_key = os.getenv("EVIDENCE_API_KEY", "")
             headers = {"X-API-Key": api_key}
 
             resp = requests.get(
@@ -203,7 +203,7 @@ class HTMLReportGenerator:
                 import requests as req_inner
                 ev_resp = req_inner.get(
                     f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/",
-                    headers={"X-API-Key": os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")},
+                    headers={"X-API-Key": os.getenv("EVIDENCE_API_KEY", "")},
                     params={"control_id": ctrl_id, "limit": 50},
                     timeout=8,
                 )

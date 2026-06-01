@@ -231,7 +231,8 @@ class AIDecisionLogger:
             with open(self._file, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, ensure_ascii=False, indent=2)
         except Exception as exc:
-            log.error("Не удалось сохранить ai_decisions.json: %s", exc)
+            log.error("Failed to persist AI decision to disk: %s", exc, exc_info=True)
+            raise  # Don't silently return as if succeeded
 
     # ── Основной публичный метод ───────────────────────────────────────────────
 
@@ -339,38 +340,43 @@ class AIDecisionLogger:
         Агрегированная статистика по всем записям.
 
         Returns:
-            dict с полями: total, by_type, avg_confidence, avg_duration_ms, by_outcome
+            dict с полями: total, by_type, avg_confidence, avg_duration_ms, by_outcome.
+            On failure includes "error": "database_unavailable".
         """
-        records = list(self._records)
-        total = len(records)
+        try:
+            records = list(self._records)
+            total = len(records)
 
-        if total == 0:
+            if total == 0:
+                return {
+                    "total": 0,
+                    "by_type": {},
+                    "avg_confidence": 0.0,
+                    "avg_duration_ms": 0,
+                    "by_outcome": {},
+                }
+
+            by_type: dict[str, int] = {}
+            by_outcome: dict[str, int] = {}
+            total_confidence = 0.0
+            total_duration = 0
+
+            for rec in records:
+                by_type[rec.decision_type.value] = by_type.get(rec.decision_type.value, 0) + 1
+                by_outcome[rec.outcome] = by_outcome.get(rec.outcome, 0) + 1
+                total_confidence += rec.confidence
+                total_duration += rec.duration_ms
+
             return {
-                "total": 0,
-                "by_type": {},
-                "avg_confidence": 0.0,
-                "avg_duration_ms": 0,
-                "by_outcome": {},
+                "total": total,
+                "by_type": by_type,
+                "avg_confidence": round(total_confidence / total, 3),
+                "avg_duration_ms": round(total_duration / total),
+                "by_outcome": by_outcome,
             }
-
-        by_type: dict[str, int] = {}
-        by_outcome: dict[str, int] = {}
-        total_confidence = 0.0
-        total_duration = 0
-
-        for rec in records:
-            by_type[rec.decision_type.value] = by_type.get(rec.decision_type.value, 0) + 1
-            by_outcome[rec.outcome] = by_outcome.get(rec.outcome, 0) + 1
-            total_confidence += rec.confidence
-            total_duration += rec.duration_ms
-
-        return {
-            "total": total,
-            "by_type": by_type,
-            "avg_confidence": round(total_confidence / total, 3),
-            "avg_duration_ms": round(total_duration / total),
-            "by_outcome": by_outcome,
-        }
+        except Exception as exc:
+            log.error("get_stats DB failure: %s", exc, exc_info=True)
+            return {"total": 0, "by_agent": {}, "by_type": {}, "error": "database_unavailable"}
 
     def get_audit_trail(self, control_id: str) -> list[dict]:
         """

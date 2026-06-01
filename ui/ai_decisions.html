@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Decision Log — Marineso</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #0f1117;
+            --card: #1a1d27;
+            --accent: #00d4aa;
+            --text: #e2e8f0;
+            --muted: #94a3b8;
+            --border: #2d313e;
+            --critical: #ef4444;
+            --high: #f59e0b;
+            --medium: #3b82f6;
+            --low: #10b981;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1300px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+        }
+        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
+
+        /* Nav */
+        .top-nav {
+            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
+            scrollbar-width: none; margin-left: 12px;
+        }
+        .top-nav::-webkit-scrollbar { display: none; }
+        .top-nav a {
+            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
+            color: var(--muted); text-decoration: none; border-radius: 6px;
+            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
+        }
+        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
+        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
+        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+        /* Stat cards */
+        .stats-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .stat-card .stat-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: var(--muted);
+            margin-bottom: 8px;
+        }
+        .stat-card .stat-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: #fff;
+            line-height: 1;
+        }
+        .stat-card .stat-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-top: 6px;
+        }
+        .stat-card.accent { border-color: var(--accent); }
+        .stat-card.accent .stat-value { color: var(--accent); }
+
+        /* Outcome badge colors */
+        .outcome-pass { color: var(--low); }
+        .outcome-fail { color: var(--critical); }
+        .outcome-pending, .outcome-draft { color: var(--high); }
+
+        /* Toolbar */
+        .toolbar {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        .btn {
+            background: var(--card);
+            color: var(--text);
+            border: 1px solid var(--border);
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn:hover { border-color: var(--accent); }
+        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
+        .btn.primary:hover { opacity: 0.9; }
+        .btn.sm { padding: 5px 12px; font-size: 12px; }
+
+        select.btn {
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2394a3b8'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            padding-right: 32px;
+        }
+
+        /* Table */
+        .table-container {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th {
+            background: var(--bg);
+            text-align: left;
+            padding: 12px 16px;
+            color: var(--muted);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+        }
+        td { padding: 12px 16px; border-top: 1px solid var(--border); vertical-align: middle; }
+        tr:hover td { background: rgba(255,255,255,0.02); }
+
+        .badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            padding: 2px 8px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .badge-pass { background: rgba(16,185,129,0.15); color: var(--low); border: 1px solid var(--low); }
+        .badge-fail { background: rgba(239,68,68,0.15); color: var(--critical); border: 1px solid var(--critical); }
+        .badge-draft,
+        .badge-pending { background: rgba(245,158,11,0.15); color: var(--high); border: 1px solid var(--high); }
+        .badge-other { background: rgba(148,163,184,0.1); color: var(--muted); border: 1px solid var(--border); }
+
+        .agent-badge {
+            display: inline-block;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 4px;
+            background: rgba(0, 212, 170, 0.1);
+            color: var(--accent);
+            border: 1px solid rgba(0, 212, 170, 0.3);
+            font-family: monospace;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+        .pagination .page-info { font-size: 13px; color: var(--muted); }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            padding: 20px;
+        }
+        .modal.open { display: flex; }
+        .modal-content {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            width: 100%;
+            max-width: 680px;
+            padding: 30px;
+            max-height: 88vh;
+            overflow-y: auto;
+        }
+        .modal-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+        .modal-subtitle {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 24px;
+            font-family: monospace;
+        }
+        .detail-section {
+            margin-bottom: 20px;
+        }
+        .detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+        .detail-value {
+            font-size: 13px;
+            color: var(--text);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 12px 14px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            line-height: 1.6;
+        }
+        .detail-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .detail-inline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .confidence-bar {
+            flex: 1;
+            height: 6px;
+            background: var(--border);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .confidence-fill {
+            height: 100%;
+            border-radius: 3px;
+            background: var(--accent);
+            transition: width 0.3s;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 24px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: var(--card);
+            border: 1px solid var(--border); padding: 14px 20px; border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
+            font-size: 14px; font-weight: 500; max-width: 320px;
+        }
+        .toast.error { border-color: var(--critical); color: var(--critical); }
+        .toast.info { border-color: var(--medium); color: var(--medium); }
+
+        /* States */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--muted);
+        }
+        .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+        .empty-state p { font-size: 14px; }
+        .loading { text-align: center; padding: 40px; color: var(--muted); font-size: 14px; }
+
+        .truncate { max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .mono { font-family: monospace; font-size: 12px; color: var(--muted); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 AI Decision Log</h1>
+            <nav class="top-nav" id="topNav">
+                <a href="/">📊 Dashboard</a>
+                <span class="nav-sep"></span>
+                <a href="/training">🎓 Training</a>
+                <a href="/background-checks">👤 BG Checks</a>
+                <span class="nav-sep"></span>
+                <a href="/vulnerabilities">🔒 Vulns</a>
+                <a href="/pentests">🔍 Pen Tests</a>
+                <a href="/risk-register">⚠️ Risk Register</a>
+                <span class="nav-sep"></span>
+                <a href="/audit-timeline">📅 Timeline</a>
+                <a href="/questionnaires">📋 Questionnaires</a>
+                <span class="nav-sep"></span>
+                <a href="/access-review">👥 Access Review</a>
+                <a href="/auditor-portal">🔎 Auditor</a>
+                <a href="/tests-catalog">🧪 Tests</a>
+                <a href="/time-machine">⏱ Time Machine</a>
+                <span class="nav-sep"></span>
+                <a href="/onboarding">🚀 Onboarding</a>
+                <span class="nav-sep"></span>
+                <a href="/ai-decisions" class="active">🤖 AI Decisions</a>
+                <span class="nav-sep"></span>
+                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+            </nav>
+        </header>
+
+        <!-- Stat cards -->
+        <div class="stats-row" id="statsRow">
+            <div class="stat-card accent">
+                <div class="stat-label">Total Decisions</div>
+                <div class="stat-value" id="statTotal">—</div>
+                <div class="stat-sub">all time</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Confidence</div>
+                <div class="stat-value" id="statConfidence">—</div>
+                <div class="stat-sub">0.0 – 1.0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Avg Latency</div>
+                <div class="stat-value" id="statLatency">—</div>
+                <div class="stat-sub">milliseconds</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">PASS</div>
+                <div class="stat-value outcome-pass" id="statPass">—</div>
+                <div class="stat-sub">successful decisions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">FAIL</div>
+                <div class="stat-value outcome-fail" id="statFail">—</div>
+                <div class="stat-sub">failed decisions</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">OTHER</div>
+                <div class="stat-value" id="statOther" style="color:var(--high)">—</div>
+                <div class="stat-sub">draft / pending</div>
+            </div>
+        </div>
+
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <select class="btn" id="filterAgent" onchange="resetAndLoad()">
+                <option value="">All Agents</option>
+            </select>
+            <select class="btn" id="filterType" onchange="resetAndLoad()">
+                <option value="">All Types</option>
+                <option value="policy_generation">Policy Generation</option>
+                <option value="gap_analysis">Gap Analysis</option>
+                <option value="control_assessment">Control Assessment</option>
+                <option value="risk_scoring">Risk Scoring</option>
+                <option value="vendor_assessment">Vendor Assessment</option>
+            </select>
+            <div style="flex:1;"></div>
+            <span class="page-info" id="pageInfo" style="font-size:13px;color:var(--muted);"></span>
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Agent</th>
+                        <th>Action / Type</th>
+                        <th>Outcome</th>
+                        <th>Confidence</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody id="decisionsBody">
+                    <tr><td colspan="6" class="loading">Loading decisions...</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination">
+            <button class="btn sm" id="btnPrev" onclick="prevPage()" disabled>← Previous</button>
+            <span class="page-info" id="pageLabel">Page 1</span>
+            <button class="btn sm" id="btnNext" onclick="nextPage()">Next →</button>
+        </div>
+    </div>
+
+    <!-- Details Modal -->
+    <div class="modal" id="detailModal">
+        <div class="modal-content">
+            <div class="modal-title" id="modalTitle">Decision Details</div>
+            <div class="modal-subtitle" id="modalId"></div>
+
+            <div class="detail-row">
+                <div>
+                    <div class="detail-label">Agent</div>
+                    <div class="detail-value" id="dAgent"></div>
+                </div>
+                <div>
+                    <div class="detail-label">Outcome</div>
+                    <div class="detail-value" id="dOutcome"></div>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div>
+                    <div class="detail-label">Decision Type</div>
+                    <div class="detail-value" id="dType"></div>
+                </div>
+                <div>
+                    <div class="detail-label">Timestamp</div>
+                    <div class="detail-value" id="dTimestamp"></div>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-label">Confidence</div>
+                <div style="display:flex;align-items:center;gap:10px;margin-top:6px;">
+                    <div class="confidence-bar">
+                        <div class="confidence-fill" id="dConfidenceBar" style="width:0%"></div>
+                    </div>
+                    <span id="dConfidenceVal" style="font-size:13px;font-weight:600;color:var(--accent);min-width:40px;text-align:right;"></span>
+                </div>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-label">Reasoning</div>
+                <div class="detail-value" id="dReasoning" style="max-height:160px;overflow-y:auto;"></div>
+            </div>
+
+            <div class="detail-section" id="dMetaSection">
+                <div class="detail-label">Meta / Context</div>
+                <div class="detail-value" id="dMeta" style="max-height:200px;overflow-y:auto;font-family:monospace;font-size:12px;"></div>
+            </div>
+
+            <div class="modal-actions">
+                <button class="btn" onclick="closeModal()">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── State ─────────────────────────────────────────────────────────────
+        const LIMIT = 50;
+        let _offset = 0;
+        let _total = 0;
+        let _page = 1;
+
+        // ── Auth ──────────────────────────────────────────────────────────────
+        async function checkAuth() {
+            const r = await fetch('/api/auth/me');
+            if (r.status === 401) { window.location.href = '/login'; return false; }
+            return true;
+        }
+
+        // ── Stats ─────────────────────────────────────────────────────────────
+        async function loadStats() {
+            try {
+                const r = await fetch('/api/ai-decisions/stats');
+                if (!r.ok) return;
+                const s = await r.json();
+
+                document.getElementById('statTotal').textContent = s.total ?? '0';
+                document.getElementById('statConfidence').textContent =
+                    s.avg_confidence != null ? s.avg_confidence.toFixed(2) : '—';
+                document.getElementById('statLatency').textContent =
+                    s.avg_duration_ms != null ? s.avg_duration_ms + ' ms' : '—';
+
+                const byOutcome = s.by_outcome || {};
+                // Count PASS (case-insensitive)
+                let passCount = 0, failCount = 0, otherCount = 0;
+                for (const [k, v] of Object.entries(byOutcome)) {
+                    const ku = k.toUpperCase();
+                    if (ku === 'PASS') passCount += v;
+                    else if (ku === 'FAIL') failCount += v;
+                    else otherCount += v;
+                }
+                document.getElementById('statPass').textContent = passCount;
+                document.getElementById('statFail').textContent = failCount;
+                document.getElementById('statOther').textContent = otherCount;
+
+                // Populate agent filter from by_type agents (we'll do it from decisions)
+            } catch (e) {
+                // Stats unavailable — not critical
+            }
+        }
+
+        // ── Decisions list ────────────────────────────────────────────────────
+        async function loadDecisions() {
+            const agent = document.getElementById('filterAgent').value;
+            const type = document.getElementById('filterType').value;
+
+            const params = new URLSearchParams();
+            params.set('limit', LIMIT);
+            params.set('offset', _offset);
+            if (agent) params.set('agent', agent);
+            if (type) params.set('type', type);
+
+            const tbody = document.getElementById('decisionsBody');
+            tbody.innerHTML = '<tr><td colspan="6" class="loading">Loading...</td></tr>';
+
+            try {
+                const r = await fetch('/api/ai-decisions?' + params.toString());
+                if (r.status === 401) { window.location.href = '/login'; return; }
+                if (!r.ok) {
+                    const err = await r.json().catch(() => ({}));
+                    tbody.innerHTML = `<tr><td colspan="6" style="color:var(--critical);text-align:center;padding:30px;">${escHtml(err.detail || 'Failed to load decisions')}</td></tr>`;
+                    return;
+                }
+
+                const items = await r.json();
+                _total = items.length; // API returns up to LIMIT
+
+                updatePagination(items.length);
+                populateAgentFilter(items);
+
+                if (!items.length) {
+                    tbody.innerHTML = `<tr><td colspan="6">
+                        <div class="empty-state">
+                            <div class="icon">🤖</div>
+                            <p>No AI decisions found. Run the Policy Generator or Gap Analysis agent to generate decisions.</p>
+                        </div>
+                    </td></tr>`;
+                    return;
+                }
+
+                tbody.innerHTML = items.map(d => {
+                    const ts = formatTs(d.created_at);
+                    const outcomeCls = outcomeBadgeClass(d.outcome);
+                    const conf = typeof d.confidence === 'number'
+                        ? (d.confidence * 100).toFixed(0) + '%'
+                        : '—';
+                    return `<tr>
+                        <td class="mono" style="white-space:nowrap;">${escHtml(ts)}</td>
+                        <td><span class="agent-badge">${escHtml(shortAgent(d.created_by))}</span></td>
+                        <td class="truncate" title="${escHtml(d.decision_type || '')}">${escHtml(formatType(d.decision_type))}</td>
+                        <td><span class="badge ${outcomeCls}">${escHtml(d.outcome || '—')}</span></td>
+                        <td style="color:var(--accent);font-weight:600;font-size:12px;">${escHtml(conf)}</td>
+                        <td><button class="btn sm" onclick='openDetail(${JSON.stringify(escJsonAttr(d))})'>Details</button></td>
+                    </tr>`;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = `<tr><td colspan="6" style="color:var(--critical);text-align:center;padding:30px;">Network error: ${escHtml(String(e))}</td></tr>`;
+            }
+        }
+
+        // ── Agent filter population ───────────────────────────────────────────
+        const _seenAgents = new Set();
+        function populateAgentFilter(items) {
+            const sel = document.getElementById('filterAgent');
+            for (const d of items) {
+                const a = d.created_by || '';
+                if (a && !_seenAgents.has(a)) {
+                    _seenAgents.add(a);
+                    const opt = document.createElement('option');
+                    opt.value = a;
+                    opt.textContent = shortAgent(a);
+                    sel.appendChild(opt);
+                }
+            }
+        }
+
+        // ── Pagination ────────────────────────────────────────────────────────
+        function updatePagination(count) {
+            const hasMore = count === LIMIT;
+            document.getElementById('btnPrev').disabled = _offset === 0;
+            document.getElementById('btnNext').disabled = !hasMore;
+            const from = _offset + 1;
+            const to = _offset + count;
+            document.getElementById('pageLabel').textContent =
+                count > 0 ? `Page ${_page} — showing ${from}–${to}` : 'No results';
+            document.getElementById('pageInfo').textContent =
+                count > 0 ? `${from}–${to} of ${count === LIMIT ? to + '+' : to}` : '';
+        }
+
+        function prevPage() {
+            if (_offset === 0) return;
+            _offset = Math.max(0, _offset - LIMIT);
+            _page--;
+            loadDecisions();
+        }
+
+        function nextPage() {
+            _offset += LIMIT;
+            _page++;
+            loadDecisions();
+        }
+
+        function resetAndLoad() {
+            _offset = 0;
+            _page = 1;
+            loadDecisions();
+        }
+
+        // ── Detail Modal ──────────────────────────────────────────────────────
+        function openDetail(d) {
+            document.getElementById('modalTitle').textContent =
+                formatType(d.decision_type) + ' Decision';
+            document.getElementById('modalId').textContent = d.id || '';
+            document.getElementById('dAgent').textContent = d.created_by || '—';
+            document.getElementById('dOutcome').textContent = d.outcome || '—';
+            document.getElementById('dType').textContent = formatType(d.decision_type);
+            document.getElementById('dTimestamp').textContent = formatTs(d.created_at);
+
+            const conf = typeof d.confidence === 'number' ? d.confidence : 0;
+            document.getElementById('dConfidenceBar').style.width = (conf * 100) + '%';
+            document.getElementById('dConfidenceVal').textContent = (conf * 100).toFixed(0) + '%';
+
+            document.getElementById('dReasoning').textContent = d.reasoning || '(no reasoning captured)';
+
+            const meta = d.metadata || d.meta || {};
+            const metaStr = JSON.stringify(meta, null, 2);
+            const metaSection = document.getElementById('dMetaSection');
+            if (metaStr === '{}' || metaStr === 'null') {
+                metaSection.style.display = 'none';
+            } else {
+                metaSection.style.display = 'block';
+                document.getElementById('dMeta').textContent = metaStr;
+            }
+
+            document.getElementById('detailModal').classList.add('open');
+        }
+
+        function closeModal() {
+            document.getElementById('detailModal').classList.remove('open');
+        }
+
+        document.getElementById('detailModal').addEventListener('click', function(e) {
+            if (e.target === this) closeModal();
+        });
+
+        // ── Helpers ───────────────────────────────────────────────────────────
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        // For use in onclick='openDetail(JSON.stringify(...))'
+        // We pass the raw object through JSON.stringify and parse it in onclick
+        function escJsonAttr(obj) {
+            // Return a safe copy with strings truncated for inline onclick
+            return {
+                id: obj.id,
+                created_by: obj.created_by,
+                outcome: obj.outcome,
+                decision_type: obj.decision_type,
+                created_at: obj.created_at,
+                confidence: obj.confidence,
+                reasoning: (obj.reasoning || '').slice(0, 1000),
+                metadata: obj.metadata || {},
+                meta: obj.meta || {},
+            };
+        }
+
+        function formatTs(iso) {
+            if (!iso) return '—';
+            try {
+                const d = new Date(iso);
+                return d.toLocaleString('en-GB', {
+                    year: 'numeric', month: '2-digit', day: '2-digit',
+                    hour: '2-digit', minute: '2-digit', second: '2-digit',
+                    hour12: false,
+                });
+            } catch { return iso; }
+        }
+
+        function shortAgent(agent) {
+            if (!agent) return '—';
+            // Strip "ai:" prefix if present
+            return agent.startsWith('ai:') ? agent.slice(3) : agent;
+        }
+
+        function formatType(type) {
+            if (!type) return '—';
+            return type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        }
+
+        function outcomeBadgeClass(outcome) {
+            if (!outcome) return 'badge-other';
+            const u = outcome.toUpperCase();
+            if (u === 'PASS') return 'badge-pass';
+            if (u === 'FAIL') return 'badge-fail';
+            if (u === 'DRAFT') return 'badge-draft';
+            if (u === 'PENDING') return 'badge-pending';
+            return 'badge-other';
+        }
+
+        let _toastTimer = null;
+        function showToast(msg, type = 'info') {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.className = `toast ${type}`;
+            t.style.display = 'block';
+            if (_toastTimer) clearTimeout(_toastTimer);
+            _toastTimer = setTimeout(() => { t.style.display = 'none'; }, 3500);
+        }
+
+        // ── Init ──────────────────────────────────────────────────────────────
+        async function init() {
+            const ok = await checkAuth();
+            if (!ok) return;
+            await Promise.all([loadStats(), loadDecisions()]);
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>

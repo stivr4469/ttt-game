@@ -1,5 +1,4 @@
 import os
-import json
 import uuid
 import logging
 from datetime import datetime, timezone
@@ -7,6 +6,10 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
+from database import AsyncSessionLocal
+from models import QuestionnaireResponse as QuestionnaireResponseModel
+from sqlalchemy import select
+from evidence_client import _run_async
 
 load_dotenv()
 logger = logging.getLogger(__name__)
@@ -60,8 +63,6 @@ class QuestionnaireAgent:
         "sig_lite": {"name": "SIG Lite", "questions": SIG_LITE},
         "caiq_lite": {"name": "CAIQ Lite", "questions": CAIQ_LITE},
     }
-    
-    RESPONSES_FILE = Path(__file__).parent / "questionnaire_responses.json"
     
     def __init__(self):
         if OPENROUTER_API_KEY:
@@ -188,42 +189,91 @@ Respond ONLY with the answer text, no JSON."""
         self._save_response(full_response)
         return full_response
 
-    def _save_response(self, response: dict):
-        responses = []
-        if self.RESPONSES_FILE.exists():
+    # ── DB async helpers ─────────────────────────────────────────────────────
+
+    async def _save_response_to_db(self, response: dict) -> None:
+        """Сохраняет ответ на опросник в DB."""
+        generated_at = None
+        if response.get("generated_at"):
             try:
-                responses = json.loads(self.RESPONSES_FILE.read_text(encoding="utf-8"))
-            except:
-                pass
-        responses.append(response)
-        self.RESPONSES_FILE.write_text(json.dumps(responses, indent=2, ensure_ascii=False), encoding="utf-8")
+                generated_at = datetime.fromisoformat(response["generated_at"].replace("Z", "+00:00"))
+            except Exception:
+                generated_at = None
+        async with AsyncSessionLocal() as session:
+            obj = QuestionnaireResponseModel(
+                id=response["id"],
+                questionnaire=response.get("questionnaire", ""),
+                questionnaire_name=response.get("questionnaire_name", ""),
+                requester=response.get("requester"),
+                total_questions=response.get("total_questions", 0),
+                high_confidence=response.get("high_confidence", 0),
+                needs_review_count=response.get("needs_review_count", 0),
+                answers=response.get("answers"),
+                generated_at=generated_at,
+            )
+            session.add(obj)
+            await session.commit()
+
+    async def _load_responses_from_db(self) -> List[Dict]:
+        """Читает все ответы из DB (без answers для краткого списка)."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(QuestionnaireResponseModel).order_by(
+                    QuestionnaireResponseModel.created_at.desc()
+                )
+            )
+            rows = result.scalars().all()
+        summaries = []
+        for r in rows:
+            summaries.append({
+                "id": r.id,
+                "questionnaire": r.questionnaire,
+                "questionnaire_name": r.questionnaire_name,
+                "requester": r.requester,
+                "total_questions": r.total_questions,
+                "high_confidence": r.high_confidence,
+                "needs_review_count": r.needs_review_count,
+                "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+            })
+        return summaries
+
+    async def _db_has_responses(self) -> bool:
+        """Возвращает True если в DB есть хотя бы один ответ."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(select(QuestionnaireResponseModel).limit(1))
+            return result.scalar_one_or_none() is not None
+
+    async def _load_response_by_id_from_db(self, response_id: str) -> Optional[Dict]:
+        """Читает один ответ из DB по ID (с answers)."""
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(QuestionnaireResponseModel).where(QuestionnaireResponseModel.id == response_id)
+            )
+            r = result.scalar_one_or_none()
+            if r is None:
+                return None
+            return {
+                "id": r.id,
+                "questionnaire": r.questionnaire,
+                "questionnaire_name": r.questionnaire_name,
+                "requester": r.requester,
+                "total_questions": r.total_questions,
+                "high_confidence": r.high_confidence,
+                "needs_review_count": r.needs_review_count,
+                "answers": r.answers or [],
+                "generated_at": r.generated_at.isoformat() if r.generated_at else None,
+            }
+
+    def _save_response(self, response: dict):
+        _run_async(self._save_response_to_db(response))
 
     def get_all_responses(self) -> List[Dict]:
-        if not self.RESPONSES_FILE.exists():
-            return []
-        try:
-            responses = json.loads(self.RESPONSES_FILE.read_text(encoding="utf-8"))
-            # Remove full answers for brief list
-            summary_list = []
-            for r in responses:
-                r_copy = dict(r)
-                r_copy.pop("answers", None)
-                summary_list.append(r_copy)
-            return summary_list
-        except:
-            return []
+        if _run_async(self._db_has_responses()):
+            return _run_async(self._load_responses_from_db())
+        return []
 
     def get_response_by_id(self, response_id: str) -> Optional[Dict]:
-        if not self.RESPONSES_FILE.exists():
-            return None
-        try:
-            responses = json.loads(self.RESPONSES_FILE.read_text(encoding="utf-8"))
-            for r in responses:
-                if r["id"] == response_id:
-                    return r
-            return None
-        except:
-            return None
+        return _run_async(self._load_response_by_id_from_db(response_id))
 
     def export_to_text(self, response_id: str) -> str:
         resp = self.get_response_by_id(response_id)

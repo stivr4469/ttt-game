@@ -157,6 +157,91 @@
         .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
         .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
         .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
+
+        /* ── Knowledge Base ── */
+        .kb-section {
+            background: rgba(0, 212, 170, 0.05);
+            border: 1px solid rgba(0, 212, 170, 0.25);
+            border-radius: 8px;
+            padding: 14px 16px;
+            margin-top: 8px;
+            display: none;
+        }
+        .kb-section h4 {
+            font-size: 12px;
+            color: var(--accent);
+            font-weight: 700;
+            margin-bottom: 10px;
+            letter-spacing: 0.05em;
+        }
+        .kb-suggestion {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        .kb-suggestion:last-child { margin-bottom: 0; }
+        .kb-suggestion .kb-q {
+            font-size: 11px;
+            color: var(--muted);
+            margin-bottom: 6px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .kb-suggestion .kb-a {
+            color: var(--text);
+            line-height: 1.5;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .kb-suggestion .kb-actions {
+            margin-top: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .kb-use-btn {
+            background: var(--accent);
+            color: var(--bg);
+            border: none;
+            padding: 4px 10px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .kb-use-btn:hover { opacity: 0.85; }
+        .kb-score { font-size: 10px; color: var(--muted); }
+        .kb-badge {
+            display: inline-block;
+            background: rgba(0, 212, 170, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(0, 212, 170, 0.4);
+            border-radius: 4px;
+            padding: 1px 6px;
+            font-size: 10px;
+            font-weight: 700;
+            margin-left: 6px;
+        }
+        textarea {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            color: var(--text);
+            padding: 12px;
+            border-radius: 6px;
+            width: 100%;
+            resize: vertical;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        textarea:focus, input:focus { outline: none; border-color: var(--accent); }
     </style>
 </head>
 <body>
@@ -192,7 +277,12 @@
         </div>
 
         <div class="history-section">
-            <h2>Generation History</h2>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 style="margin-bottom:0;">Generation History</h2>
+                <button class="btn" style="background:rgba(0,212,170,0.15);color:var(--accent);border:1px solid rgba(0,212,170,0.35);" onclick="openKbModal()">
+                    💡 Add KB Answer
+                </button>
+            </div>
             <div class="table-container">
                 <table>
                     <thead>
@@ -258,9 +348,44 @@
         </div>
     </div>
 
+    <!-- KB Answer Modal -->
+    <div class="modal" id="kbModal">
+        <div class="modal-content" style="max-width: 680px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2>💡 Knowledge Base — Add Answer</h2>
+                <button onclick="closeModal()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:20px;">&times;</button>
+            </div>
+            <div class="form-group">
+                <label>QUESTION</label>
+                <input type="text" id="kbQuestion" placeholder="Type a security question..." oninput="onKbQuestionInput(this.value)">
+                <div class="kb-section" id="kbSuggestionsBox">
+                    <h4>💡 SIMILAR PAST ANSWERS</h4>
+                    <div id="kbSuggestionsList"></div>
+                </div>
+            </div>
+            <div class="form-group">
+                <label id="kbAnswerLabel">ANSWER</label>
+                <textarea id="kbAnswer" rows="5" placeholder="Type or select a suggested answer above..."></textarea>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn" style="flex:1;" onclick="submitKbAnswer()">Save to Knowledge Base</button>
+                <button class="btn" style="background:var(--card);color:var(--text);border:1px solid var(--border);flex:1;" onclick="closeModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
     <div class="toast" id="toast"></div>
 
     <script>
+        function escHtml(str) {
+            return String(str ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
         let selectedTemplateId = null;
 
         async function init() {
@@ -277,9 +402,9 @@
             const list = document.getElementById('templatesList');
             list.innerHTML = data.map(t => `
                 <div class="template-card">
-                    <h3>${t.id === 'caiq_lite' ? '☁️' : '📋'} ${t.name}</h3>
-                    <p>${t.description}<br><b>${t.questions_count} questions</b></p>
-                    <button class="btn" onclick="openGenModal('${t.id}', ${t.questions_count})">Generate Response</button>
+                    <h3>${t.id === 'caiq_lite' ? '☁️' : '📋'} ${escHtml(t.name)}</h3>
+                    <p>${escHtml(t.description)}<br><b>${escHtml(String(t.questions_count))} questions</b></p>
+                    <button class="btn" data-id="${escHtml(t.id)}" data-count="${escHtml(String(t.questions_count))}" onclick="openGenModal(this.dataset.id, this.dataset.count)">Generate Response</button>
                 </div>
             `).join('');
         }
@@ -301,8 +426,8 @@
             content.innerHTML = data.reverse().map(res => `
                 <tr>
                     <td>${new Date(res.generated_at).toLocaleDateString()}</td>
-                    <td style="font-weight:600;">${res.questionnaire_name}</td>
-                    <td>${res.requester.company}</td>
+                    <td style="font-weight:600;">${escHtml(res.questionnaire_name)}</td>
+                    <td>${escHtml(res.requester.company)}</td>
                     <td>
                         <div style="display:flex; align-items:center; gap:8px;">
                             <div style="flex:1; height:4px; background:var(--border); border-radius:2px; width:60px;">
@@ -312,7 +437,7 @@
                         </div>
                     </td>
                     <td>
-                        <button class="btn" style="padding:4px 10px; font-size:11px;" onclick="viewDetails('${res.id}')">View</button>
+                        <button class="btn" style="padding:4px 10px; font-size:11px;" data-id="${escHtml(res.id)}" onclick="viewDetails(this.dataset.id)">View</button>
                     </td>
                 </tr>
             `).join('');
@@ -383,11 +508,11 @@
             const content = document.getElementById('detailContent');
             content.innerHTML = res.answers.map(a => `
                 <div class="ans-item">
-                    <div class="ans-q">[${a.question_id}] ${a.question}</div>
-                    <div class="ans-a">${a.answer}</div>
+                    <div class="ans-q">[${escHtml(a.question_id)}] ${escHtml(a.question)}</div>
+                    <div class="ans-a">${escHtml(a.answer)}</div>
                     <div class="ans-meta">
-                        <span>Category: <b>${a.category}</b></span>
-                        <span>Confidence: <span class="badge ${a.confidence}">${a.confidence}</span></span>
+                        <span>Category: <b>${escHtml(a.category)}</b></span>
+                        <span>Confidence: <span class="badge ${escHtml(a.confidence)}">${escHtml(a.confidence)}</span></span>
                         ${a.needs_review ? '<span style="color:var(--fail); font-weight:700;">⚠️ NEEDS REVIEW</span>' : ''}
                     </div>
                 </div>
@@ -406,6 +531,110 @@
             t.style.display = 'block';
             t.style.borderColor = type === 'success' ? 'var(--pass)' : 'var(--fail)';
             setTimeout(() => t.style.display = 'none', 3000);
+        }
+
+        // ── Knowledge Base ──────────────────────────────────────────────────
+
+        let _kbDebounceTimer = null;
+
+        function openKbModal() {
+            document.getElementById('kbQuestion').value = '';
+            document.getElementById('kbAnswer').value = '';
+            document.getElementById('kbAnswerLabel').textContent = 'ANSWER';
+            hideSuggestions();
+            document.getElementById('kbModal').style.display = 'flex';
+            setTimeout(() => document.getElementById('kbQuestion').focus(), 100);
+        }
+
+        function hideSuggestions() {
+            const box = document.getElementById('kbSuggestionsBox');
+            box.style.display = 'none';
+            document.getElementById('kbSuggestionsList').innerHTML = '';
+        }
+
+        function onKbQuestionInput(value) {
+            clearTimeout(_kbDebounceTimer);
+            if (!value.trim() || value.trim().length < 5) {
+                hideSuggestions();
+                return;
+            }
+            _kbDebounceTimer = setTimeout(() => fetchKbSuggestions(value.trim()), 500);
+        }
+
+        async function fetchKbSuggestions(q) {
+            try {
+                const r = await fetch('/api/questionnaires/kb/search?q=' + encodeURIComponent(q) + '&limit=3');
+                if (!r.ok) return;
+                const results = await r.json();
+                renderKbSuggestions(results);
+            } catch (e) {
+                console.error('KB search error', e);
+            }
+        }
+
+        function renderKbSuggestions(results) {
+            const box = document.getElementById('kbSuggestionsBox');
+            const list = document.getElementById('kbSuggestionsList');
+
+            if (!results || results.length === 0) {
+                hideSuggestions();
+                return;
+            }
+
+            list.innerHTML = results.map((item, idx) => `
+                <div class="kb-suggestion">
+                    <div class="kb-q">Q: ${escHtml(item.question)}</div>
+                    <div class="kb-a">${escHtml(item.answer)}</div>
+                    <div class="kb-actions">
+                        <button class="kb-use-btn"
+                            data-answer="${escHtml(item.answer)}"
+                            data-id="${escHtml(item.id)}"
+                            onclick="useKbSuggestion(this)">
+                            Use this answer
+                        </button>
+                        <span class="kb-score">${escHtml(String(item.score))} keyword match${item.score !== 1 ? 'es' : ''}</span>
+                    </div>
+                </div>
+            `).join('');
+
+            box.style.display = 'block';
+        }
+
+        function useKbSuggestion(btn) {
+            const answer = btn.getAttribute('data-answer');
+            const id = btn.getAttribute('data-id');
+            const answerField = document.getElementById('kbAnswer');
+            answerField.value = answer;
+            answerField.dataset.originalId = id;
+            document.getElementById('kbAnswerLabel').innerHTML =
+                'ANSWER <span class="kb-badge">Suggested from KB</span>';
+            answerField.focus();
+        }
+
+        async function submitKbAnswer() {
+            const question = document.getElementById('kbQuestion').value.trim();
+            const answer = document.getElementById('kbAnswer').value.trim();
+            const originalId = document.getElementById('kbAnswer').dataset.originalId || null;
+
+            if (!question) { showToast('Please enter a question', 'error'); return; }
+            if (!answer) { showToast('Please enter an answer', 'error'); return; }
+
+            try {
+                const r = await fetch('/api/questionnaires/kb/accept', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question, answer, original_id: originalId })
+                });
+                const res = await r.json();
+                if (r.ok && res.saved) {
+                    closeModal();
+                    showToast('Answer saved to Knowledge Base', 'success');
+                } else {
+                    showToast('Failed to save: ' + (res.detail || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Network error saving answer', 'error');
+            }
         }
 
         window.onload = init;

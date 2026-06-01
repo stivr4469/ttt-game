@@ -85,7 +85,7 @@ async def get_control(control_id: str, payload: dict = Depends(require_auth)):
 
 
 @router.post("/run")
-async def run_all_checks(payload: dict = Depends(require_auth)):
+async def run_all_checks(payload: dict = Depends(require_auditor)):
     """Запустить проверки всех загруженных контролей."""
     log.info("CaC run_all запущен пользователем %s", payload.get("sub"))
     results = _engine.run_all()
@@ -101,7 +101,7 @@ async def run_all_checks(payload: dict = Depends(require_auth)):
 
 
 @router.post("/run/{control_id}")
-async def run_single_check(control_id: str, payload: dict = Depends(require_auth)):
+async def run_single_check(control_id: str, payload: dict = Depends(require_auditor)):
     """Запустить проверку одного контроля."""
     control = _get_control_or_404(control_id)
     log.info("CaC run/%s запущен пользователем %s", control_id, payload.get("sub"))

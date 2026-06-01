@@ -5,13 +5,15 @@ asset_manager.py — Asset-centric compliance управление.
 cloud-аккаунты, репозитории, базы данных, сотрудников, вендор-сервисы)
 с SOC2 контролями и реестром рисков.
 
-Режимы хранения:
-  DB (DATABASE_URL задан)   → SQLAlchemy ORM через AsyncSession
-  JSON fallback (по умолчанию) → data/assets.json (backward compat)
+Хранение: SQLAlchemy ORM через AsyncSession (AsyncSessionLocal из database.py).
+Таблица: asset_record (модель AssetRecord из models.py).
+Дополнительные поля (environment, tags, metadata, control_mappings,
+risk_mappings) хранятся в колонке extra как JSON.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import uuid
@@ -19,14 +21,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import select
+
+from database import AsyncSessionLocal
 from log_config import get_logger
+from models import AssetRecord
 
 log = get_logger(__name__)
 
 # ── Константы ─────────────────────────────────────────────────────────────────
-
-# Путь к JSON-файлу для fallback-режима
-_ASSETS_FILE = Path(__file__).parent / "data" / "assets.json"
 
 # Допустимые типы активов
 ASSET_TYPES = frozenset({
@@ -93,66 +96,144 @@ def _validate_status(status: str) -> None:
         )
 
 
-# ── JSON storage layer ────────────────────────────────────────────────────────
-
-class _JsonStore:
+def _run_async(coro):
     """
-    In-memory + JSON-файл хранилище для fallback-режима без БД.
+    Запускает async-корутину из синхронного контекста.
+    Паттерн взят из vendor_risk_agent.py.
+    """
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                future = pool.submit(asyncio.run, coro)
+                return future.result()
+        else:
+            return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
 
-    Структура data/assets.json:
+
+# ── Преобразование ORM → dict ─────────────────────────────────────────────────
+
+def _record_to_dict(record: AssetRecord) -> Dict[str, Any]:
+    """Конвертирует ORM-запись AssetRecord в словарь актива."""
+    extra = record.extra or {}
+    return {
+        "id": record.id,
+        "asset_type": record.asset_type,
+        "name": record.name,
+        "owner_id": record.owner or extra.get("owner_id"),
+        "environment": extra.get("environment", "prod"),
+        "criticality": record.criticality,
+        "tags": extra.get("tags") or {},
+        "metadata": extra.get("metadata") or {},
+        "created_at": record.created_at.isoformat() if record.created_at else _utcnow_iso(),
+        "updated_at": extra.get("updated_at", _utcnow_iso()),
+    }
+
+
+def _dict_to_record_fields(asset: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Возвращает kwargs для создания/обновления AssetRecord из словаря актива.
+    Поля, которых нет в AssetRecord напрямую, идут в extra.
+    """
+    extra = {
+        "environment": asset.get("environment", "prod"),
+        "tags": asset.get("tags") or {},
+        "metadata": asset.get("metadata") or {},
+        "owner_id": asset.get("owner_id"),
+        "updated_at": asset.get("updated_at", _utcnow_iso()),
+        # control_mappings и risk_mappings хранятся отдельными ключами в extra
+        "control_mappings": asset.get("_control_mappings", []),
+        "risk_mappings": asset.get("_risk_mappings", []),
+    }
+    return {
+        "id": asset["id"],
+        "name": asset.get("name", ""),
+        "asset_type": asset.get("asset_type", ""),
+        "owner": asset.get("owner_id"),
+        "criticality": asset.get("criticality", "medium"),
+        "classification": "internal",
+        "status": "active",
+        "extra": extra,
+    }
+
+
+# ── DB storage layer ──────────────────────────────────────────────────────────
+
+class _DbStore:
+    """
+    DB-backed хранилище активов через AssetRecord ORM.
+
+    Структура extra JSON:
       {
-        "assets": { "<asset_id>": { ...asset fields... } },
-        "control_mappings": [ { asset_id, control_id, status, ... } ],
-        "risk_mappings": [ { asset_id, risk_id, exposure_level } ]
+        "environment": "prod",
+        "tags": { ... },
+        "metadata": { ... },
+        "owner_id": "...",
+        "updated_at": "...",
+        "control_mappings": [ { asset_id, control_id, compliance_status, ... } ],
+        "risk_mappings":    [ { asset_id, risk_id, exposure_level } ]
       }
     """
 
-    def __init__(self, path: Path = _ASSETS_FILE) -> None:
-        self._path = path
-        self._data: Dict[str, Any] = self._load()
-
-    def _load(self) -> Dict[str, Any]:
-        """Читает JSON из файла или возвращает пустую структуру."""
-        if self._path.exists():
-            try:
-                with open(self._path, "r", encoding="utf-8") as fh:
-                    return json.load(fh)
-            except (json.JSONDecodeError, OSError) as exc:
-                log.warning("Не удалось прочитать %s: %s. Начинаем с пустого.", self._path, exc)
-        return {"assets": {}, "control_mappings": [], "risk_mappings": []}
-
-    def _save(self) -> None:
-        """Сохраняет текущее состояние в JSON-файл."""
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self._path, "w", encoding="utf-8") as fh:
-            json.dump(self._data, fh, indent=2, ensure_ascii=False, default=str)
-
     # ── Assets ────────────────────────────────────────────────────────────────
 
+    async def _put_asset_async(self, asset: Dict[str, Any]) -> Dict[str, Any]:
+        """Создаёт или обновляет актив в БД (upsert)."""
+        fields = _dict_to_record_fields(asset)
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(AssetRecord).where(AssetRecord.id == fields["id"])
+            )
+            record = result.scalar_one_or_none()
+            if record is None:
+                record = AssetRecord(**fields)
+                session.add(record)
+            else:
+                for k, v in fields.items():
+                    if k != "id":
+                        setattr(record, k, v)
+            await session.commit()
+            await session.refresh(record)
+        return _record_to_dict(record)
+
     def put_asset(self, asset: Dict[str, Any]) -> Dict[str, Any]:
-        """Создаёт или обновляет актив."""
-        self._data["assets"][asset["id"]] = asset
-        self._save()
-        return asset
+        return _run_async(self._put_asset_async(asset))
+
+    async def _get_asset_async(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(AssetRecord).where(AssetRecord.id == asset_id)
+            )
+            record = result.scalar_one_or_none()
+            return _record_to_dict(record) if record else None
 
     def get_asset(self, asset_id: str) -> Optional[Dict[str, Any]]:
-        """Возвращает актив по ID или None."""
-        return self._data["assets"].get(asset_id)
+        return _run_async(self._get_asset_async(asset_id))
 
-    def list_assets(
+    async def _list_assets_async(
         self,
         asset_type: Optional[str] = None,
         criticality: Optional[str] = None,
         environment: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Возвращает отфильтрованный список активов."""
-        items = list(self._data["assets"].values())
-        if asset_type:
-            items = [a for a in items if a.get("asset_type") == asset_type]
-        if criticality:
-            items = [a for a in items if a.get("criticality") == criticality]
+        async with AsyncSessionLocal() as session:
+            stmt = select(AssetRecord)
+            if asset_type:
+                stmt = stmt.where(AssetRecord.asset_type == asset_type)
+            if criticality:
+                stmt = stmt.where(AssetRecord.criticality == criticality)
+            result = await session.execute(stmt)
+            records = result.scalars().all()
+
+        items = [_record_to_dict(r) for r in records]
+
+        # Фильтр по environment (хранится в extra)
         if environment:
             items = [a for a in items if a.get("environment") == environment]
+
         # Сортировка: сначала по критичности, затем по имени
         items.sort(key=lambda a: (
             CRITICALITY_ORDER.get(a.get("criticality", "low"), 99),
@@ -160,22 +241,38 @@ class _JsonStore:
         ))
         return items
 
-    def delete_asset(self, asset_id: str) -> bool:
-        """Удаляет актив и все его маппинги."""
-        if asset_id not in self._data["assets"]:
-            return False
-        del self._data["assets"][asset_id]
-        # Удаляем связанные маппинги
-        self._data["control_mappings"] = [
-            m for m in self._data["control_mappings"] if m["asset_id"] != asset_id
-        ]
-        self._data["risk_mappings"] = [
-            m for m in self._data["risk_mappings"] if m["asset_id"] != asset_id
-        ]
-        self._save()
+    def list_assets(
+        self,
+        asset_type: Optional[str] = None,
+        criticality: Optional[str] = None,
+        environment: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        return _run_async(self._list_assets_async(asset_type, criticality, environment))
+
+    async def _delete_asset_async(self, asset_id: str) -> bool:
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(AssetRecord).where(AssetRecord.id == asset_id)
+            )
+            record = result.scalar_one_or_none()
+            if not record:
+                return False
+            await session.delete(record)
+            await session.commit()
         return True
 
+    def delete_asset(self, asset_id: str) -> bool:
+        return _run_async(self._delete_asset_async(asset_id))
+
     # ── Control mappings ─────────────────────────────────────────────────────
+    # Маппинги хранятся в extra["control_mappings"] записи актива
+
+    def _get_asset_extra(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        """Возвращает extra словарь актива или None."""
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return None
+        return asset
 
     def upsert_control_mapping(
         self,
@@ -184,54 +281,72 @@ class _JsonStore:
         status: str,
         evidence_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
-        """Создаёт или обновляет маппинг актив ↔ контроль."""
-        # Ищем существующий маппинг
-        for mapping in self._data["control_mappings"]:
-            if mapping["asset_id"] == asset_id and mapping["control_id"] == control_id:
-                mapping["compliance_status"] = status
-                mapping["last_checked"] = _utcnow_iso()
-                if evidence_ids is not None:
-                    mapping["evidence_ids"] = evidence_ids
-                self._save()
-                return mapping
+        """Создаёт или обновляет маппинг актив ↔ контроль в extra."""
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {}
 
-        # Создаём новый маппинг
-        new_mapping: Dict[str, Any] = {
-            "id": len(self._data["control_mappings"]) + 1,
-            "asset_id": asset_id,
-            "control_id": control_id,
-            "compliance_status": status,
-            "last_checked": _utcnow_iso(),
-            "evidence_ids": evidence_ids or [],
-        }
-        self._data["control_mappings"].append(new_mapping)
-        self._save()
-        return new_mapping
+        # Читаем текущие маппинги из extra
+        fields = _dict_to_record_fields(asset)
+        extra = fields["extra"]
+        mappings: List[Dict[str, Any]] = extra.get("control_mappings", [])
+
+        # Ищем существующий
+        found = None
+        for m in mappings:
+            if m["asset_id"] == asset_id and m["control_id"] == control_id:
+                found = m
+                break
+
+        if found:
+            found["compliance_status"] = status
+            found["last_checked"] = _utcnow_iso()
+            if evidence_ids is not None:
+                found["evidence_ids"] = evidence_ids
+            result_mapping = found
+        else:
+            result_mapping = {
+                "id": len(mappings) + 1,
+                "asset_id": asset_id,
+                "control_id": control_id,
+                "compliance_status": status,
+                "last_checked": _utcnow_iso(),
+                "evidence_ids": evidence_ids or [],
+            }
+            mappings.append(result_mapping)
+
+        extra["control_mappings"] = mappings
+        # Сохраняем обратно
+        asset["_control_mappings"] = mappings
+        asset["_risk_mappings"] = extra.get("risk_mappings", [])
+        self.put_asset(asset)
+        return result_mapping
 
     def get_control_mappings(self, asset_id: str) -> List[Dict[str, Any]]:
-        """Возвращает все маппинги для данного актива."""
-        return [
-            m for m in self._data["control_mappings"]
-            if m["asset_id"] == asset_id
-        ]
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return []
+        fields = _dict_to_record_fields(asset)
+        return fields["extra"].get("control_mappings", [])
 
     def get_assets_by_control(
         self,
         control_id: str,
         status: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
-        """Возвращает маппинги для данного контроля (опционально фильтр по статусу)."""
-        mappings = [
-            m for m in self._data["control_mappings"]
-            if m["control_id"] == control_id
-        ]
+        all_mappings = self.list_all_control_mappings()
+        mappings = [m for m in all_mappings if m["control_id"] == control_id]
         if status:
             mappings = [m for m in mappings if m["compliance_status"] == status]
         return mappings
 
     def list_all_control_mappings(self) -> List[Dict[str, Any]]:
-        """Возвращает все control-маппинги."""
-        return list(self._data["control_mappings"])
+        all_assets = self.list_assets()
+        result = []
+        for asset in all_assets:
+            fields = _dict_to_record_fields(asset)
+            result.extend(fields["extra"].get("control_mappings", []))
+        return result
 
     # ── Risk mappings ─────────────────────────────────────────────────────────
 
@@ -241,33 +356,53 @@ class _JsonStore:
         risk_id: str,
         exposure_level: str,
     ) -> Dict[str, Any]:
-        """Создаёт или обновляет маппинг актив ↔ риск."""
-        for mapping in self._data["risk_mappings"]:
-            if mapping["asset_id"] == asset_id and mapping["risk_id"] == risk_id:
-                mapping["exposure_level"] = exposure_level
-                self._save()
-                return mapping
+        """Создаёт или обновляет маппинг актив ↔ риск в extra."""
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return {}
 
-        new_mapping: Dict[str, Any] = {
-            "id": len(self._data["risk_mappings"]) + 1,
-            "asset_id": asset_id,
-            "risk_id": risk_id,
-            "exposure_level": exposure_level,
-        }
-        self._data["risk_mappings"].append(new_mapping)
-        self._save()
-        return new_mapping
+        fields = _dict_to_record_fields(asset)
+        extra = fields["extra"]
+        mappings: List[Dict[str, Any]] = extra.get("risk_mappings", [])
+
+        found = None
+        for m in mappings:
+            if m["asset_id"] == asset_id and m["risk_id"] == risk_id:
+                found = m
+                break
+
+        if found:
+            found["exposure_level"] = exposure_level
+            result_mapping = found
+        else:
+            result_mapping = {
+                "id": len(mappings) + 1,
+                "asset_id": asset_id,
+                "risk_id": risk_id,
+                "exposure_level": exposure_level,
+            }
+            mappings.append(result_mapping)
+
+        extra["risk_mappings"] = mappings
+        asset["_control_mappings"] = extra.get("control_mappings", [])
+        asset["_risk_mappings"] = mappings
+        self.put_asset(asset)
+        return result_mapping
 
     def get_risk_mappings(self, asset_id: str) -> List[Dict[str, Any]]:
-        """Возвращает все маппинги рисков для данного актива."""
-        return [
-            m for m in self._data["risk_mappings"]
-            if m["asset_id"] == asset_id
-        ]
+        asset = self.get_asset(asset_id)
+        if not asset:
+            return []
+        fields = _dict_to_record_fields(asset)
+        return fields["extra"].get("risk_mappings", [])
 
     def list_all_risk_mappings(self) -> List[Dict[str, Any]]:
-        """Возвращает все risk-маппинги."""
-        return list(self._data["risk_mappings"])
+        all_assets = self.list_assets()
+        result = []
+        for asset in all_assets:
+            fields = _dict_to_record_fields(asset)
+            result.extend(fields["extra"].get("risk_mappings", []))
+        return result
 
 
 # ── AssetManager ──────────────────────────────────────────────────────────────
@@ -276,9 +411,8 @@ class AssetManager:
     """
     Менеджер активов для asset-centric compliance.
 
-    Поддерживает два режима хранения:
-      - JSON fallback (по умолчанию): data/assets.json
-      - DB (если DATABASE_URL задан): через AsyncSession (реализуется в роутере)
+    Хранение: SQLAlchemy ORM через AsyncSessionLocal (таблица asset_record).
+    Маппинги контролей и рисков хранятся в колонке extra (JSON).
 
     Основные возможности:
       - CRUD операции над активами
@@ -290,15 +424,14 @@ class AssetManager:
       - Расчёт compliance posture для актива
     """
 
-    def __init__(self, store: Optional[_JsonStore] = None) -> None:
-        # Используем переданный store или создаём новый JSON-store
-        self._store = store or _JsonStore()
+    def __init__(self, store: Optional[_DbStore] = None) -> None:
+        self._store = store or _DbStore()
 
     # ── CRUD ──────────────────────────────────────────────────────────────────
 
     def register_asset(self, asset_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Регистрирует новый актив в системе.
+        Регистрирует новый актив в системе (INSERT в asset_record).
 
         Args:
             asset_data: словарь с полями актива. Обязательные поля:
@@ -346,7 +479,7 @@ class AssetManager:
 
     def get_asset(self, asset_id: str) -> Optional[Dict[str, Any]]:
         """
-        Возвращает актив по ID.
+        Возвращает актив по ID (SELECT из asset_record).
 
         Returns:
             Словарь актива или None если не найден.
@@ -360,7 +493,7 @@ class AssetManager:
         environment: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Возвращает список активов с опциональной фильтрацией.
+        Возвращает список активов с опциональной фильтрацией (SELECT из asset_record).
 
         Args:
             asset_type:  фильтр по типу (device, cloud_account, etc.)
@@ -375,7 +508,7 @@ class AssetManager:
 
     def update_asset(self, asset_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Обновляет поля существующего актива.
+        Обновляет поля существующего актива (UPDATE asset_record).
 
         Returns:
             Обновлённый актив или None если актив не найден.
@@ -400,7 +533,7 @@ class AssetManager:
 
     def delete_asset(self, asset_id: str) -> bool:
         """
-        Удаляет актив и все связанные маппинги.
+        Удаляет актив и все связанные маппинги (DELETE из asset_record).
 
         Returns:
             True если удалён, False если не найден.
@@ -571,7 +704,7 @@ class AssetManager:
         control_id: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Ищет активы с FAIL статусом.
+        Ищет активы с FAIL статусом (SELECT asset_record, фильтр в Python).
 
         Args:
             control_id: если задан — фильтрует только по данному контролю.
@@ -658,7 +791,7 @@ class AssetManager:
             device_type = device.get("device_type", "laptop")
             criticality = "critical" if device_type == "server" else "high"
 
-            # Ищем существующий актив по device_id в metadata
+            # Ищем существующий актив по device_id в metadata (DB-запрос)
             existing = self._find_asset_by_metadata("device_id", device_id)
 
             asset_data: Dict[str, Any] = {
@@ -799,7 +932,7 @@ class AssetManager:
 
     def get_stats(self) -> Dict[str, Any]:
         """
-        Возвращает статистику по всем активам.
+        Возвращает статистику по всем активам (агрегация по asset_record).
 
         Returns:
             Словарь:
@@ -860,9 +993,11 @@ class AssetManager:
         meta_value: str,
     ) -> Optional[Dict[str, Any]]:
         """
-        Ищет актив по полю в metadata.
+        Ищет актив по полю в metadata (SELECT + фильтр в Python).
 
         Используется для sync-операций чтобы избежать дублирования.
+        Для SQLite: фильтрует в памяти (нет встроенного JSON-извлечения в ORM).
+        Для PostgreSQL: можно заменить на jsonb-запрос при необходимости.
         """
         for asset in self._store.list_assets():
             meta = asset.get("metadata") or {}
@@ -874,7 +1009,6 @@ class AssetManager:
 # ── Singleton instance ────────────────────────────────────────────────────────
 
 # Глобальный экземпляр для использования в роутерах
-# (без БД — JSON fallback автоматически)
 _default_manager: Optional[AssetManager] = None
 
 
@@ -882,9 +1016,10 @@ def get_asset_manager() -> AssetManager:
     """
     Возвращает глобальный экземпляр AssetManager.
     Инициализируется один раз при первом вызове.
+    Использует DB-хранилище (AsyncSessionLocal → asset_record).
     """
     global _default_manager
     if _default_manager is None:
         _default_manager = AssetManager()
-        log.info("AssetManager инициализирован (JSON store: %s)", _ASSETS_FILE)
+        log.info("AssetManager инициализирован (DB store: asset_record)")
     return _default_manager

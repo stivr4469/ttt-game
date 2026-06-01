@@ -550,14 +550,42 @@ async function init() {
   await Promise.all([loadControls(), loadEvidence(), loadAgents(), loadConfig(), loadGapAnalysis(), loadWebhookEvents()]);
   renderDashboard();
   renderControls();
-  setInterval(loadWebhookEvents, 15000);
+  _startWebhookSSE();
+}
+
+function _startWebhookSSE() {
+  let es;
+  function connect() {
+    es = new EventSource('/api/v1/events/stream');
+    es.onmessage = (e) => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'webhook_event' || msg.type === 'agent_done') {
+          loadWebhookEvents();
+          if (msg.type === 'agent_done') {
+            loadControls().then(() => { renderDashboard(); renderControls(); });
+            loadEvidence();
+          }
+        } else if (msg.type === 'test.result') {
+          loadControls().then(() => { renderDashboard(); renderControls(); });
+        }
+      } catch (_) {}
+    };
+    es.onerror = () => {
+      es.close();
+      setTimeout(connect, 30000); // reconnect after 30s on error
+    };
+  }
+  connect();
+  // Fallback polling in case SSE is blocked by proxy
+  setInterval(loadWebhookEvents, 60000);
 }
 
 // ── Webhooks ──────────────────────────────────────
 async function loadWebhookEvents() {
   try {
     const r = await fetch('/api/webhooks/log');
-    if (!r.ok) return;
+    if (!r.ok) { console.warn('loadWebhookEvents: HTTP', r.status); return; }
     const data = await r.json();
     const el = document.getElementById('webhook-list');
     if (!data.events || data.events.length === 0) {
@@ -574,7 +602,9 @@ async function loadWebhookEvents() {
         <div style="font-size:10px;">${(e.controls || []).join(', ') || 'no controls'}</div>
       </div>
     `).join('');
-  } catch (e) {}
+  } catch (e) {
+    console.error('loadWebhookEvents failed:', e);
+  }
 }
 
 // ── Gap Analysis ──────────────────────────────────
@@ -725,18 +755,22 @@ function setFrameworkFilter(fw, btn) {
 async function loadEvidence() {
   try {
     const r = await fetch('/api/evidence?limit=200');
+    if (!r.ok) { console.warn('loadEvidence: HTTP', r.status); return; }
     allEvidence = await r.json();
     document.getElementById('statEv').textContent = allEvidence.length;
-  } catch (e) {}
+  } catch (e) {
+    console.error('loadEvidence failed:', e);
+  }
 }
 
 async function loadAgents() {
   try {
     const r = await fetch('/api/agents');
+    if (!r.ok) { console.warn('loadAgents: HTTP', r.status); return; }
     const agents = await r.json();
     const list = document.getElementById('agentList');
     list.innerHTML = '';
-    
+
     const canRun = currentUser.permissions.can_run_scans;
 
     Object.entries(agents).forEach(([id, a]) => {
@@ -750,15 +784,20 @@ async function loadAgents() {
           </div>
         </div>`;
     });
-  } catch (e) {}
+  } catch (e) {
+    console.error('loadAgents failed:', e);
+  }
 }
 
 async function loadConfig() {
   try {
     const r = await fetch('/api/config');
+    if (!r.ok) { console.warn('loadConfig: HTTP', r.status); return; }
     configValues = await r.json();
     renderConfig();
-  } catch (e) {}
+  } catch (e) {
+    console.error('loadConfig failed:', e);
+  }
 }
 
 // ── Dashboard ───────────────────────────────

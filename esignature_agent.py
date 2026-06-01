@@ -160,9 +160,10 @@ class ESignatureAgent:
                 )
             except Exception as e:
                 log.error(
-                    "Failed to create evidence for signed policy",
-                    extra={"envelope_id": envelope_id, "control": control_code, "error": str(e)},
+                    "Failed to create evidence for signed policy %s: %s",
+                    envelope_id, e, exc_info=True,
                 )
+                return {"status": "failed", "control_code": control_code, "evidence_id": None, "error": str(e)}
 
         return {"status": "processed", "control_code": control_code, "evidence_id": evidence_id}
 

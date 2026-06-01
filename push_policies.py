@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 TRACKER = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
-API_KEY = os.getenv("EVIDENCE_API_KEY", "soc2-dev-key")
+API_KEY = os.getenv("EVIDENCE_API_KEY", "")
 HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 COMPANY = os.getenv("COMPANY_NAME", "Marineso")
 GITHUB  = os.getenv("GITHUB_REPO", "stivr4469/ttt-game")
@@ -225,10 +225,10 @@ def main():
             "title": f"[Policy] {pol['title']}",
             "content": content,
             "source": "AI_GENERATED",
-        })
+        }, timeout=15)
         print(f"[{code}] evidence POST → {r.status_code}")
 
-        r2 = requests.patch(f"{TRACKER}/api/v1/controls/{ctrl_id}/status", headers=HEADERS, json={"status": "PASS"})
+        r2 = requests.patch(f"{TRACKER}/api/v1/controls/{ctrl_id}/status", headers=HEADERS, json={"status": "PASS"}, timeout=10)
         print(f"[{code}] status PATCH → {r2.status_code} | status={r2.json().get('status', '?')}")
 
 

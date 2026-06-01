@@ -2,18 +2,23 @@ import os
 import requests
 from typing import List, Dict, Optional, Any
 from log_config import get_logger
+from secret_store import get_connector_secret
 
 log = get_logger(__name__)
-
-JAMF_URL   = os.getenv("JAMF_URL", "")
-JAMF_USER  = os.getenv("JAMF_USER", "")
-JAMF_PASS  = os.getenv("JAMF_PASSWORD", "")
 
 
 class JamfClient:
     """Клиент для Jamf Pro Classic API v1."""
 
-    def __init__(self, base_url: str, username: str, password: str):
+    def __init__(
+        self,
+        base_url: str = "",
+        username: str = "",
+        password: str = "",
+    ):
+        base_url = base_url or get_connector_secret("JAMF_URL", "")
+        username = username or get_connector_secret("JAMF_USER", "")
+        password = password or get_connector_secret("JAMF_PASSWORD", "")
         self.base_url = base_url.rstrip("/")
         self._auth = (username, password)
         self._session = requests.Session()

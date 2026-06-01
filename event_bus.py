@@ -438,18 +438,25 @@ class EventBus:
 
     def _persist_to_db(self, event: ComplianceEvent) -> None:
         """
-        Записывает событие в AuditEventRepository (best-effort).
+        Записывает событие в AuditEventRepository и EventQueue (best-effort).
+
+        AuditEvent — immutable audit trail (существующая логика).
+        EventQueue  — durable очередь для cross-process доставки: агенты в
+                      subprocess/Celery пишут сюда, веб-процесс читает и
+                      вызывает in-memory handlers через polling-воркер.
+
         Не поднимает исключений — только журналирует ошибки.
         """
         try:
-            import asyncio
+            import json as _json
             from database import AsyncSessionLocal
-            from db_repository import AuditEventRepository
+            from db_repository import AuditEventRepository, EventQueueRepository
 
             async def _do_persist() -> None:
                 async with AsyncSessionLocal() as session:
-                    repo = AuditEventRepository(session)
-                    await repo.append(
+                    # 1. AuditEvent — immutable audit trail
+                    audit_repo = AuditEventRepository(session)
+                    await audit_repo.append(
                         event_type=event.event_type.value,
                         entity_type=event.entity_type,
                         entity_id=event.entity_id,
@@ -460,6 +467,17 @@ class EventBus:
                             "severity": event.severity,
                         },
                     )
+
+                    # 2. EventQueue — durable cross-process delivery
+                    queue_repo = EventQueueRepository(session)
+                    full_payload = _json.dumps(event.to_dict(), ensure_ascii=False)
+                    await queue_repo.enqueue(
+                        event_id=event.event_id,
+                        event_type=event.event_type.value,
+                        entity_id=event.entity_id,
+                        payload=full_payload,
+                    )
+
                     await session.commit()
 
             # Запускаем в новом event loop (мы уже в thread pool)
