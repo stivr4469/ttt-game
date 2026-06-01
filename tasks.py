@@ -10,6 +10,7 @@ from typing import Optional
 from celery_app import celery_app
 from log_config import get_logger
 from constants import CONTROLS_MAP_FILE
+from metrics import celery_tasks_enqueued_total, celery_tasks_failed_total
 
 log = get_logger(__name__)
 
@@ -28,45 +29,70 @@ def _set_tenant(tenant_id: Optional[str]) -> None:
         set_current_tenant_id(tenant_id)
 
 
-@celery_app.task(bind=True, name="tasks.run_scanner")
+@celery_app.task(bind=True, name="tasks.run_scanner", max_retries=3, default_retry_delay=60)
 def run_scanner_task(self, tenant_id: Optional[str] = None):
     _set_tenant(tenant_id)
+    celery_tasks_enqueued_total.labels(task="run_scanner").inc()
     log.info("Celery: starting scanner task", extra={"task_id": self.request.id, "tenant_id": tenant_id})
-    from scanner import main as run_scanner
-    run_scanner(_load_controls_map())
+    try:
+        from scanner import main as run_scanner
+        run_scanner(_load_controls_map())
+    except Exception as exc:
+        celery_tasks_failed_total.labels(task="run_scanner").inc()
+        log.error("Celery: scanner task failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
     return {"status": "completed", "agent": "scanner"}
 
 
-@celery_app.task(bind=True, name="tasks.run_hr_agent")
+@celery_app.task(bind=True, name="tasks.run_hr_agent", max_retries=3, default_retry_delay=60)
 def run_hr_agent_task(self, tenant_id: Optional[str] = None):
     _set_tenant(tenant_id)
+    celery_tasks_enqueued_total.labels(task="run_hr_agent").inc()
     log.info("Celery: starting hr_agent task", extra={"task_id": self.request.id, "tenant_id": tenant_id})
-    from hr_agent import main as run_hr
-    run_hr(_load_controls_map())
+    try:
+        from hr_agent import main as run_hr
+        run_hr(_load_controls_map())
+    except Exception as exc:
+        celery_tasks_failed_total.labels(task="run_hr_agent").inc()
+        log.error("Celery: hr_agent task failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
     return {"status": "completed", "agent": "hr_agent"}
 
 
-@celery_app.task(bind=True, name="tasks.run_github_agent")
+@celery_app.task(bind=True, name="tasks.run_github_agent", max_retries=3, default_retry_delay=60)
 def run_github_agent_task(self, tenant_id: Optional[str] = None):
     _set_tenant(tenant_id)
+    celery_tasks_enqueued_total.labels(task="run_github_agent").inc()
     log.info("Celery: starting github_agent task", extra={"task_id": self.request.id, "tenant_id": tenant_id})
-    from github_agent import main as run_github
-    run_github(_load_controls_map())
+    try:
+        from github_agent import main as run_github
+        run_github(_load_controls_map())
+    except Exception as exc:
+        celery_tasks_failed_total.labels(task="run_github_agent").inc()
+        log.error("Celery: github_agent task failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
     return {"status": "completed", "agent": "github_agent"}
 
 
-@celery_app.task(bind=True, name="tasks.run_policy_agent")
+@celery_app.task(bind=True, name="tasks.run_policy_agent", max_retries=3, default_retry_delay=60)
 def run_policy_agent_task(self, tenant_id: Optional[str] = None):
     _set_tenant(tenant_id)
+    celery_tasks_enqueued_total.labels(task="run_policy_agent").inc()
     log.info("Celery: starting policy_agent task", extra={"task_id": self.request.id, "tenant_id": tenant_id})
-    from policy_agent import main as run_policy
-    run_policy(_load_controls_map())
+    try:
+        from policy_agent import main as run_policy
+        run_policy(_load_controls_map())
+    except Exception as exc:
+        celery_tasks_failed_total.labels(task="run_policy_agent").inc()
+        log.error("Celery: policy_agent task failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
     return {"status": "completed", "agent": "policy_agent"}
 
 
-@celery_app.task(bind=True, name="tasks.run_full_pipeline")
+@celery_app.task(bind=True, name="tasks.run_full_pipeline", max_retries=2, default_retry_delay=120)
 def run_full_pipeline_task(self, tenant_id: Optional[str] = None):
     _set_tenant(tenant_id)
+    celery_tasks_enqueued_total.labels(task="run_full_pipeline").inc()
     log.info("Celery: starting full pipeline", extra={"task_id": self.request.id, "tenant_id": tenant_id})
     from scanner import main as run_scanner
     from hr_agent import main as run_hr
@@ -87,6 +113,7 @@ def run_full_pipeline_task(self, tenant_id: Optional[str] = None):
             results.append({"agent": name, "status": "ok"})
             log.info("Celery: agent done", extra={"agent": name})
         except Exception as e:
+            celery_tasks_failed_total.labels(task="run_full_pipeline").inc()
             log.error("Celery: agent failed", extra={"agent": name, "error": str(e)})
             results.append({"agent": name, "status": "error", "error": str(e)})
     return {"status": "completed", "results": results}
@@ -161,17 +188,21 @@ def rescan_control(control_id: str, trigger: str, tenant_id: Optional[str] = Non
     })
 
 
-@celery_app.task(bind=True, name="tasks.drain_event_queue")
+@celery_app.task(bind=True, name="tasks.drain_event_queue", max_retries=3, default_retry_delay=30)
 def drain_event_queue(self, tenant_id: Optional[str] = None):
     """Обработать pending-события из EventQueue (cross-process consumer)."""
     _set_tenant(tenant_id)
-    from event_consumer import run_once
-    count = asyncio.run(run_once())
-    log.info("Celery: drain_event_queue processed=%d", count)
+    try:
+        from event_consumer import run_once
+        count = asyncio.run(run_once())
+        log.info("Celery: drain_event_queue processed=%d", count)
+    except Exception as exc:
+        log.error("Celery: drain_event_queue failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
     return {"status": "completed", "processed": count}
 
 
-@celery_app.task(bind=True, name="tasks.drain_evidence_retry_queue")
+@celery_app.task(bind=True, name="tasks.drain_evidence_retry_queue", max_retries=3, default_retry_delay=30)
 def drain_evidence_retry_queue(self, tenant_id: Optional[str] = None):
     """Повторно доставить evidence из EventQueue в Evidence Tracker."""
     _set_tenant(tenant_id)
@@ -243,7 +274,11 @@ def drain_evidence_retry_queue(self, tenant_id: Optional[str] = None):
         log.info("drain_evidence_retry: drained=%d failed=%d", drained, failed)
         return {"drained": drained, "failed": failed}
 
-    return asyncio.run(_drain())
+    try:
+        return asyncio.run(_drain())
+    except Exception as exc:
+        log.error("Celery: drain_evidence_retry_queue failed: %s", exc, extra={"task_id": self.request.id})
+        raise self.retry(exc=exc)
 
 
 @celery_app.task(name="tasks.sync_controls_map_task")

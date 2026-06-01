@@ -10,7 +10,10 @@ from pathlib import Path
 from typing import Optional, AsyncGenerator
 
 import httpx
-from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Depends, Cookie, Form
+from fastapi import FastAPI, HTTPException, UploadFile, File, Body, Depends, Cookie, Form, Request
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -149,6 +152,9 @@ async def lifespan(app: FastAPI):
 
 # ── Application Initialization ────────────────────────────────────────────────
 app = FastAPI(title="SOC 2 Dashboard", lifespan=lifespan)
+_limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = _limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[o.strip() for o in _settings.cors_origins.split(",") if o.strip()] or ["http://localhost:8000"],
@@ -429,7 +435,8 @@ async def ai_decisions_page():
 
 # ── Auth API ───────────────────────────────────────────────────────────────────
 @app.post("/api/auth/login")
-async def login(email: str = Form(...), password: str = Form(...)):
+@_limiter.limit("5/minute")
+async def login(request: Request, email: str = Form(...), password: str = Form(...)):
     user = authenticate_user(email, password)
     if not user:
         return JSONResponse(status_code=401, content={"detail": "Invalid credentials"})
