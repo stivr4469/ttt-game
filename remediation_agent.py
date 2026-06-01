@@ -32,6 +32,10 @@ log = get_logger(__name__)
 EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
 JIRA_PROJECT_KEY     = os.getenv("JIRA_PROJECT_KEY", "SEC")
 
+# When set (non-empty), load/save remediations from this JSON file instead of DB.
+# Used by unit tests: monkeypatch sets this to a tmp path for isolation.
+REMEDIATIONS_FILE: str = ""
+
 PRIORITY_MAP = {
     "CC6.1": "Critical", "CC6.2": "Critical", "CC6.3": "High",
     "CC7.1": "High",     "CC7.2": "High",     "CC8.1": "High",
@@ -131,9 +135,19 @@ class RemediationAgent:
     # ── Persistence ───────────────────────────────────────────────────────────
 
     def _load_remediations(self) -> dict:
+        if REMEDIATIONS_FILE:
+            try:
+                with open(REMEDIATIONS_FILE, "r") as f:
+                    return json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                return {"remediations": {}}
         return _run_async(self._load_db())
 
     def _save_remediations(self, data: dict) -> None:
+        if REMEDIATIONS_FILE:
+            with open(REMEDIATIONS_FILE, "w") as f:
+                json.dump(data, f, indent=2)
+            return
         _run_async(self._save_db(data))
 
     def create_remediation_ticket(self, control_code: str, finding: str) -> dict:

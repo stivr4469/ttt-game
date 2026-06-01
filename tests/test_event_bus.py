@@ -453,18 +453,14 @@ async def test_publish_async_delivers_event(fresh_bus: EventBus):
 def test_subscribe_all_receives_all_types(fresh_bus: EventBus):
     """subscribe_all() должен получать события всех типов."""
     all_events: List[ComplianceEvent] = []
-    done_events: List[threading.Event] = []
+    all_received = threading.Event()
 
     def catch_all(e: ComplianceEvent) -> None:
         all_events.append(e)
-        for done in done_events:
-            done.set()
+        if len(all_events) >= 2:
+            all_received.set()
 
     fresh_bus.subscribe_all(catch_all)
-
-    done1 = threading.Event()
-    done2 = threading.Event()
-    done_events.extend([done1, done2])
 
     ev1 = ComplianceEvent.create(
         event_type=ComplianceEventType.POLICY_REJECTED,
@@ -480,8 +476,7 @@ def test_subscribe_all_receives_all_types(fresh_bus: EventBus):
     fresh_bus.publish(ev1)
     fresh_bus.publish(ev2)
 
-    done1.wait(timeout=3.0)
-    done2.wait(timeout=3.0)
+    all_received.wait(timeout=3.0)
 
     received_ids = [e.event_id for e in all_events]
     assert ev1.event_id in received_ids

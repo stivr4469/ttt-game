@@ -51,7 +51,7 @@ class TestInit:
     def test_default_api_key(self, monkeypatch):
         monkeypatch.delenv("EVIDENCE_API_KEY", raising=False)
         c = EvidenceClient(BASE_URL)
-        assert c._session.headers["X-API-Key"] == "soc2-dev-key"
+        assert c._session.headers["X-API-Key"] == ""
 
     def test_trailing_slash_stripped(self):
         c = EvidenceClient("http://localhost:8000/")

@@ -7,10 +7,27 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest
 import json
+import os
+import sqlite3
 from unittest.mock import patch, MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from auditor_routes import router, VALID_SEVERITIES
+from auth import require_auditor
+
+
+_FAKE_AUDITOR = {"id": "test-auditor", "role": "auditor"}
+
+
+@pytest.fixture(autouse=True)
+def reset_db():
+    """Clear AuditorComment rows before each test to prevent state leakage."""
+    db_path = os.path.join(os.path.dirname(__file__), "..", "compliance.db")
+    con = sqlite3.connect(db_path)
+    con.execute("DELETE FROM auditor_comment")
+    con.commit()
+    con.close()
+    yield
 
 
 @pytest.fixture
@@ -21,6 +38,7 @@ def client(tmp_path, monkeypatch):
         mock_ec.get_evidence.return_value = []
         app = FastAPI()
         app.include_router(router)
+        app.dependency_overrides[require_auditor] = lambda: _FAKE_AUDITOR
         yield TestClient(app)
 
 

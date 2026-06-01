@@ -160,6 +160,129 @@ def _dict_to_record_fields(asset: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# ── In-memory storage layer (test use only) ───────────────────────────────────
+
+class _MemStore:
+    """In-memory drop-in replacement for _DbStore used in unit tests."""
+
+    def __init__(self, path=None) -> None:  # path kwarg kept for old fixture compat
+        self._assets: Dict[str, Dict[str, Any]] = {}
+        self._cmaps: Dict[str, List[Dict[str, Any]]] = {}   # asset_id → mappings
+        self._rmaps: Dict[str, List[Dict[str, Any]]] = {}   # asset_id → mappings
+
+    def put_asset(self, asset: Dict[str, Any]) -> Dict[str, Any]:
+        stored = {k: v for k, v in asset.items() if not k.startswith("_")}
+        self._assets[stored["id"]] = stored
+        return dict(stored)
+
+    def get_asset(self, asset_id: str) -> Optional[Dict[str, Any]]:
+        a = self._assets.get(asset_id)
+        return dict(a) if a else None
+
+    def list_assets(
+        self,
+        asset_type: Optional[str] = None,
+        criticality: Optional[str] = None,
+        environment: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
+        items = [dict(a) for a in self._assets.values()]
+        if asset_type:
+            items = [a for a in items if a.get("asset_type") == asset_type]
+        if criticality:
+            items = [a for a in items if a.get("criticality") == criticality]
+        if environment:
+            items = [a for a in items if a.get("environment") == environment]
+        items.sort(key=lambda a: (
+            CRITICALITY_ORDER.get(a.get("criticality", "low"), 99),
+            a.get("name", ""),
+        ))
+        return items
+
+    def delete_asset(self, asset_id: str) -> bool:
+        if asset_id not in self._assets:
+            return False
+        del self._assets[asset_id]
+        self._cmaps.pop(asset_id, None)
+        self._rmaps.pop(asset_id, None)
+        return True
+
+    def upsert_control_mapping(
+        self,
+        asset_id: str,
+        control_id: str,
+        status: str,
+        evidence_ids: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        if asset_id not in self._assets:
+            return {}
+        mappings = self._cmaps.setdefault(asset_id, [])
+        for m in mappings:
+            if m["control_id"] == control_id:
+                m["compliance_status"] = status
+                m["last_checked"] = _utcnow_iso()
+                if evidence_ids is not None:
+                    m["evidence_ids"] = evidence_ids
+                return m
+        mapping: Dict[str, Any] = {
+            "id": len(mappings) + 1,
+            "asset_id": asset_id,
+            "control_id": control_id,
+            "compliance_status": status,
+            "last_checked": _utcnow_iso(),
+            "evidence_ids": evidence_ids or [],
+        }
+        mappings.append(mapping)
+        return mapping
+
+    def get_control_mappings(self, asset_id: str) -> List[Dict[str, Any]]:
+        return list(self._cmaps.get(asset_id, []))
+
+    def get_assets_by_control(
+        self, control_id: str, status: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        result = []
+        for mappings in self._cmaps.values():
+            for m in mappings:
+                if m["control_id"] == control_id:
+                    if status is None or m["compliance_status"] == status:
+                        result.append(m)
+        return result
+
+    def list_all_control_mappings(self) -> List[Dict[str, Any]]:
+        result: List[Dict[str, Any]] = []
+        for mappings in self._cmaps.values():
+            result.extend(mappings)
+        return result
+
+    def upsert_risk_mapping(
+        self, asset_id: str, risk_id: str, exposure_level: str
+    ) -> Dict[str, Any]:
+        if asset_id not in self._assets:
+            return {}
+        mappings = self._rmaps.setdefault(asset_id, [])
+        for m in mappings:
+            if m["risk_id"] == risk_id:
+                m["exposure_level"] = exposure_level
+                return m
+        mapping: Dict[str, Any] = {
+            "id": len(mappings) + 1,
+            "asset_id": asset_id,
+            "risk_id": risk_id,
+            "exposure_level": exposure_level,
+        }
+        mappings.append(mapping)
+        return mapping
+
+    def get_risk_mappings(self, asset_id: str) -> List[Dict[str, Any]]:
+        return list(self._rmaps.get(asset_id, []))
+
+    def list_all_risk_mappings(self) -> List[Dict[str, Any]]:
+        result: List[Dict[str, Any]] = []
+        for mappings in self._rmaps.values():
+            result.extend(mappings)
+        return result
+
+
 # ── DB storage layer ──────────────────────────────────────────────────────────
 
 class _DbStore:

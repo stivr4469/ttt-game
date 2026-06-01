@@ -51,11 +51,11 @@ class TestAgentNameParameter:
         assert c._session.headers["X-API-Key"] == "fallback-key"
 
     def test_default_fallback_without_any_env(self, monkeypatch):
-        """Без env vars → дефолтный ключ soc2-dev-key."""
+        """Без env vars → пустой ключ (hardcoded default удалён для безопасности)."""
         monkeypatch.delenv("SCANNER_API_KEY", raising=False)
         monkeypatch.delenv("EVIDENCE_API_KEY", raising=False)
         c = EvidenceClient("http://localhost:8000", agent_name="scanner")
-        assert c._session.headers["X-API-Key"] == "soc2-dev-key"
+        assert c._session.headers["X-API-Key"] == ""
 
     def test_default_agent_name_no_break(self, monkeypatch):
         """Без agent_name — старое поведение не сломано."""

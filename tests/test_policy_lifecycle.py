@@ -16,18 +16,31 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from policy_lifecycle import PolicyLifecycleManager, PolicyStatus, _POLICIES_FILE
+from policy_lifecycle import PolicyLifecycleManager, PolicyStatus
 
 
 # ── Фикстуры ─────────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
-def isolated_storage(tmp_path, monkeypatch):
-    """Каждый тест использует временный файл вместо реального data/policies.json."""
-    tmp_file = tmp_path / "policies.json"
-    monkeypatch.setattr("policy_lifecycle._POLICIES_FILE", tmp_file)
-    monkeypatch.setattr("policy_lifecycle._DATA_DIR", tmp_path)
-    yield tmp_file
+def isolated_storage(monkeypatch):
+    """Каждый тест получает изолированное in-memory хранилище.
+
+    _load_policies/_save_policies — единственные точки доступа к данным в
+    PolicyLifecycleManager, поэтому мок достаточен для проверки бизнес-логики
+    без поднятия реальной БД.
+    """
+    _store: list[dict] = []
+
+    def _mock_load() -> list[dict]:
+        return list(_store)
+
+    def _mock_save(records: list[dict]) -> None:
+        _store.clear()
+        _store.extend(records)
+
+    monkeypatch.setattr("policy_lifecycle._load_policies", _mock_load)
+    monkeypatch.setattr("policy_lifecycle._save_policies", _mock_save)
+    yield _store
 
 
 @pytest.fixture
@@ -261,16 +274,14 @@ class TestGetAll:
 # ── Тест персистентности ──────────────────────────────────────────────────────
 
 class TestPersistence:
-    def test_records_persisted_to_json(self, manager, isolated_storage):
-        """Черновик сохраняется в JSON-файл."""
+    def test_records_persisted_to_store(self, manager, isolated_storage):
+        """Черновик сохраняется в хранилище (store)."""
         manager.create_draft("c1", "CC1.1", "Title", "Content", "ai:model")
-        assert isolated_storage.exists()
-        data = json.loads(isolated_storage.read_text())
-        assert len(data) == 1
-        assert data[0]["status"] == "draft"
+        assert len(isolated_storage) == 1
+        assert isolated_storage[0]["status"] == "draft"
 
     def test_new_manager_reads_existing_data(self, manager, isolated_storage):
-        """Новый экземпляр менеджера читает данные из файла."""
+        """Новый экземпляр менеджера читает данные из того же store."""
         manager.create_draft("c1", "CC1.1", "Title", "Content", "ai:model")
         new_manager = PolicyLifecycleManager()
         records = new_manager.get_all()

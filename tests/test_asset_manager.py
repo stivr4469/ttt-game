@@ -33,7 +33,7 @@ from asset_manager import (
     ENVIRONMENTS,
     EXPOSURE_LEVELS,
     AssetManager,
-    _JsonStore,
+    _MemStore,
     get_asset_manager,
 )
 
@@ -41,15 +41,14 @@ from asset_manager import (
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture
-def tmp_store(tmp_path: Path) -> _JsonStore:
-    """Создаёт изолированный JSON store во временной директории."""
-    assets_file = tmp_path / "assets.json"
-    return _JsonStore(path=assets_file)
+def tmp_store() -> _MemStore:
+    """Создаёт изолированный in-memory store для каждого теста."""
+    return _MemStore()
 
 
 @pytest.fixture
-def manager(tmp_store: _JsonStore) -> AssetManager:
-    """Создаёт AssetManager с изолированным JSON store."""
+def manager(tmp_store: _MemStore) -> AssetManager:
+    """Создаёт AssetManager с изолированным in-memory store."""
     return AssetManager(store=tmp_store)
 
 

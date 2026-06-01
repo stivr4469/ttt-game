@@ -11,6 +11,26 @@ from unittest.mock import patch, MagicMock
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from access_review_routes import router, _USERS
+from auth import require_auditor
+
+
+_FAKE_AUDITOR = {"id": "test-auditor", "role": "auditor"}
+
+
+@pytest.fixture(autouse=True)
+def reset_state():
+    """Reset _USERS and DB decisions before each test to prevent state leakage."""
+    import sqlite3
+    db_path = os.path.join(os.path.dirname(__file__), "..", "compliance.db")
+    for u in _USERS:
+        u["status"] = "pending"
+    con = sqlite3.connect(db_path)
+    con.execute("DELETE FROM access_review_decision")
+    con.commit()
+    con.close()
+    yield
+    for u in _USERS:
+        u["status"] = "pending"
 
 
 @pytest.fixture
@@ -18,6 +38,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     app = FastAPI()
     app.include_router(router)
+    app.dependency_overrides[require_auditor] = lambda: _FAKE_AUDITOR
     return TestClient(app)
 
 
