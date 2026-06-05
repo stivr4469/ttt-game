@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import (
     async_sessionmaker,
     create_async_engine,
 )
+from sqlalchemy.pool import NullPool
 from sqlalchemy.orm import DeclarativeBase
 
 # ── Базовый класс для всех ORM-моделей ───────────────────────────────────────
@@ -55,14 +56,21 @@ def _create_engine(url: str) -> AsyncEngine:
     is_sqlite = url.startswith("sqlite")
     connect_args: dict = {}
     if is_sqlite:
-        # SQLite требует check_same_thread=False для async
         connect_args["check_same_thread"] = False
+        # WAL mode + busy_timeout для параллельного доступа (агенты + сервер)
+        connect_args["timeout"] = 30
 
     common_kwargs: dict = {
         "echo": os.getenv("DB_ECHO", "false").lower() == "true",
         "connect_args": connect_args,
-        "pool_pre_ping": True,
     }
+
+    if is_sqlite:
+        # NullPool: каждый запрос открывает/закрывает соединение — исключает
+        # блокировки когда 4+ агента пишут одновременно (aiosqlite + WAL)
+        common_kwargs["poolclass"] = NullPool
+    else:
+        common_kwargs["pool_pre_ping"] = True
 
     if not is_sqlite:
         # SQLite не поддерживает pool_size/max_overflow (использует StaticPool)
@@ -71,7 +79,14 @@ def _create_engine(url: str) -> AsyncEngine:
         common_kwargs["pool_timeout"] = int(os.getenv("DB_POOL_TIMEOUT", "30"))
         common_kwargs["pool_recycle"] = int(os.getenv("DB_POOL_RECYCLE", "1800"))
 
-    return create_async_engine(url, **common_kwargs)
+    engine = create_async_engine(url, **common_kwargs)
+    if is_sqlite:
+        from sqlalchemy import event
+        @event.listens_for(engine.sync_engine, "connect")
+        def _set_wal(conn, _):
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+    return engine
 
 
 DATABASE_URL: str = _get_database_url()

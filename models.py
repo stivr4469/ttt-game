@@ -95,9 +95,9 @@ class Control(Base):
         default=_utcnow,
         server_default=func.now(),
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
     __table_args__ = (
-        UniqueConstraint("framework_id", "code", name="uq_control_framework_code"),
+        UniqueConstraint("tenant_id", "framework_id", "code", name="uq_control_tenant_framework_code"),
     )
 
     def __repr__(self) -> str:
@@ -140,7 +140,7 @@ class Evidence(Base):
         default=_utcnow,
         server_default=func.now(),
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
     __table_args__ = (
         UniqueConstraint("control_id", "source", "content_hash", name="uq_evidence_control_source_hash"),
         Index(
@@ -173,7 +173,7 @@ class ControlStatus(Base):
     )
     # Кто обновил: "system", "human:admin@acme.com", "agent:okta"
     updated_by: Mapped[str] = mapped_column(String(100), nullable=False, default="system")
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<ControlStatus control={self.control_id} status={self.status}>"
@@ -212,7 +212,7 @@ class RiskEntry(Base):
         default=_utcnow,
         onupdate=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<RiskEntry id={self.id} status={self.status} score={self.score}>"
@@ -236,10 +236,30 @@ class Vendor(Base):
     last_review_date: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     # Все остальные поля — гибкий JSON (category, risk_score, notes, etc.)
     data: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<Vendor id={self.id} name={self.name} status={self.status}>"
+
+
+# ── VendorAssessment ──────────────────────────────────────────────────────────
+
+class VendorAssessment(Base):
+    __tablename__ = "vendor_assessment"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    vendor_id: Mapped[str] = mapped_column(String(50), ForeignKey("vendor.id", ondelete="CASCADE"), nullable=False, index=True)
+    assessment_date: Mapped[str] = mapped_column(String(40), nullable=False)
+    risk_level: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
+    recommendation: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    raw_analysis: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    exceptions_found: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    uecc_items: Mapped[Optional[list]] = mapped_column(JSON, nullable=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
+
+    def __repr__(self) -> str:
+        return f"<VendorAssessment id={self.id} vendor_id={self.vendor_id} risk_level={self.risk_level}>"
 
 
 # ── PolicyDraft ───────────────────────────────────────────────────────────────
@@ -264,7 +284,7 @@ class PolicyDraft(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<PolicyDraft id={self.id} control={self.control_id} status={self.status}>"
@@ -289,7 +309,7 @@ class TrainingCompletion(Base):
     certificate_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     # score, status и другие поля курса — в JSON
     extra: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<TrainingCompletion employee={self.employee_id} course={self.course_id}>"
@@ -321,7 +341,7 @@ class AuditEvent(Base):
         default=_utcnow,
         index=True,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return (
@@ -343,7 +363,7 @@ class RemediationTicket(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, server_default=func.now()
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
     __table_args__ = (
         UniqueConstraint("control_id", name="uq_remediation_control"),
     )
@@ -392,7 +412,7 @@ class EventQueue(Base):
     )
     # error: трейсбек или сообщение об ошибке при status=failed
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return (
@@ -423,7 +443,7 @@ class Remediation(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<Remediation control={self.control_code} status={self.status}>"
@@ -457,7 +477,7 @@ class CustomControl(Base):
         default=_utcnow,
         onupdate=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<CustomControl id={self.control_id} status={self.status}>"
@@ -488,7 +508,7 @@ class PolicyVersion(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<PolicyVersion id={self.id} control={self.control_id} v={self.version}>"
@@ -517,7 +537,7 @@ class PolicySignature(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<PolicySignature envelope={self.envelope_id} status={self.status}>"
@@ -545,7 +565,7 @@ class VendorRecord(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<VendorRecord name={self.name} soc2={self.soc2_certified}>"
@@ -577,7 +597,7 @@ class MDMDevice(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<MDMDevice device_id={self.device_id} owner={self.owner} compliant={self.compliant}>"
@@ -615,10 +635,38 @@ class HREmployee(Base):
         default=_utcnow,
         onupdate=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<HREmployee email={self.email} status={self.status}>"
+
+
+# ── BackgroundCheck ───────────────────────────────────────────────────────────
+
+class BackgroundCheck(Base):
+    """
+    Результат background check сотрудника (background_checks.json).
+    Покрывает: CC6.2 (User Registration/Screening).
+    """
+    __tablename__ = "background_check"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    employee_email: Mapped[str] = mapped_column(String(200), nullable=False, index=True)
+    employee_name: Mapped[str] = mapped_column(String(200), nullable=False, default="")
+    candidate_id: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    report_id: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    package: Mapped[str] = mapped_column(String(100), nullable=False, default="tasker_standard")
+    # status: pending / clear / consider / dispute / suspended
+    status: Mapped[str] = mapped_column(String(30), nullable=False, default="pending")
+    initiated_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    result: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, onupdate=_utcnow)
+
+    def __repr__(self) -> str:
+        return f"<BackgroundCheck email={self.employee_email} status={self.status}>"
 
 
 # ── AssetRecord ───────────────────────────────────────────────────────────────
@@ -646,7 +694,7 @@ class AssetRecord(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<AssetRecord name={self.name} type={self.asset_type}>"
@@ -670,7 +718,7 @@ class AuditorComment(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<AuditorComment control={self.control_code} severity={self.severity}>"
@@ -696,7 +744,7 @@ class AccessReviewDecision(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<AccessReviewDecision user={self.user_id} decision={self.decision}>"
@@ -734,7 +782,7 @@ class VulnerabilityRecord(Base):
         default=_utcnow,
         onupdate=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<VulnerabilityRecord cve={self.cve_id} severity={self.severity} status={self.status}>"
@@ -766,7 +814,7 @@ class TrainingCompletionDetail(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
     __table_args__ = (
         UniqueConstraint("employee_email", "course_id", name="uq_training_detail_employee_course"),
     )
@@ -804,7 +852,7 @@ class PentestReport(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<PentestReport id={self.id} vendor={self.vendor} status={self.status}>"
@@ -836,7 +884,7 @@ class QuestionnaireResponse(Base):
         DateTime(timezone=True),
         default=_utcnow,
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<QuestionnaireResponse id={self.id} questionnaire={self.questionnaire}>"
@@ -866,7 +914,7 @@ class TestDefinition(Base):
     frequency_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=1440)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     mappings: Mapped[list["TestControlMapping"]] = relationship("TestControlMapping", back_populates="test", cascade="all, delete-orphan")
     results: Mapped[list["TestResult"]] = relationship("TestResult", back_populates="test")
@@ -879,7 +927,7 @@ class TestControlMapping(Base):
     test_id: Mapped[str] = mapped_column(String(36), ForeignKey("test_definitions.id", ondelete="CASCADE"), nullable=False, index=True)
     control_id: Mapped[str] = mapped_column(String(36), ForeignKey("control.id", ondelete="CASCADE"), nullable=False, index=True)
     weight: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     __table_args__ = (UniqueConstraint("test_id", "control_id", name="uq_test_control"),)
 
@@ -896,7 +944,7 @@ class TestRun(Base):
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
     finished_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="running")
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     results: Mapped[list["TestResult"]] = relationship("TestResult", back_populates="run")
 
@@ -912,7 +960,7 @@ class TestResult(Base):
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, index=True)
     evidence_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("evidence.id", ondelete="SET NULL"), nullable=True)
     details: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True, default=dict)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     test: Mapped["TestDefinition"] = relationship("TestDefinition", back_populates="results")
     run: Mapped["TestRun"] = relationship("TestRun", back_populates="results")
@@ -943,7 +991,7 @@ class AuditLog(Base):
     resource_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     ip_address: Mapped[Optional[str]] = mapped_column(String(45), nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return (
@@ -1012,7 +1060,7 @@ class Finding(Base):
         nullable=True,
     )
     detail: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     test: Mapped["TestDefinition"] = relationship("TestDefinition", lazy="selectin")
 
@@ -1040,7 +1088,7 @@ class AiDecision(Base):
     reasoning: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     outcome: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
     meta: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # JSON string
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<AiDecision id={self.id} agent={self.agent} outcome={self.outcome}>"
@@ -1066,7 +1114,34 @@ class TrustAccessRequest(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
-    tenant_id: Mapped[Optional[str]] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=True, index=True)
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
 
     def __repr__(self) -> str:
         return f"<TrustAccessRequest email={self.email} company={self.company} status={self.status}>"
+
+
+# ── AgentSchedule ─────────────────────────────────────────────────────────────
+
+class AgentSchedule(Base):
+    """
+    Per-agent continuous monitoring schedule.
+    Each enabled record causes the scheduler to run the named agent
+    at the configured cadence (in minutes).
+    """
+    __tablename__ = "agent_schedule"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    agent_name: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    cadence_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=1440)  # daily
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    last_run_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_run_status: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)  # ok / error
+    tenant_id: Mapped[str] = mapped_column(String(36), ForeignKey("tenants.id"), nullable=False, default="00000000-0000-0000-0000-000000000001", index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("tenant_id", "agent_name", name="uq_schedule_tenant_agent"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<AgentSchedule agent={self.agent_name} cadence={self.cadence_minutes}min enabled={self.enabled}>"

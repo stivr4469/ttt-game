@@ -13,3 +13,4 @@ reports/
 .coverage
 htmlcov/
 .claude/
+.dev_secret_key
