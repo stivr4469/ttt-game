@@ -1,620 +1,1067 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Risk Register — Marineso</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0f1117;
-            --card: #1a1d27;
-            --accent: #00d4aa;
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --border: #2d313e;
-            --critical: #ef4444;
-            --high: #f59e0b;
-            --medium: #3b82f6;
-            --low: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', sans-serif;
-            line-height: 1.6;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 30px;
-        }
-        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
-        .back-link { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
-
-        .toolbar {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 30px;
-        }
-        .btn {
-            background: var(--card);
-            color: var(--text);
-            border: 1px solid var(--border);
-            padding: 10px 18px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        .btn:hover { border-color: var(--accent); }
-        .btn.primary { background: var(--accent); color: var(--bg); border: none; }
-
-        /* Summary Cards */
-        .summary-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .stat-card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 20px;
-            text-align: center;
-        }
-        .stat-card .val { font-size: 32px; font-weight: 700; display: block; margin-bottom: 4px; }
-        .stat-card .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-        .stat-card.critical .val { color: var(--critical); }
-        .stat-card.high .val { color: var(--high); }
-        .stat-card.medium .val { color: var(--medium); }
-        .stat-card.low .val { color: var(--low); }
-
-        /* Matrix and Table Layout */
-        .main-layout {
-            display: grid;
-            grid-template-columns: 350px 1fr;
-            gap: 30px;
-        }
-
-        /* Risk Matrix */
-        .matrix-container {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            height: fit-content;
-        }
-        .matrix-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; text-align: center; }
-        .matrix-grid {
-            display: grid;
-            grid-template-columns: 30px repeat(5, 1fr);
-            grid-template-rows: repeat(5, 1fr) 30px;
-            gap: 4px;
-            width: 100%;
-            aspect-ratio: 1;
-        }
-        .matrix-cell {
-            background: rgba(255,255,255,0.05);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: 700;
-            position: relative;
-        }
-        /* Heatmap colors */
-        .c-1 { background: rgba(16, 185, 129, 0.2); }
-        .c-2 { background: rgba(16, 185, 129, 0.4); }
-        .c-3 { background: rgba(245, 158, 11, 0.3); }
-        .c-4 { background: rgba(245, 158, 11, 0.5); }
-        .c-5 { background: rgba(239, 68, 68, 0.4); }
-        .c-6 { background: rgba(239, 68, 68, 0.6); }
-
-        .axis-label {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 10px;
-            color: var(--muted);
-            font-weight: 600;
-        }
-        .v-label { writing-mode: vertical-rl; transform: rotate(180deg); }
-
-        .risk-dot {
-            width: 8px;
-            height: 8px;
-            background: #fff;
-            border-radius: 50%;
-            box-shadow: 0 0 10px rgba(255,255,255,0.5);
-        }
-
-        /* Risk Table */
-        .table-container {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            overflow: hidden;
-        }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; }
-        td { padding: 14px 16px; border-top: 1px solid var(--border); }
-        tr:hover { background: rgba(255,255,255,0.02); cursor: pointer; }
-        
-        .score-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 4px;
-            font-weight: 700;
-            font-size: 11px;
-        }
-        .score-critical { background: var(--critical); color: #fff; }
-        .score-high { background: var(--high); color: #fff; }
-        .score-medium { background: var(--medium); color: #fff; }
-        .score-low { background: var(--low); color: #fff; }
-
-        .status-pill {
-            font-size: 10px;
-            text-transform: uppercase;
-            font-weight: 700;
-            padding: 2px 6px;
-            border-radius: 10px;
-            border: 1px solid;
-        }
-        .status-open { color: var(--critical); border-color: var(--critical); }
-        .status-in_progress { color: var(--high); border-color: var(--high); }
-        .status-resolved { color: var(--low); border-color: var(--low); }
-        .status-accepted { color: var(--muted); border-color: var(--muted); }
-
-        /* Modal */
-        .modal {
-            display: none;
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.8);
-            align-items: center;
-            justify-content: center;
-            z-index: 100;
-            padding: 20px;
-        }
-        .modal-content {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            width: 100%;
-            max-width: 600px;
-            padding: 30px;
-            max-height: 90vh;
-            overflow-y: auto;
-        }
-        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
-        .form-group { display: flex; flex-direction: column; gap: 8px; }
-        .form-group.full { grid-column: span 2; }
-        label { font-size: 12px; color: var(--muted); font-weight: 600; }
-        input, select, textarea {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            color: var(--text);
-            padding: 10px;
-            border-radius: 6px;
-            font-family: inherit;
-        }
-        textarea { height: 80px; resize: vertical; }
-
-        .toast {
-            position: fixed; bottom: 20px; right: 20px; background: var(--card);
-            border: 1px solid var(--border); padding: 16px 24px; border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
-        }
-
-        /* ── Горизонтальная навигация ── */
-        .top-nav {
-            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
-            scrollbar-width: none; margin-left: 12px;
-        }
-        .top-nav::-webkit-scrollbar { display: none; }
-        .top-nav a {
-            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
-            color: var(--muted); text-decoration: none; border-radius: 6px;
-            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
-        }
-        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
-        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <h1>⚠️ Risk Register</h1>
-            <!-- Горизонтальная навигация по разделам платформы -->
-            <nav class="top-nav" id="topNav">
-                <a href="/">📊 Dashboard</a>
-                <span class="nav-sep"></span>
-                <a href="/training">🎓 Training</a>
-                <a href="/background-checks">👤 BG Checks</a>
-                <span class="nav-sep"></span>
-                <a href="/vulnerabilities">🔒 Vulns</a>
-                <a href="/pentests">🔍 Pen Tests</a>
-                <a href="/risk-register" class="active">⚠️ Risk Register</a>
-                <span class="nav-sep"></span>
-                <a href="/audit-timeline">📅 Timeline</a>
-                <a href="/questionnaires">📋 Questionnaires</a>
-                <span class="nav-sep"></span>
-                <a href="/access-review">👥 Access Review</a>
-                <a href="/auditor-portal">🔎 Auditor</a>
-                <span class="nav-sep"></span>
-                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
-            </nav>
-        </header>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
 
-        <div class="toolbar">
-            <button class="btn primary" onclick="syncRisks()">🔄 Sync from Controls</button>
-            <button class="btn" onclick="openModal()">+ Add Manual Risk</button>
-            <div style="flex: 1;"></div>
-            <select class="btn" id="filterStatus" onchange="loadRisks()">
-                <option value="">All Statuses</option>
-                <option value="open">Open</option>
-                <option value="in_progress">In Progress</option>
-                <option value="resolved">Resolved</option>
-                <option value="accepted">Accepted</option>
-            </select>
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+    <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
         </div>
-
-        <div class="summary-grid">
-            <div class="stat-card critical">
-                <span class="val" id="statCritical">0</span>
-                <span class="lbl">Critical</span>
-            </div>
-            <div class="stat-card high">
-                <span class="val" id="statHigh">0</span>
-                <span class="lbl">High</span>
-            </div>
-            <div class="stat-card medium">
-                <span class="val" id="statMedium">0</span>
-                <span class="lbl">Medium</span>
-            </div>
-            <div class="stat-card low">
-                <span class="val" id="statLow">0</span>
-                <span class="lbl">Low</span>
-            </div>
-        </div>
-
-        <div class="main-layout">
-            <div class="matrix-container">
-                <div class="matrix-title">Likelihood vs Impact</div>
-                <div class="matrix-grid" id="matrixGrid">
-                    <!-- Grid generated by JS -->
-                </div>
-                <div style="display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 10px; padding-left: 30px;">
-                    <span>Negligible</span>
-                    <span>Critical</span>
-                </div>
-            </div>
-
-            <div class="table-container">
-                <table>
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Title</th>
-                            <th>Category</th>
-                            <th>Score</th>
-                            <th>Status</th>
-                            <th>Target Date</th>
-                        </tr>
-                    </thead>
-                    <tbody id="riskTableContent">
-                        <!-- Loaded via JS -->
-                    </tbody>
-                </table>
-            </div>
-        </div>
+        <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+      </div>
+</div>
+    <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+      </a>
+      <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Frameworks
+      </a>
+      <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Risk Register
+      </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>
+        Vulnerabilities
+      </a>
+      <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Pen Tests
+      </a>
+      <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Access Review
+      </a>
+      <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
+        BG Checks
+      </a>
+      <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
+        Training
+      </a>
+      <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        Questionnaires
+      </a>
+      <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        Tests Catalog
+      </a>
+      <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Audit Timeline
+      </a>
+      <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Time Machine
+      </a>
+      <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+        Onboarding
+      </a>
+      <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        AI Decisions
+      </a>
+      <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Trust Center
+      </a>
+      <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Auditor Portal
+      </a>
+      <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+  </nav>
+    <div class="p-3 border-t border-zinc-800 shrink-0">
+      <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+        <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+        <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+        <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </div>
     </div>
+  </aside>
 
-    <!-- Edit/Add Modal -->
-    <div class="modal" id="riskModal">
-        <div class="modal-content">
-            <h2 id="modalTitle">Add Risk</h2>
-            <form id="riskForm">
-                <input type="hidden" id="riskId">
-                <div class="form-grid">
-                    <div class="form-group full">
-                        <label>Title</label>
-                        <input type="text" id="title" required>
-                    </div>
-                    <div class="form-group full">
-                        <label>Description</label>
-                        <textarea id="description"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label>Likelihood (1-5)</label>
-                        <select id="likelihood" onchange="updateScore()">
-                            <option value="1">1 - Rare</option>
-                            <option value="2">2 - Unlikely</option>
-                            <option value="3">3 - Possible</option>
-                            <option value="4">4 - Likely</option>
-                            <option value="5">5 - Almost Certain</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Impact (1-5)</label>
-                        <select id="impact" onchange="updateScore()">
-                            <option value="1">1 - Negligible</option>
-                            <option value="2">2 - Minor</option>
-                            <option value="3">3 - Moderate</option>
-                            <option value="4">4 - Major</option>
-                            <option value="5">5 - Critical</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Risk Score</label>
-                        <div id="scorePreview" style="font-size: 24px; font-weight: 700; color: var(--accent);">9</div>
-                    </div>
-                    <div class="form-group">
-                        <label>Category</label>
-                        <select id="category">
-                            <option value="access_control">Access Control</option>
-                            <option value="data_protection">Data Protection</option>
-                            <option value="change_management">Change Management</option>
-                            <option value="vendor">Vendor Risk</option>
-                            <option value="operational">Operational</option>
-                            <option value="compliance">Compliance</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Owner</label>
-                        <input type="email" id="owner" value="ciso@marineso.com">
-                    </div>
-                    <div class="form-group">
-                        <label>Status</label>
-                        <select id="status">
-                            <option value="open">Open</option>
-                            <option value="in_progress">In Progress</option>
-                            <option value="resolved">Resolved</option>
-                            <option value="accepted">Accepted</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Treatment</label>
-                        <select id="treatment">
-                            <option value="mitigate">Mitigate</option>
-                            <option value="accept">Accept</option>
-                            <option value="transfer">Transfer</option>
-                            <option value="avoid">Avoid</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Target Date</label>
-                        <input type="date" id="target_date">
-                    </div>
-                </div>
-                <div style="display: flex; gap: 10px; margin-top: 30px;">
-                    <button type="submit" class="btn primary" style="flex: 1;">Save Risk</button>
-                    <button type="button" class="btn" style="flex: 1;" onclick="closeModal()">Cancel</button>
-                    <button type="button" id="deleteBtn" class="btn" style="color: var(--critical); border-color: var(--critical); display: none;" onclick="deleteRisk()">Delete</button>
-                </div>
-            </form>
+  <!-- Main -->
+  <div class="ml-60 flex flex-col min-h-screen">
+    <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+      <div>
+        <h1 class="text-sm font-semibold text-zinc-100">Risk Register</h1>
+        <p class="text-xs text-zinc-500">Track and manage security risks across your organization</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <select x-model="filterStatus" @change="loadRisks()" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500">
+          <option value="">All Statuses</option>
+          <option value="open">Open</option>
+          <option value="in_progress">In Progress</option>
+          <option value="mitigated">Mitigated</option>
+          <option value="accepted">Accepted</option>
+          <option value="closed">Closed</option>
+        </select>
+        <button @click="syncRisks()" :disabled="syncing" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 inline-flex items-center gap-2 disabled:opacity-50">
+          <svg class="w-3.5 h-3.5" :class="syncing ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span x-text="syncing ? 'Syncing…' : 'Sync Controls'"></span>
+        </button>
+        <button @click="openAddModal()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>
+          Add Risk
+        </button>
+            <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
+      </div>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+    </header>
+
+    <main class="flex-1 p-6 space-y-6">
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total Risks</p>
+          <p class="text-3xl font-bold text-zinc-100 mt-2" x-text="loading ? '—' : summary.total || risks.length"></p>
+          <p class="text-xs text-zinc-500 mt-1">across all categories</p>
         </div>
-    </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Open</p>
+          <p class="text-3xl font-bold text-red-400 mt-2" x-text="loading ? '—' : summary.open_count ?? risks.filter(r=>r.status==='open').length"></p>
+          <p class="text-xs text-zinc-500 mt-1">require attention</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Mitigated</p>
+          <p class="text-3xl font-bold text-emerald-400 mt-2" x-text="loading ? '—' : summary.mitigated_count ?? risks.filter(r=>r.status==='mitigated').length"></p>
+          <p class="text-xs text-zinc-500 mt-1">controls applied</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Critical / High</p>
+          <p class="text-3xl font-bold text-amber-400 mt-2" x-text="loading ? '—' : (summary.critical_count||0) + (summary.high_count||0)"></p>
+          <p class="text-xs text-zinc-500 mt-1">high-priority items</p>
+        </div>
+      </div>
 
-    <div class="toast" id="toast"></div>
+      <!-- Matrix + Table layout -->
+      <div class="grid grid-cols-1 xl:grid-cols-[320px_1fr] gap-6">
 
-    <script>
-        async function init() {
-            // Check auth
-            const r = await fetch('/api/auth/me');
-            if (r.status === 401) { window.location.href = '/login'; return; }
-            
-            await loadSummary();
-            await loadRisks();
-            renderMatrix();
-        }
+        <!-- Risk Matrix -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <h2 class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-4">Likelihood vs Impact</h2>
+          <div class="relative">
+            <!-- Y-axis label -->
+            <div class="absolute -left-5 top-1/2 -translate-y-1/2 -rotate-90 text-xs text-zinc-600 whitespace-nowrap">Likelihood</div>
+            <div class="grid gap-1" style="grid-template-columns: 20px repeat(5, 1fr);">
+              <template x-for="row in matrixRows" :key="row.l">
+                <template x-for="col in row.cells" :key="col.key">
+                  <div
+                    :class="col.isLabel ? 'flex items-center justify-center text-xs text-zinc-600 font-medium' : `${col.bgClass} rounded flex items-center justify-center min-h-[36px] relative`"
+                    :id="col.cellId"
+                  >
+                    <span x-text="col.label || ''"></span>
+                    <template x-if="!col.isLabel">
+                      <div class="flex flex-wrap gap-0.5 p-0.5 justify-center" :id="`dots-${col.cellId}`"></div>
+                    </template>
+                  </div>
+                </template>
+              </template>
+              <!-- Bottom row: impact labels -->
+              <div></div>
+              <template x-for="i in [1,2,3,4,5]" :key="i">
+                <div class="text-center text-xs text-zinc-600 font-medium pt-1" x-text="i"></div>
+              </template>
+            </div>
+            <div class="flex justify-between text-xs text-zinc-600 mt-1 pl-6">
+              <span>Negligible</span>
+              <span>Critical</span>
+            </div>
+          </div>
+          <p class="text-center text-xs text-zinc-600 mt-1">Impact</p>
+          <div class="flex items-center gap-3 mt-4 justify-center flex-wrap">
+            <span class="flex items-center gap-1.5 text-xs text-zinc-500"><span class="w-3 h-3 rounded-sm bg-sky-500/20 border border-sky-500/30 inline-block"></span>Low</span>
+            <span class="flex items-center gap-1.5 text-xs text-zinc-500"><span class="w-3 h-3 rounded-sm bg-amber-500/20 border border-amber-500/30 inline-block"></span>Medium</span>
+            <span class="flex items-center gap-1.5 text-xs text-zinc-500"><span class="w-3 h-3 rounded-sm bg-red-500/30 border border-red-500/30 inline-block"></span>High/Critical</span>
+          </div>
+        </div>
 
-        async function loadSummary() {
-            const r = await fetch('/api/risks/summary');
-            const data = await r.json();
-            document.getElementById('statCritical').innerText = data.critical_count;
-            document.getElementById('statHigh').innerText = data.high_count;
-            document.getElementById('statMedium').innerText = data.medium_count;
-            document.getElementById('statLow').innerText = data.low_count;
-        }
+        <!-- Risk Table -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+            <h2 class="text-sm font-semibold text-zinc-100">Risk Items</h2>
+            <span class="text-xs text-zinc-500" x-text="`${risks.length} risks`"></span>
+          </div>
 
-        async function loadRisks() {
-            const status = document.getElementById('filterStatus').value;
-            const r = await fetch(`/api/risks${status ? '?status='+status : ''}`);
-            const risks = await r.json();
-            
-            const content = document.getElementById('riskTableContent');
-            content.innerHTML = risks.map(r => `
-                <tr onclick="editRisk('${r.id}')">
-                    <td style="font-family: monospace; color: var(--accent);">${r.id}</td>
-                    <td style="font-weight: 500;">${r.title}</td>
-                    <td style="color: var(--muted); text-transform: capitalize;">${r.category.replace('_', ' ')}</td>
-                    <td>
-                        <span class="score-badge ${getScoreClass(r.risk_score)}">${r.risk_score}</span>
-                    </td>
-                    <td>
-                        <span class="status-pill status-${r.status}">${r.status.replace('_', ' ')}</span>
-                    </td>
-                    <td style="color: var(--muted);">${r.target_date || '—'}</td>
+          <!-- Loading skeletons -->
+          <div x-show="loading" class="divide-y divide-zinc-800/50">
+            <template x-for="i in 5">
+              <div class="px-5 py-4 flex items-center gap-4">
+                <div class="animate-pulse bg-zinc-800 rounded h-3 w-16 shrink-0"></div>
+                <div class="animate-pulse bg-zinc-800 rounded h-3 flex-1"></div>
+                <div class="animate-pulse bg-zinc-800 rounded-full h-5 w-14"></div>
+                <div class="animate-pulse bg-zinc-800 rounded-full h-5 w-16"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!loading && risks.length === 0" class="flex flex-col items-center justify-center py-16 text-center">
+            <svg class="w-10 h-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+            <p class="text-sm font-medium text-zinc-400">No risks found</p>
+            <p class="text-xs text-zinc-600 mt-1">Add a risk or sync from controls</p>
+          </div>
+
+          <!-- Table -->
+          <div x-show="!loading && risks.length > 0" class="overflow-x-auto">
+            <table class="w-full">
+              <thead class="bg-zinc-800/30">
+                <tr>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">ID</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Title</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Category</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Score</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Status</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Owner</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Target</th>
                 </tr>
-            `).join('');
-            
-            updateMatrixPoints(risks);
+              </thead>
+              <tbody class="divide-y divide-zinc-800/50">
+                <template x-for="risk in risks" :key="risk.id">
+                  <tr @click="editRisk(risk)" class="hover:bg-zinc-800/30 transition-colors cursor-pointer">
+                    <td class="py-3 px-4 font-mono text-xs text-indigo-400 font-semibold" x-text="risk.id"></td>
+                    <td class="py-3 px-4">
+                      <p class="text-sm font-medium text-zinc-200" x-text="risk.title"></p>
+                      <p class="text-xs text-zinc-600 mt-0.5 line-clamp-1" x-text="risk.description || ''"></p>
+                    </td>
+                    <td class="py-3 px-4">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700" x-text="(risk.category||'').replace(/_/g,' ')"></span>
+                    </td>
+                    <td class="py-3 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" :class="scoreClass(risk.risk_score ?? risk.likelihood*risk.impact)">
+                        <span x-text="risk.risk_score ?? risk.likelihood*risk.impact"></span>
+                        <span class="opacity-70" x-text="scoreSeverity(risk.risk_score ?? risk.likelihood*risk.impact)"></span>
+                      </span>
+                    </td>
+                    <td class="py-3 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" :class="statusClass(risk.status)" x-text="(risk.status||'').replace(/_/g,' ')"></span>
+                    </td>
+                    <td class="py-3 px-4 text-xs text-zinc-500 truncate max-w-[120px]" x-text="risk.owner || '—'"></td>
+                    <td class="py-3 px-4 text-xs text-zinc-500" x-text="risk.target_date || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Quantitative Analysis Section ──────────────────────────────── -->
+      <div x-data="crqApp()" x-init="initCrq()">
+
+        <!-- Section header -->
+        <div class="flex items-center gap-3 mt-2">
+          <div class="w-8 h-8 bg-indigo-600/20 border border-indigo-500/30 rounded-lg flex items-center justify-center shrink-0">
+            <svg class="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+          </div>
+          <div>
+            <h2 class="text-sm font-semibold text-zinc-100">Quantitative Risk Analysis</h2>
+            <p class="text-xs text-zinc-500">Monte Carlo simulation — FAIR-aligned financial risk quantification</p>
+          </div>
+        </div>
+
+        <!-- Main CRQ card -->
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+          <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <h3 class="text-sm font-semibold text-zinc-100">Monte Carlo Risk Simulation</h3>
+              <p class="text-xs text-zinc-500 mt-0.5">Simulate annual financial exposure using probabilistic threat modeling</p>
+            </div>
+            <!-- Quick Presets -->
+            <div class="flex items-center gap-2 flex-wrap">
+              <span class="text-xs text-zinc-600 mr-1">Presets:</span>
+              <template x-for="preset in presets" :key="preset.id">
+                <button
+                  @click="applyPreset(preset)"
+                  class="px-2.5 py-1 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 hover:border-zinc-600 text-zinc-400 hover:text-zinc-200 rounded-lg text-xs transition-colors"
+                  x-text="preset.name"
+                ></button>
+              </template>
+            </div>
+          </div>
+
+          <div class="p-5 grid grid-cols-1 xl:grid-cols-[1fr_1.3fr] gap-6">
+
+            <!-- Left column: inputs -->
+            <div class="space-y-5">
+              <!-- Asset Value -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-zinc-400">Asset Value</label>
+                  <span class="text-xs font-mono text-indigo-400" x-text="'$' + Number(crqForm.asset_value).toLocaleString()"></span>
+                </div>
+                <input
+                  type="number" x-model.number="crqForm.asset_value" min="1000" max="1000000000" step="10000"
+                  class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  placeholder="e.g. 1000000"
+                >
+                <p class="text-xs text-zinc-600 mt-1">Total dollar value of the asset at risk</p>
+              </div>
+
+              <!-- Threat Frequency -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-zinc-400">Threat Frequency</label>
+                  <span class="text-xs font-mono text-indigo-400" x-text="crqForm.threat_freq_per_year + ' / yr'"></span>
+                </div>
+                <input
+                  type="range" x-model.number="crqForm.threat_freq_per_year" min="0.01" max="10" step="0.01"
+                  class="w-full accent-indigo-500"
+                >
+                <div class="flex justify-between text-xs text-zinc-600 mt-1">
+                  <span>0.01 (rare)</span>
+                  <span>Expected events per year</span>
+                  <span>10 (frequent)</span>
+                </div>
+              </div>
+
+              <!-- Vulnerability Factor -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-zinc-400">Vulnerability Factor</label>
+                  <span class="text-xs font-mono text-indigo-400" x-text="Math.round(crqForm.vuln_factor * 100) + '%'"></span>
+                </div>
+                <input
+                  type="range" x-model.number="crqForm.vuln_factor" min="0" max="1" step="0.01"
+                  class="w-full accent-indigo-500"
+                >
+                <div class="flex justify-between text-xs text-zinc-600 mt-1">
+                  <span>0% (fully patched)</span>
+                  <span>Probability threat succeeds</span>
+                  <span>100% (unprotected)</span>
+                </div>
+              </div>
+
+              <!-- Impact Range -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-zinc-400">Impact Range</label>
+                  <span class="text-xs font-mono text-indigo-400">
+                    <span x-text="Math.round(crqForm.impact_min_pct * 100)"></span>% – <span x-text="Math.round(crqForm.impact_max_pct * 100)"></span>%
+                  </span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="text-xs text-zinc-600 mb-1 block">Min impact %</label>
+                    <input
+                      type="range" x-model.number="crqForm.impact_min_pct" min="0" max="1" step="0.01"
+                      class="w-full accent-emerald-500"
+                    >
+                  </div>
+                  <div>
+                    <label class="text-xs text-zinc-600 mb-1 block">Max impact %</label>
+                    <input
+                      type="range" x-model.number="crqForm.impact_max_pct" min="0" max="1" step="0.01"
+                      class="w-full accent-red-500"
+                    >
+                  </div>
+                </div>
+                <p class="text-xs text-zinc-600 mt-1">Loss range as % of asset value when an event occurs</p>
+              </div>
+
+              <!-- Iterations -->
+              <div>
+                <div class="flex items-center justify-between mb-2">
+                  <label class="text-xs font-medium text-zinc-400">Iterations</label>
+                  <span class="text-xs font-mono text-indigo-400" x-text="Number(crqForm.iterations).toLocaleString()"></span>
+                </div>
+                <input
+                  type="range" x-model.number="crqForm.iterations" min="1000" max="50000" step="1000"
+                  class="w-full accent-indigo-500"
+                >
+                <div class="flex justify-between text-xs text-zinc-600 mt-1">
+                  <span>1 000 (fast)</span>
+                  <span>50 000 (precise)</span>
+                </div>
+              </div>
+
+              <!-- Run button -->
+              <button
+                @click="runSimulation()"
+                :disabled="crqLoading"
+                class="w-full px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                <svg x-show="crqLoading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                <svg x-show="!crqLoading" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <span x-text="crqLoading ? 'Simulating…' : 'Run Simulation'"></span>
+              </button>
+
+              <!-- Error display -->
+              <div x-show="crqError" class="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+                <svg class="w-4 h-4 text-red-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                <p class="text-xs text-red-400" x-text="crqError"></p>
+              </div>
+            </div>
+
+            <!-- Right column: results -->
+            <div class="space-y-5">
+
+              <!-- Empty state -->
+              <div x-show="!crqResult && !crqLoading" class="flex flex-col items-center justify-center h-64 text-center border border-dashed border-zinc-700/50 rounded-xl">
+                <svg class="w-10 h-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                <p class="text-sm font-medium text-zinc-500">No simulation results yet</p>
+                <p class="text-xs text-zinc-600 mt-1">Configure parameters and click Run Simulation</p>
+              </div>
+
+              <!-- Loading state -->
+              <div x-show="crqLoading" class="space-y-3">
+                <div class="grid grid-cols-2 gap-3">
+                  <template x-for="i in 4">
+                    <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4 animate-pulse">
+                      <div class="h-3 bg-zinc-700 rounded w-2/3 mb-3"></div>
+                      <div class="h-7 bg-zinc-700 rounded w-3/4"></div>
+                    </div>
+                  </template>
+                </div>
+                <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4 animate-pulse h-48"></div>
+              </div>
+
+              <!-- Results -->
+              <div x-show="crqResult && !crqLoading" class="space-y-4">
+
+                <!-- Metric cards -->
+                <div class="grid grid-cols-2 gap-3">
+                  <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4">
+                    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">ALE</p>
+                    <p class="text-2xl font-bold text-indigo-400 mt-1.5 font-mono" x-text="formatCurrency(crqResult?.ale)"></p>
+                    <p class="text-xs text-zinc-600 mt-1">Annual Loss Expectancy</p>
+                  </div>
+                  <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4">
+                    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">VaR 95%</p>
+                    <p class="text-2xl font-bold text-amber-400 mt-1.5 font-mono" x-text="formatCurrency(crqResult?.var_95)"></p>
+                    <p class="text-xs text-zinc-600 mt-1">Value at Risk (95th pct)</p>
+                  </div>
+                  <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4">
+                    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">VaR 99%</p>
+                    <p class="text-2xl font-bold text-red-400 mt-1.5 font-mono" x-text="formatCurrency(crqResult?.var_99)"></p>
+                    <p class="text-xs text-zinc-600 mt-1">Value at Risk (99th pct)</p>
+                  </div>
+                  <div class="bg-zinc-800/50 border border-zinc-700/50 rounded-xl p-4">
+                    <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Max Simulated Loss</p>
+                    <p class="text-2xl font-bold text-zinc-200 mt-1.5 font-mono" x-text="formatCurrency(crqResult?.max_loss)"></p>
+                    <p class="text-xs text-zinc-600 mt-1">Worst-case single year</p>
+                  </div>
+                </div>
+
+                <!-- Additional stats row -->
+                <div class="flex flex-wrap gap-4 px-1">
+                  <div class="text-xs text-zinc-500">
+                    Expected event loss: <span class="text-zinc-300 font-mono" x-text="formatCurrency(crqResult?.expected_loss)"></span>
+                  </div>
+                  <div class="text-xs text-zinc-500">
+                    Iterations: <span class="text-zinc-300 font-mono" x-text="Number(crqResult?.iterations).toLocaleString()"></span>
+                  </div>
+                </div>
+
+                <!-- Loss Exceedance Curve -->
+                <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-4">
+                  <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xs font-semibold text-zinc-300 uppercase tracking-wider">Loss Exceedance Curve</h4>
+                    <span class="text-xs text-zinc-600">P(Annual loss &gt; X)</span>
+                  </div>
+                  <!-- SVG chart -->
+                  <div class="relative">
+                    <svg
+                      viewBox="0 0 600 200"
+                      class="w-full"
+                      style="height:200px"
+                      x-ref="lecChart"
+                    >
+                      <!-- Grid lines -->
+                      <line x1="50" y1="10" x2="50" y2="170" stroke="#3f3f46" stroke-width="1"/>
+                      <line x1="50" y1="170" x2="590" y2="170" stroke="#3f3f46" stroke-width="1"/>
+                      <!-- Y-axis labels -->
+                      <text x="45" y="14" text-anchor="end" fill="#71717a" font-size="9">100%</text>
+                      <text x="45" y="64" text-anchor="end" fill="#71717a" font-size="9">75%</text>
+                      <text x="45" y="114" text-anchor="end" fill="#71717a" font-size="9">50%</text>
+                      <text x="45" y="139" text-anchor="end" fill="#71717a" font-size="9">25%</text>
+                      <text x="45" y="173" text-anchor="end" fill="#71717a" font-size="9">0%</text>
+                      <!-- Horizontal grid lines (dashed) -->
+                      <line x1="50" y1="10" x2="590" y2="10" stroke="#27272a" stroke-width="1" stroke-dasharray="3,3"/>
+                      <line x1="50" y1="60" x2="590" y2="60" stroke="#27272a" stroke-width="1" stroke-dasharray="3,3"/>
+                      <line x1="50" y1="110" x2="590" y2="110" stroke="#27272a" stroke-width="1" stroke-dasharray="3,3"/>
+                      <line x1="50" y1="135" x2="590" y2="135" stroke="#27272a" stroke-width="1" stroke-dasharray="3,3"/>
+                      <!-- 95% probability marker line -->
+                      <line x1="50" y1="17" x2="590" y2="17" stroke="#4f46e5" stroke-width="0.8" stroke-dasharray="4,4" opacity="0.5"/>
+                      <text x="592" y="20" fill="#818cf8" font-size="8" text-anchor="start">5%</text>
+                      <!-- 1% probability marker line -->
+                      <line x1="50" y1="8" x2="590" y2="8" stroke="#ef4444" stroke-width="0.8" stroke-dasharray="4,4" opacity="0.4"/>
+                      <!-- Curve -->
+                      <polyline
+                        :points="lecPoints"
+                        fill="none"
+                        stroke="#6366f1"
+                        stroke-width="2.5"
+                        stroke-linejoin="round"
+                        stroke-linecap="round"
+                      />
+                      <!-- Filled area under curve -->
+                      <polygon
+                        :points="lecFill"
+                        fill="#6366f1"
+                        opacity="0.08"
+                      />
+                      <!-- X-axis labels -->
+                      <template x-for="(label, idx) in lecXLabels" :key="idx">
+                        <text
+                          :x="label.x"
+                          y="185"
+                          text-anchor="middle"
+                          fill="#52525b"
+                          font-size="8"
+                          x-text="label.text"
+                        ></text>
+                      </template>
+                    </svg>
+                    <p class="text-xs text-zinc-600 text-center mt-1">Annual Loss ($)</p>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+      <!-- ── End Quantitative Analysis Section ──────────────────────────── -->
+
+    </main>
+  </div>
+
+  <!-- Add/Edit Modal -->
+  <div x-show="showModal" x-cloak @click.self="showModal=false" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-xl max-h-[90vh] overflow-y-auto">
+      <div class="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <h2 class="text-base font-semibold text-zinc-100" x-text="editingRisk ? `Edit Risk ${editingRisk.id}` : 'Add New Risk'"></h2>
+        <button @click="showModal=false" class="text-zinc-500 hover:text-zinc-300 transition-colors">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <form @submit.prevent="saveRisk()" class="px-6 py-5 space-y-4">
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 mb-1.5">Title <span class="text-red-400">*</span></label>
+          <input type="text" x-model="form.title" required placeholder="e.g. Unauthorized access to production data" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 mb-1.5">Description</label>
+          <textarea x-model="form.description" rows="3" placeholder="Describe the risk scenario and potential impact…" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full resize-none"></textarea>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Likelihood (1–5)</label>
+            <select x-model="form.likelihood" @change="recalcScore()" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="1">1 — Rare</option>
+              <option value="2">2 — Unlikely</option>
+              <option value="3">3 — Possible</option>
+              <option value="4">4 — Likely</option>
+              <option value="5">5 — Almost Certain</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Impact (1–5)</label>
+            <select x-model="form.impact" @change="recalcScore()" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="1">1 — Negligible</option>
+              <option value="2">2 — Minor</option>
+              <option value="3">3 — Moderate</option>
+              <option value="4">4 — Major</option>
+              <option value="5">5 — Critical</option>
+            </select>
+          </div>
+        </div>
+        <div class="bg-zinc-800/50 rounded-lg px-4 py-3 flex items-center justify-between">
+          <span class="text-xs text-zinc-500">Calculated Risk Score</span>
+          <div class="flex items-center gap-2">
+            <span class="text-2xl font-bold" :class="scoreColorClass(form.likelihood * form.impact)" x-text="form.likelihood * form.impact"></span>
+            <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border" :class="scoreClass(form.likelihood * form.impact)" x-text="scoreSeverity(form.likelihood * form.impact)"></span>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Category</label>
+            <select x-model="form.category" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="access_control">Access Control</option>
+              <option value="data_protection">Data Protection</option>
+              <option value="change_management">Change Management</option>
+              <option value="vendor">Vendor Risk</option>
+              <option value="operational">Operational</option>
+              <option value="compliance">Compliance</option>
+              <option value="availability">Availability</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Status</label>
+            <select x-model="form.status" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="open">Open</option>
+              <option value="in_progress">In Progress</option>
+              <option value="mitigated">Mitigated</option>
+              <option value="accepted">Accepted</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Treatment</label>
+            <select x-model="form.treatment" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+              <option value="mitigate">Mitigate</option>
+              <option value="accept">Accept</option>
+              <option value="transfer">Transfer</option>
+              <option value="avoid">Avoid</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 mb-1.5">Target Date</label>
+            <input type="date" x-model="form.target_date" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 w-full">
+          </div>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 mb-1.5">Owner Email</label>
+          <input type="email" x-model="form.owner" placeholder="ciso@company.com" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 w-full">
+        </div>
+        <div class="flex items-center gap-3 pt-2">
+          <button type="submit" :disabled="saving" class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50" x-text="saving ? 'Saving…' : 'Save Risk'"></button>
+          <button type="button" @click="showModal=false" class="flex-1 px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700">Cancel</button>
+          <template x-if="editingRisk">
+            <button type="button" @click="deleteRisk()" class="px-4 py-2 bg-red-600/10 hover:bg-red-600/20 text-red-400 rounded-lg text-sm border border-red-500/30 transition-colors">Delete</button>
+          </template>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div x-show="toast.show" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl" :class="toast.type==='success' ? 'bg-zinc-900 border-emerald-500/30 text-emerald-400' : 'bg-zinc-900 border-red-500/30 text-red-400'">
+    <svg x-show="toast.type==='success'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    <svg x-show="toast.type!=='success'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    <span class="text-sm" x-text="toast.msg"></span>
+  </div>
+
+<script>
+function app() {
+  return {
+    user: null,
+    loading: true,
+    saving: false,
+    syncing: false,
+    risks: [],
+    summary: {},
+    filterStatus: '',
+    showModal: false,
+    editingRisk: null,
+    form: { title:'', description:'', likelihood:3, impact:3, category:'operational', status:'open', treatment:'mitigate', target_date:'', owner:'' },
+    toast: { show: false, msg: '', type: 'success' },
+
+    // Matrix rows: likelihood 5..1
+    get matrixRows() {
+      const rows = [];
+      for (let l = 5; l >= 1; l--) {
+        const cells = [{ key:`lbl-${l}`, isLabel:true, label:String(l) }];
+        for (let i = 1; i <= 5; i++) {
+          const score = l * i;
+          let bgClass;
+          if (score >= 20) bgClass = 'bg-red-600/40 border border-red-600/30';
+          else if (score >= 15) bgClass = 'bg-red-500/25 border border-red-500/20';
+          else if (score >= 10) bgClass = 'bg-amber-500/30 border border-amber-500/20';
+          else if (score >= 5)  bgClass = 'bg-amber-500/15 border border-amber-500/10';
+          else                  bgClass = 'bg-sky-500/10 border border-sky-500/10';
+          cells.push({ key:`cell-${l}-${i}`, isLabel:false, bgClass, cellId:`cell-${l}-${i}` });
         }
+        rows.push({ l, cells });
+      }
+      return rows;
+    },
 
-        function getScoreClass(score) {
-            if (score >= 20) return 'score-critical';
-            if (score >= 15) return 'score-high';
-            if (score >= 8) return 'score-medium';
-            return 'score-low';
+    async init() {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) { location.href = '/login'; return; }
+        this.user = await r.json();
+      } catch { location.href = '/login'; return; }
+      await this.loadData();
+    },
+
+    async loadData() {
+      this.loading = true;
+      await Promise.all([this.loadSummary(), this.loadRisks()]);
+      this.loading = false;
+    },
+
+    async loadSummary() {
+      try {
+        const r = await fetch('/api/risks/summary');
+        if (r.ok) this.summary = await r.json();
+      } catch (e) { console.error(e); }
+    },
+
+    async loadRisks() {
+      try {
+        const url = '/api/risks' + (this.filterStatus ? `?status=${this.filterStatus}` : '');
+        const r = await fetch(url);
+        if (r.ok) {
+          this.risks = await r.json();
+          this.$nextTick(() => this.updateMatrixDots());
         }
+      } catch (e) { console.error(e); }
+    },
 
-        function renderMatrix() {
-            const grid = document.getElementById('matrixGrid');
-            grid.innerHTML = '';
-            
-            // Likelihood labels (5 to 1)
-            for (let l = 5; l >= 1; l--) {
-                grid.innerHTML += `<div class="axis-label">${l}</div>`;
-                for (let i = 1; i <= 5; i++) {
-                    const heat = l + i; // Simple heat map logic
-                    let heatClass = 'c-1';
-                    if (heat >= 9) heatClass = 'c-6';
-                    else if (heat >= 7) heatClass = 'c-4';
-                    else if (heat >= 5) heatClass = 'c-3';
-                    else if (heat >= 3) heatClass = 'c-2';
-                    
-                    grid.innerHTML += `<div class="matrix-cell ${heatClass}" id="cell-${l}-${i}"></div>`;
-                }
-            }
-            
-            // Impact labels (1 to 5)
-            grid.innerHTML += '<div></div>'; // Corner
-            for (let i = 1; i <= 5; i++) {
-                grid.innerHTML += `<div class="axis-label">${i}</div>`;
-            }
+    updateMatrixDots() {
+      document.querySelectorAll('[id^="dots-cell-"]').forEach(el => el.innerHTML = '');
+      this.risks.forEach(risk => {
+        if (risk.status === 'mitigated' || risk.status === 'closed') return;
+        const l = risk.likelihood;
+        const i = risk.impact;
+        const dotContainer = document.getElementById(`dots-cell-${l}-${i}`);
+        if (dotContainer) {
+          const dot = document.createElement('div');
+          dot.className = 'w-2 h-2 bg-white rounded-full shadow-lg opacity-90';
+          dot.title = `${risk.id}: ${risk.title}`;
+          dotContainer.appendChild(dot);
         }
+      });
+    },
 
-        function updateMatrixPoints(risks) {
-            // Clear dots
-            document.querySelectorAll('.matrix-cell').forEach(c => c.innerHTML = '');
-            
-            risks.forEach(r => {
-                if (r.status === 'resolved') return;
-                const cell = document.getElementById(`cell-${r.likelihood}-${r.impact}`);
-                if (cell) {
-                    const dot = document.createElement('div');
-                    dot.className = 'risk-dot';
-                    dot.title = r.id + ': ' + r.title;
-                    cell.appendChild(dot);
-                }
-            });
+    async syncRisks() {
+      this.syncing = true;
+      try {
+        const r = await fetch('/api/risks/sync', { method: 'POST' });
+        if (r.ok) {
+          const res = await r.json();
+          this.showToast(`Sync complete: ${res.created||0} created, ${res.skipped||0} existing`, 'success');
+          await this.loadData();
+        } else {
+          this.showToast('Sync failed', 'error');
         }
+      } catch { this.showToast('Network error during sync', 'error'); }
+      finally { this.syncing = false; }
+    },
 
-        async function syncRisks() {
-            showToast("Syncing with controls...", "info");
-            const r = await fetch('/api/risks/sync', { method: 'POST' });
-            const res = await r.json();
-            showToast(`Sync complete: ${res.created} created, ${res.skipped} existing.`, "success");
-            loadSummary();
-            loadRisks();
-        }
+    openAddModal() {
+      this.editingRisk = null;
+      this.form = { title:'', description:'', likelihood:3, impact:3, category:'operational', status:'open', treatment:'mitigate', target_date:'', owner: this.user?.email||'' };
+      this.showModal = true;
+    },
 
-        function openModal() {
-            document.getElementById('modalTitle').innerText = "Add Risk";
-            document.getElementById('riskForm').reset();
-            document.getElementById('riskId').value = '';
-            document.getElementById('deleteBtn').style.display = 'none';
-            document.getElementById('riskModal').style.display = 'flex';
-            updateScore();
-        }
+    async editRisk(risk) {
+      this.editingRisk = risk;
+      this.form = {
+        title: risk.title||'', description: risk.description||'',
+        likelihood: risk.likelihood||3, impact: risk.impact||3,
+        category: risk.category||'operational', status: risk.status||'open',
+        treatment: risk.treatment||'mitigate', target_date: risk.target_date||'',
+        owner: risk.owner||''
+      };
+      this.showModal = true;
+    },
 
-        async function editRisk(id) {
-            const r = await fetch(`/api/risks/${id}`);
-            const risk = await r.json();
-            
-            document.getElementById('modalTitle').innerText = "Edit Risk " + id;
-            document.getElementById('riskId').value = risk.id;
-            document.getElementById('title').value = risk.title;
-            document.getElementById('description').value = risk.description;
-            document.getElementById('likelihood').value = risk.likelihood;
-            document.getElementById('impact').value = risk.impact;
-            document.getElementById('category').value = risk.category;
-            document.getElementById('owner').value = risk.owner;
-            document.getElementById('status').value = risk.status;
-            document.getElementById('treatment').value = risk.treatment;
-            document.getElementById('target_date').value = risk.target_date || '';
-            
-            document.getElementById('deleteBtn').style.display = 'block';
-            document.getElementById('riskModal').style.display = 'flex';
-            updateScore();
-        }
+    recalcScore() { /* reactive — handled by computed in template */ },
 
-        function closeModal() {
-            document.getElementById('riskModal').style.display = 'none';
-        }
-
-        function updateScore() {
-            const l = parseInt(document.getElementById('likelihood').value);
-            const i = parseInt(document.getElementById('impact').value);
-            const score = l * i;
-            const el = document.getElementById('scorePreview');
-            el.innerText = score;
-            
-            if (score >= 20) el.style.color = 'var(--critical)';
-            else if (score >= 15) el.style.color = 'var(--high)';
-            else if (score >= 8) el.style.color = 'var(--medium)';
-            else el.style.color = 'var(--low)';
-        }
-
-        document.getElementById('riskForm').onsubmit = async (e) => {
-            e.preventDefault();
-            const id = document.getElementById('riskId').value;
-            const data = {
-                title: document.getElementById('title').value,
-                description: document.getElementById('description').value,
-                likelihood: parseInt(document.getElementById('likelihood').value),
-                impact: parseInt(document.getElementById('impact').value),
-                category: document.getElementById('category').value,
-                owner: document.getElementById('owner').value,
-                status: document.getElementById('status').value,
-                treatment: document.getElementById('treatment').value,
-                target_date: document.getElementById('target_date').value
-            };
-
-            const url = id ? `/api/risks/${id}` : '/api/risks';
-            const method = id ? 'PATCH' : 'POST';
-
-            const r = await fetch(url, {
-                method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-
-            if (r.ok) {
-                closeModal();
-                loadSummary();
-                loadRisks();
-                showToast(id ? "Risk updated" : "Risk created", "success");
-            } else {
-                showToast("Error saving risk", "error");
-            }
+    async saveRisk() {
+      this.saving = true;
+      try {
+        const payload = {
+          title: this.form.title,
+          description: this.form.description,
+          likelihood: parseInt(this.form.likelihood),
+          impact: parseInt(this.form.impact),
+          category: this.form.category,
+          status: this.form.status,
+          treatment: this.form.treatment,
+          target_date: this.form.target_date || null,
+          owner: this.form.owner
         };
-
-        async function deleteRisk() {
-            const id = document.getElementById('riskId').value;
-            if (!confirm(`Delete risk ${id}?`)) return;
-            
-            const r = await fetch(`/api/risks/${id}`, { method: 'DELETE' });
-            if (r.ok) {
-                closeModal();
-                loadSummary();
-                loadRisks();
-                showToast("Risk deleted", "success");
-            }
+        const url = this.editingRisk ? `/api/risks/${this.editingRisk.id}` : '/api/risks';
+        const method = this.editingRisk ? 'PATCH' : 'POST';
+        const r = await fetch(url, { method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+        if (r.ok) {
+          this.showModal = false;
+          this.showToast(this.editingRisk ? 'Risk updated' : 'Risk created', 'success');
+          await this.loadData();
+        } else {
+          const err = await r.json().catch(()=>({}));
+          this.showToast(`Error: ${err.detail||'Save failed'}`, 'error');
         }
+      } catch { this.showToast('Network error', 'error'); }
+      finally { this.saving = false; }
+    },
 
-        function showToast(msg, type) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.style.display = 'block';
-            t.style.borderColor = type === 'success' ? 'var(--pass)' : 'var(--fail)';
-            setTimeout(() => t.style.display = 'none', 3000);
+    async deleteRisk() {
+      if (!this.editingRisk) return;
+      if (!confirm(`Delete risk ${this.editingRisk.id}?`)) return;
+      const r = await fetch(`/api/risks/${this.editingRisk.id}`, { method: 'DELETE' });
+      if (r.ok) {
+        this.showModal = false;
+        this.showToast('Risk deleted', 'success');
+        await this.loadData();
+      } else {
+        this.showToast('Delete failed', 'error');
+      }
+    },
+
+    scoreClass(score) {
+      if (score >= 20) return 'bg-red-600/15 text-red-400 border-red-500/30';
+      if (score >= 15) return 'bg-red-500/10 text-red-400 border-red-500/20';
+      if (score >= 10) return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      if (score >= 5)  return 'bg-amber-500/10 text-amber-400 border-amber-500/20';
+      return 'bg-sky-500/10 text-sky-400 border-sky-500/20';
+    },
+
+    scoreColorClass(score) {
+      if (score >= 20) return 'text-red-400';
+      if (score >= 15) return 'text-red-400';
+      if (score >= 10) return 'text-amber-400';
+      if (score >= 5)  return 'text-amber-400';
+      return 'text-sky-400';
+    },
+
+    scoreSeverity(score) {
+      if (score >= 20) return 'Critical';
+      if (score >= 15) return 'High';
+      if (score >= 10) return 'High';
+      if (score >= 5)  return 'Medium';
+      return 'Low';
+    },
+
+    statusClass(status) {
+      const s = (status||'').toLowerCase();
+      if (s === 'open') return 'bg-red-500/10 text-red-400 border-red-500/30';
+      if (s === 'in_progress') return 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+      if (s === 'mitigated') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+      if (s === 'accepted') return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30';
+      if (s === 'closed') return 'bg-zinc-500/10 text-zinc-500 border-zinc-600/30';
+      return 'bg-zinc-500/10 text-zinc-400 border-zinc-500/30';
+    },
+
+    showToast(msg, type='success') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    },
+
+    async logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      location.href = '/login';
+    }
+  };
+}
+
+// ── CRQ Alpine component ─────────────────────────────────────────────────────
+function crqApp() {
+  return {
+    presets: [],
+    crqLoading: false,
+    crqResult: null,
+    crqError: null,
+    crqForm: {
+      asset_value: 1000000,
+      threat_freq_per_year: 0.5,
+      vuln_factor: 0.3,
+      impact_min_pct: 0.05,
+      impact_max_pct: 0.30,
+      iterations: 10000,
+    },
+
+    async initCrq() {
+      try {
+        const r = await fetch('/api/crq/presets');
+        if (r.ok) this.presets = await r.json();
+      } catch (e) {
+        // Presets are optional; silently ignore fetch errors
+        console.warn('CRQ presets unavailable:', e);
+      }
+    },
+
+    applyPreset(preset) {
+      this.crqForm.asset_value        = preset.asset_value;
+      this.crqForm.threat_freq_per_year = preset.threat_freq_per_year;
+      this.crqForm.vuln_factor        = preset.vuln_factor;
+      this.crqForm.impact_min_pct     = preset.impact_min_pct;
+      this.crqForm.impact_max_pct     = preset.impact_max_pct;
+      this.crqForm.iterations         = preset.iterations || 10000;
+      this.crqResult = null;
+      this.crqError  = null;
+    },
+
+    async runSimulation() {
+      // Validate impact range
+      if (this.crqForm.impact_max_pct < this.crqForm.impact_min_pct) {
+        this.crqError = 'Max impact % must be greater than or equal to Min impact %.';
+        return;
+      }
+      this.crqLoading = true;
+      this.crqResult  = null;
+      this.crqError   = null;
+      try {
+        const r = await fetch('/api/crq/simulate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            asset_value:           parseFloat(this.crqForm.asset_value),
+            threat_freq_per_year:  parseFloat(this.crqForm.threat_freq_per_year),
+            vuln_factor:           parseFloat(this.crqForm.vuln_factor),
+            impact_min_pct:        parseFloat(this.crqForm.impact_min_pct),
+            impact_max_pct:        parseFloat(this.crqForm.impact_max_pct),
+            iterations:            parseInt(this.crqForm.iterations),
+          }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${r.status}`);
         }
+        this.crqResult = await r.json();
+      } catch (e) {
+        this.crqError = `Simulation failed: ${e.message}`;
+      } finally {
+        this.crqLoading = false;
+      }
+    },
 
-        window.onload = init;
-    </script>
+    formatCurrency(value) {
+      if (value == null) return '—';
+      if (value >= 1_000_000) return '$' + (value / 1_000_000).toFixed(2) + 'M';
+      if (value >= 1_000)     return '$' + (value / 1_000).toFixed(1) + 'K';
+      return '$' + value.toFixed(0);
+    },
+
+    // SVG polyline points for the LEC chart
+    get lecPoints() {
+      if (!this.crqResult?.loss_exceedance?.length) return '';
+      const pts = this.crqResult.loss_exceedance;
+      const maxT = pts[pts.length - 1].threshold || 1;
+      // chart area: x in [50..590], y in [10..170] (170 = 0%, 10 = 100%)
+      return pts.map(p => {
+        const x = 50 + (p.threshold / maxT) * 540;
+        const y = 170 - p.probability * 160;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+    },
+
+    get lecFill() {
+      if (!this.crqResult?.loss_exceedance?.length) return '';
+      const pts = this.crqResult.loss_exceedance;
+      const maxT = pts[pts.length - 1].threshold || 1;
+      const polyPoints = pts.map(p => {
+        const x = 50 + (p.threshold / maxT) * 540;
+        const y = 170 - p.probability * 160;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+      });
+      // Close the polygon along the bottom baseline
+      const lastX = 50 + 540;
+      return `50,170 ${polyPoints.join(' ')} ${lastX},170`;
+    },
+
+    get lecXLabels() {
+      if (!this.crqResult?.loss_exceedance?.length) return [];
+      const pts = this.crqResult.loss_exceedance;
+      const maxT = pts[pts.length - 1].threshold || 1;
+      const labelIndices = [0, 4, 9, 14, 19].filter(i => i < pts.length);
+      return labelIndices.map(i => {
+        const p = pts[i];
+        const x = 50 + (p.threshold / maxT) * 540;
+        let text;
+        if (p.threshold >= 1_000_000) text = '$' + (p.threshold / 1_000_000).toFixed(1) + 'M';
+        else if (p.threshold >= 1_000) text = '$' + (p.threshold / 1_000).toFixed(0) + 'K';
+        else text = '$' + Math.round(p.threshold);
+        return { x, text };
+      });
+    },
+  };
+}
+</script>
 </body>
 </html>

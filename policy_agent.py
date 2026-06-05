@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku")
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 # Тип для sections: имя раздела → строка или список строк
@@ -530,27 +530,45 @@ _CLOSING_PATTERNS = [
     "this concludes",
     "this policy concludes",
     "this document concludes",
-    "this policy is designed to",
-    "this policy aims to",
     "in conclusion",
     "in summary,",
-    "by adhering to this",
-    "by following this policy",
-    "by implementing this",
     "thank you for",
     "if you have any questions",
     "please contact",
     "for more information",
     "end of policy",
     "end of document",
+    # LLM wrapping/closing boilerplate
+    "this ensures a robust",
+    "this ensures that marineso",
+    "this comprehensive approach ensures",
+    "this policy document ensures",
+    "this framework ensures",
+    "together, these measures ensure",
+    "by following these guidelines",
+    "by adhering to these guidelines",
+    "by implementing these measures",
+    "we look forward to",
+    "we are committed to",
 ]
+
+# Section headers that LLMs add illegitimately (should not appear in SOC 2 policies)
+_ILLEGAL_SECTIONS = ["## conclusion", "## summary", "## closing remarks", "## final notes"]
 
 
 def _clean_policy_output(text: str) -> str:
-    """Убирает артефакты LLM: финальные заглушки, H3 вместо H2, дублирующие секции."""
+    """Убирает артефакты LLM: финальные заглушки, H3 вместо H2, дублирующие секции, нелегитимные секции."""
     import re
     # H3 → H2 для секций верхнего уровня
     text = re.sub(r'^###\s+', '## ', text, flags=re.MULTILINE)
+    # Удаляем целые нелегитимные секции (## Conclusion и т.п.) вместе с их содержимым
+    for bad in _ILLEGAL_SECTIONS:
+        # Ищем заголовок и удаляем его вместе со всем текстом до следующего ## или конца
+        pattern = re.compile(
+            r'^' + re.escape(bad) + r'.*?(?=\n## |\Z)',
+            re.IGNORECASE | re.MULTILINE | re.DOTALL,
+        )
+        text = pattern.sub('', text)
     # Убираем строки-заглушки в конце
     lines = text.strip().splitlines()
     while lines:
@@ -572,7 +590,6 @@ def _clean_policy_output(text: str) -> str:
         line = lines[i]
         if re.match(r'^##\s+', line):
             if line in seen_headers:
-                # Пропускаем весь дублирующийся блок до следующего заголовка
                 i += 1
                 while i < len(lines) and not re.match(r'^##\s+', lines[i]):
                     i += 1
@@ -913,7 +930,7 @@ def main(controls_map: dict | None = None):
                 content=content,
                 source="AI_GENERATED"
             )
-            evidence_client.update_control_status(controls_map[code], "PASS")
+            evidence_client.submit_test_result(controls_map[code], "PASS", test_key=f"policy.{code.lower().replace('.', '_')}.draft_generated", producer="policy")
             print(f"[AI] Policy saved to Evidence Tracker: {code}")
 
             if notifier:

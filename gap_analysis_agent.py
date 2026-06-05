@@ -5,6 +5,7 @@ Gap Analysis Agent — AI-анализ несоответствий SOC 2 кон
 конкретный plan действий с приоритетом и оценкой трудозатрат.
 """
 
+import asyncio
 import os
 import json
 import time
@@ -29,7 +30,7 @@ _RATE_LIMIT_BACKOFF  = [10, 30, 60, 120]
 
 OPENROUTER_API_KEY  = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL    = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku")
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 # Файл кеша — рядом со скриптом, с fallback на /tmp если нет прав на запись
 _default_gap_cache = Path(__file__).parent / "gap_analysis_cache.json"
@@ -44,6 +45,80 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+
+# Статичные рекомендации по SOC2 кодам (используются как fallback при rate limit)
+_SOC2_STATIC_GUIDANCE: dict[str, dict] = {
+    "CC3.4": {
+        "gap_description": "Изменения в систему не проходят через формальный процесс управления изменениями. Обнаружены прямые коммиты в защищённую ветку без code review.",
+        "actions": [
+            "Включить branch protection на ветке main/master в GitHub",
+            "Настроить обязательный code review (минимум 1 reviewer) перед merge",
+            "Запретить прямые push в main для всех пользователей включая администраторов",
+            "Внедрить CI/CD pipeline с автоматическими тестами перед merge",
+        ],
+        "priority": "high",
+        "estimated_days": 3,
+    },
+    "CC6.1": {
+        "gap_description": "Логический доступ не соответствует требованиям SOC2: отсутствует MFA для части пользователей, политика паролей не соответствует минимальным стандартам.",
+        "actions": [
+            "Включить обязательный MFA для всех пользователей в Okta",
+            "Настроить политику паролей: минимум 12 символов, заглавные буквы, цифры",
+            "Провести аудит всех активных учётных записей и отозвать лишние доступы",
+            "Настроить автоматическую блокировку после 5 неудачных попыток входа",
+        ],
+        "priority": "critical",
+        "estimated_days": 5,
+    },
+    "CC6.3": {
+        "gap_description": "Пользователи имеют избыточные привилегии. Обнаружены учётные записи с правами SUPER_ADMIN без обоснования.",
+        "actions": [
+            "Провести ревизию ролей всех пользователей с привилегированным доступом",
+            "Применить принцип минимальных привилегий (Least Privilege)",
+            "Задокументировать обоснование для каждой роли SUPER_ADMIN",
+            "Настроить регулярный (quarterly) Access Review процесс",
+        ],
+        "priority": "critical",
+        "estimated_days": 7,
+    },
+    "CC8.1": {
+        "gap_description": "Управление изменениями инфраструктуры не контролируется: нет защиты веток и формального процесса approve/merge.",
+        "actions": [
+            "Включить GitHub branch protection rules для всех production веток",
+            "Настроить обязательный review от team lead перед deploy",
+            "Внедрить Change Advisory Board (CAB) для значимых изменений",
+            "Документировать все изменения в audit log",
+        ],
+        "priority": "high",
+        "estimated_days": 5,
+    },
+}
+
+
+def _static_gap_fallback(control_id: str, ctrl: dict) -> dict:
+    """Возвращает статичные рекомендации по SOC2 коду при недоступности LLM."""
+    code = ctrl.get("code", control_id)
+    guidance = _SOC2_STATIC_GUIDANCE.get(code, {
+        "gap_description": f"Контроль {code} не соответствует требованиям SOC2. Требуется ручной анализ.",
+        "actions": [
+            "Провести ручной аудит контроля",
+            "Разработать план устранения несоответствия",
+            "Назначить ответственного за исправление",
+        ],
+        "priority": "high",
+        "estimated_days": 7,
+    })
+    return {
+        "control_id":      control_id,
+        "control_code":    code,
+        "control_title":   ctrl.get("title", ""),
+        "gap_description": guidance["gap_description"],
+        "actions":         guidance["actions"],
+        "priority":        guidance["priority"],
+        "estimated_days":  guidance["estimated_days"],
+        "is_advisory":     True,
+        "advisory_disclaimer": "Статичные рекомендации SOC2 — AI-анализ недоступен (rate limit)",
+    }
 
 
 class GapAnalysisAgent:
@@ -61,6 +136,7 @@ class GapAnalysisAgent:
         )
         self.model = model or OPENROUTER_MODEL
         self._evidence_client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="gap_analysis")
+        self._ctrl_meta_cache: dict = {}
 
     # ── Загрузка данных из Evidence Tracker ───────────────────────────────────
 
@@ -72,18 +148,53 @@ class GapAnalysisAgent:
             return json.load(f)
 
     def _get_fail_controls(self) -> list[dict]:
-        """Возвращает список контролей со статусом FAIL из Evidence Tracker."""
+        """Возвращает список контролей со статусом FAIL напрямую из SQLite (синхронно)."""
         try:
-            controls = self._evidence_client.get_controls()
-            return [c for c in controls if c.get("status", "").upper() == "FAIL"]
+            import sqlite3
+            import os
+            from control_mapping import CONTROL_MAPPINGS
+
+            db_path = os.path.join(os.path.dirname(__file__), "compliance.db")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.execute("SELECT control_id, status FROM control_status")
+            status_by_code = {row[0]: row[1] for row in cursor.fetchall()}
+            conn.close()
+
+            return [
+                {
+                    "id": m.soc2,
+                    "code": m.soc2,
+                    "title": m.description,
+                    "framework": "SOC2",
+                    "category": m.category,
+                    "status": "FAIL",
+                }
+                for m in CONTROL_MAPPINGS
+                if status_by_code.get(m.soc2, "UNKNOWN").upper() == "FAIL"
+            ]
         except Exception as exc:
-            logger.warning(f"Не удалось получить контроли: {exc}")
+            logger.warning(f"Не удалось получить FAIL контроли из БД: {exc}")
             return []
 
     def _get_evidences_for_control(self, control_id: str) -> list[dict]:
-        """Возвращает список evidence для одного контроля."""
+        """Возвращает список evidence для контроля напрямую из SQLite (синхронно)."""
         try:
-            return self._evidence_client.get_evidence(control_id=control_id, limit=20)
+            import sqlite3
+            import os
+
+            db_path = os.path.join(os.path.dirname(__file__), "compliance.db")
+            conn = sqlite3.connect(db_path)
+            cursor = conn.execute(
+                "SELECT id, control_id, title, source, content FROM evidence"
+                " WHERE control_id = ? ORDER BY created_at DESC LIMIT 20",
+                (control_id,),
+            )
+            rows = cursor.fetchall()
+            conn.close()
+            return [
+                {"id": r[0], "control_id": r[1], "title": r[2], "source": r[3], "content": r[4]}
+                for r in rows
+            ]
         except Exception as exc:
             logger.warning(f"Не удалось получить evidence для {control_id}: {exc}")
             return []
@@ -154,6 +265,11 @@ Rules:
                 )
                 return response.choices[0].message.content
             except RateLimitError as exc:
+                err_str = str(exc)
+                # Ежедневный лимит — смысла ждать нет, сразу в fallback
+                if "per-day" in err_str or "Remaining': '0'" in err_str:
+                    logger.warning(f"[GapAnalysis] Суточный лимит OpenRouter исчерпан для {control_code}, используем static fallback")
+                    raise
                 if attempt == len(_RATE_LIMIT_BACKOFF) - 1:
                     raise
                 logger.warning(
@@ -215,15 +331,9 @@ Rules:
         code_by_id   = {v: k for k, v in controls_map.items()}
         control_code = code_by_id.get(control_id, control_id)
 
-        # Получаем метаданные контроля из Evidence Tracker
-        try:
-            all_controls = self._evidence_client.get_controls()
-            ctrl_meta    = next((c for c in all_controls if str(c["id"]) == control_id), {})
-        except Exception:
-            ctrl_meta = {}
-
-        ctrl_title = ctrl_meta.get("title", control_code)
-        ctrl_desc  = ctrl_meta.get("description", "SOC 2 control requirement")
+        # Метаданные берём из переданного аргумента (не HTTP-запрос)
+        ctrl_title = self._ctrl_meta_cache.get(control_id, {}).get("title", control_code)
+        ctrl_desc  = self._ctrl_meta_cache.get(control_id, {}).get("description", "SOC 2 control requirement")
 
         logger.info(f"[GapAnalysis] Анализируем {control_code}: {ctrl_title}")
 
@@ -255,7 +365,7 @@ Rules:
             # Парсим структурированный ответ из advice.suggestion
             prompt   = self._build_prompt(control_code, ctrl_title, ctrl_desc, evidences)
             _t0 = time.time()
-            raw_resp = self._call_llm(prompt, control_code)
+            raw_resp = await asyncio.to_thread(self._call_llm, prompt, control_code)
             _duration_ms = int((time.time() - _t0) * 1000)
             parsed   = self._parse_llm_response(raw_resp, control_code)
             is_advisory = True
@@ -263,7 +373,7 @@ Rules:
             # Fallback если ai_advisor не доступен
             prompt   = self._build_prompt(control_code, ctrl_title, ctrl_desc, evidences)
             _t0 = time.time()
-            raw_resp = self._call_llm(prompt, control_code)
+            raw_resp = await asyncio.to_thread(self._call_llm, prompt, control_code)
             _duration_ms = int((time.time() - _t0) * 1000)
             parsed   = self._parse_llm_response(raw_resp, control_code)
             is_advisory = False
@@ -321,6 +431,9 @@ Rules:
 
         logger.info(f"[GapAnalysis] Найдено FAIL-контролей: {len(fail_controls)}")
 
+        # Кешируем метаданные контролей чтобы analyze_control не делал HTTP-запрос
+        self._ctrl_meta_cache = {str(c["id"]): c for c in fail_controls}
+
         gaps = []
         for ctrl in fail_controls:
             control_id   = str(ctrl["id"])
@@ -332,19 +445,10 @@ Rules:
                 logger.info(f"[GapAnalysis] {gap['control_code']} → {gap['priority'].upper()}, {gap['estimated_days']} дней")
             except Exception as exc:
                 logger.error(f"[GapAnalysis] Ошибка анализа {control_id}: {exc}")
-                # Добавляем заглушку, чтобы не потерять контроль из отчёта
-                gaps.append({
-                    "control_id":      control_id,
-                    "control_code":    ctrl.get("code", control_id),
-                    "control_title":   ctrl.get("title", ""),
-                    "gap_description": f"Анализ не выполнен из-за ошибки: {exc}",
-                    "actions":         ["Повторить анализ вручную"],
-                    "priority":        "high",
-                    "estimated_days":  7,
-                })
+                gaps.append(_static_gap_fallback(control_id, ctrl))
 
             # Пауза между запросами — соблюдаем rate limit OpenRouter
-            time.sleep(_INTER_REQUEST_DELAY)
+            await asyncio.sleep(_INTER_REQUEST_DELAY)
 
         # Сортируем по приоритету: critical → high → medium
         priority_order = {"critical": 0, "high": 1, "medium": 2}

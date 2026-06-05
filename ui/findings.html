@@ -1,0 +1,857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor — Findings</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
+</head>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
+
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+    <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+      </div>
+    </div>
+    <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+      </a>
+      <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Frameworks
+      </a>
+      <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Risk Register
+      </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>
+        Vulnerabilities
+      </a>
+      <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Pen Tests
+      </a>
+      <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Access Review
+      </a>
+      <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
+        BG Checks
+      </a>
+      <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
+        Training
+      </a>
+      <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        Questionnaires
+      </a>
+      <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        Tests Catalog
+      </a>
+      <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Audit Timeline
+      </a>
+      <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Time Machine
+      </a>
+      <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+        Onboarding
+      </a>
+      <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        AI Decisions
+      </a>
+      <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Trust Center
+      </a>
+      <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Auditor Portal
+      </a>
+      <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+        Metrology
+      </a>
+      <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+        BIA
+      </a>
+        <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+  </nav>
+    <div class="p-3 border-t border-zinc-800 shrink-0">
+      <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+        <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+        <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+        <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="ml-60 flex flex-col min-h-screen">
+    <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+      <div>
+        <h1 class="text-sm font-semibold text-zinc-100">Findings</h1>
+        <p class="text-xs text-zinc-500">Track and remediate compliance test failures with SLA enforcement</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- Severity filter -->
+        <select x-model="filterSeverity" @change="loadFindings()" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500">
+          <option value="">All Severities</option>
+          <option value="CRITICAL">Critical</option>
+          <option value="HIGH">High</option>
+          <option value="MEDIUM">Medium</option>
+          <option value="LOW">Low</option>
+        </select>
+        <!-- Status filter -->
+        <select x-model="filterStatus" @change="loadFindings()" class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500">
+          <option value="OPEN">Open</option>
+          <option value="RESOLVED">Resolved</option>
+          <option value="FALSE_POSITIVE">False Positive</option>
+          <option value="ACCEPTED_RISK">Accepted Risk</option>
+        </select>
+        <!-- Refresh -->
+        <button @click="loadFindings()" :disabled="loading" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 inline-flex items-center gap-2 disabled:opacity-50">
+          <svg class="w-3.5 h-3.5" :class="loading ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span x-text="loading ? 'Loading…' : 'Refresh'"></span>
+        </button>
+        <!-- Role badge + Day/Night -->
+        <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+          <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+            :class="{
+              'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+              'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+              'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+              'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+            }"
+            x-text="user.role"></span>
+          <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
+        </div>
+        <button
+          onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+          class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+          title="Toggle day/night mode">
+          <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+          <span class="ith-sun">Day</span>
+          <span class="ith-moon">Night</span>
+        </button>
+      </div>
+    </header>
+
+    <main class="flex-1 p-6 space-y-6">
+
+      <!-- Stat cards -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Open Findings</p>
+          <p class="text-3xl font-bold text-red-400 mt-2" x-text="loading ? '—' : stats.open"></p>
+          <p class="text-xs text-zinc-500 mt-1">require attention</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Critical Open</p>
+          <p class="text-3xl font-bold text-rose-500 mt-2" x-text="loading ? '—' : stats.critical"></p>
+          <p class="text-xs text-zinc-500 mt-1">highest priority</p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 relative overflow-hidden">
+          <div class="absolute inset-0 bg-red-500/5 rounded-xl" x-show="stats.sla_breached > 0"></div>
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider relative">SLA Breached</p>
+          <p class="text-3xl font-bold mt-2 relative" :class="stats.sla_breached > 0 ? 'text-red-500' : 'text-zinc-300'" x-text="loading ? '—' : stats.sla_breached"></p>
+          <p class="text-xs mt-1 relative" :class="stats.sla_breached > 0 ? 'text-red-400/70' : 'text-zinc-500'" x-text="stats.sla_breached > 0 ? 'overdue — act now' : 'all within SLA'"></p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Resolved</p>
+          <p class="text-3xl font-bold text-emerald-400 mt-2" x-text="loading ? '—' : stats.resolved"></p>
+          <p class="text-xs text-zinc-500 mt-1">closed findings</p>
+        </div>
+      </div>
+
+      <!-- Jira Config panel -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <button @click="jiraOpen = !jiraOpen"
+          class="w-full flex items-center justify-between px-5 py-3.5 text-sm text-zinc-300 hover:bg-zinc-800/40 transition-colors">
+          <span class="flex items-center gap-2 font-medium">
+            <svg class="w-4 h-4 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            Jira Config
+            <span x-show="jiraCfgSaved" class="text-xs text-emerald-400 font-normal">(saved)</span>
+          </span>
+          <svg class="w-4 h-4 text-zinc-500 transition-transform" :class="jiraOpen ? 'rotate-180' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+        </button>
+        <div x-show="jiraOpen" x-cloak class="px-5 pb-5 border-t border-zinc-800">
+          <p class="text-xs text-zinc-500 mt-3 mb-4">Configure Jira connection to create tickets from findings. Credentials are stored in your browser only.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-medium text-zinc-400 mb-1">Jira URL</label>
+              <input x-model="jiraCfg.base_url" type="url" placeholder="https://yourcompany.atlassian.net"
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-zinc-400 mb-1">Project Key</label>
+              <input x-model="jiraCfg.project_key" type="text" placeholder="SEC"
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-zinc-400 mb-1">Email</label>
+              <input x-model="jiraCfg.email" type="email" placeholder="you@company.com"
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-zinc-400 mb-1">API Token</label>
+              <input x-model="jiraCfg.api_token" type="password" placeholder="••••••••••••••••"
+                class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
+            </div>
+          </div>
+          <div class="mt-3 flex items-center gap-3">
+            <button @click="saveJiraCfg()"
+              class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-sm font-medium transition-colors">
+              Save Config
+            </button>
+            <button @click="clearJiraCfg()" x-show="jiraCfgSaved"
+              class="px-4 py-2 bg-zinc-700 hover:bg-zinc-600 text-zinc-300 rounded-lg text-sm font-medium transition-colors">
+              Clear
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Findings table -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-200">
+            <span x-text="filterStatus"></span> Findings
+            <span class="ml-2 px-1.5 py-0.5 bg-zinc-800 text-zinc-400 text-xs rounded" x-text="findings.length"></span>
+          </h2>
+          <p class="text-xs text-zinc-500" x-show="findings.length > 0" x-text="`Showing ${findings.length} items`"></p>
+        </div>
+
+        <!-- Empty state -->
+        <div x-show="!loading && findings.length === 0" class="py-16 text-center">
+          <svg class="w-10 h-10 text-zinc-700 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+          <p class="text-sm font-medium text-zinc-400">No findings</p>
+          <p class="text-xs text-zinc-600 mt-1">No <span x-text="filterStatus.toLowerCase()"></span> findings match the current filters</p>
+        </div>
+
+        <!-- Loading skeleton -->
+        <div x-show="loading" class="divide-y divide-zinc-800">
+          <template x-for="i in 5" :key="i">
+            <div class="px-5 py-4 flex items-center gap-4 animate-pulse">
+              <div class="w-16 h-5 bg-zinc-800 rounded"></div>
+              <div class="flex-1 h-4 bg-zinc-800 rounded"></div>
+              <div class="w-24 h-4 bg-zinc-800 rounded"></div>
+              <div class="w-20 h-5 bg-zinc-800 rounded"></div>
+              <div class="w-28 h-4 bg-zinc-800 rounded"></div>
+              <div class="w-20 h-7 bg-zinc-800 rounded"></div>
+            </div>
+          </template>
+        </div>
+
+        <!-- Table -->
+        <div x-show="!loading && findings.length > 0" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-zinc-800">
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Severity</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Finding</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Resource</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Owner</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">First Seen</th>
+                <th class="text-left px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">SLA Due</th>
+                <th class="text-right px-5 py-3 text-xs font-medium text-zinc-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-zinc-800">
+              <template x-for="f in findings" :key="f.id">
+                <tr class="hover:bg-zinc-800/40 transition-colors group cursor-pointer" @click="openDetail(f)">
+                  <!-- Severity -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-bold uppercase"
+                      :class="{
+                        'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/20': f.severity==='CRITICAL',
+                        'bg-orange-500/15 text-orange-400 ring-1 ring-inset ring-orange-500/20': f.severity==='HIGH',
+                        'bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/20': f.severity==='MEDIUM',
+                        'bg-sky-500/15 text-sky-400 ring-1 ring-inset ring-sky-500/20': f.severity==='LOW'
+                      }"
+                      x-text="f.severity"></span>
+                  </td>
+                  <!-- Title -->
+                  <td class="px-5 py-3.5 max-w-xs">
+                    <p class="text-zinc-200 font-medium truncate" x-text="f.test_title || f.test_key"></p>
+                    <p class="text-xs text-zinc-500 font-mono truncate" x-text="f.test_key"></p>
+                    <!-- Jira badge if ticket exists -->
+                    <a x-show="f.jira_ticket_url" :href="f.jira_ticket_url" target="_blank" rel="noopener"
+                      class="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 bg-blue-500/10 text-blue-400 ring-1 ring-inset ring-blue-500/20 rounded text-xs font-medium hover:bg-blue-500/20 transition-colors"
+                      x-text="'🎫 ' + (f.jira_ticket_key || 'Jira')" @click.stop></a>
+                  </td>
+                  <!-- Resource -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span class="text-xs font-mono text-zinc-400" x-text="f.resource_id || '—'"></span>
+                  </td>
+                  <!-- Status -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                      :class="{
+                        'bg-red-500/10 text-red-400': f.status==='OPEN',
+                        'bg-emerald-500/10 text-emerald-400': f.status==='RESOLVED',
+                        'bg-zinc-700/50 text-zinc-400': f.status==='FALSE_POSITIVE',
+                        'bg-amber-500/10 text-amber-400': f.status==='ACCEPTED_RISK'
+                      }">
+                      <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                        :class="{
+                          'bg-red-400': f.status==='OPEN',
+                          'bg-emerald-400': f.status==='RESOLVED',
+                          'bg-zinc-400': f.status==='FALSE_POSITIVE',
+                          'bg-amber-400': f.status==='ACCEPTED_RISK'
+                        }"></span>
+                      <span x-text="f.status.replace('_', ' ')"></span>
+                    </span>
+                  </td>
+                  <!-- Owner -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span x-show="f.owner_email" class="text-xs text-zinc-400" x-text="f.owner_email"></span>
+                    <span x-show="!f.owner_email" class="text-xs text-zinc-600 italic">unassigned</span>
+                  </td>
+                  <!-- First seen -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span class="text-xs text-zinc-400" x-text="fmtDate(f.first_seen_at)"></span>
+                  </td>
+                  <!-- SLA due -->
+                  <td class="px-5 py-3.5 whitespace-nowrap">
+                    <span x-show="!f.sla_due_at" class="text-xs text-zinc-600">—</span>
+                    <span x-show="f.sla_due_at && !f.sla_breached" class="text-xs text-zinc-400" x-text="fmtDate(f.sla_due_at)"></span>
+                    <span x-show="f.sla_due_at && f.sla_breached" class="inline-flex items-center gap-1 text-xs text-red-400 font-medium">
+                      <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                      <span x-text="fmtDate(f.sla_due_at)"></span>
+                    </span>
+                  </td>
+                  <!-- Actions -->
+                  <td class="px-5 py-3.5 whitespace-nowrap text-right">
+                    <div class="flex items-center justify-end gap-2">
+                      <!-- Jira button -->
+                      <button
+                        x-show="f.jira_ticket_url"
+                        @click.stop="window.open(f.jira_ticket_url, '_blank')"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium border border-blue-500/20 hover:border-blue-500/40 inline-flex items-center gap-1.5">
+                        🎫 <span x-text="f.jira_ticket_key || 'Jira'"></span>
+                      </button>
+                      <button
+                        x-show="!f.jira_ticket_url"
+                        @click.stop="createJiraTicket(f)"
+                        :disabled="jiraCreating === f.id"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-xs font-medium border border-blue-500/20 hover:border-blue-500/40 inline-flex items-center gap-1.5 disabled:opacity-40"
+                        :title="jiraCfgSaved ? 'Create Jira ticket' : 'Configure Jira first (click Jira Config above)'">
+                        <svg x-show="jiraCreating === f.id" class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        <span x-show="jiraCreating !== f.id">🎫</span>
+                        <span x-text="jiraCreating === f.id ? 'Creating…' : 'Jira'"></span>
+                      </button>
+                      <!-- Update button -->
+                      <button @click.stop="openEditModal(f)"
+                        class="opacity-0 group-hover:opacity-100 transition-opacity px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 rounded-lg text-xs font-medium border border-indigo-500/20 hover:border-indigo-500/40 inline-flex items-center gap-1.5">
+                        <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                        Update
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Detail drawer (slide-in from right) -->
+  <div x-show="detailDrawer" x-cloak class="fixed inset-0 z-40 flex justify-end" @click="detailDrawer=false">
+    <div class="absolute inset-0 bg-zinc-950/60 backdrop-blur-sm"></div>
+    <div class="relative w-full max-w-lg bg-zinc-900 border-l border-zinc-700 shadow-2xl flex flex-col overflow-hidden" @click.stop
+         x-transition:enter="transition ease-out duration-200" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
+         x-transition:leave="transition ease-in duration-150" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
+         style="max-height:100vh">
+      <!-- Header -->
+      <div class="flex items-start justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
+        <div class="min-w-0 flex-1 pr-4">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase shrink-0"
+              :class="{
+                'bg-red-500/15 text-red-400 ring-1 ring-inset ring-red-500/20': detailFinding?.severity==='CRITICAL',
+                'bg-orange-500/15 text-orange-400 ring-1 ring-inset ring-orange-500/20': detailFinding?.severity==='HIGH',
+                'bg-amber-500/15 text-amber-400 ring-1 ring-inset ring-amber-500/20': detailFinding?.severity==='MEDIUM',
+                'bg-sky-500/15 text-sky-400 ring-1 ring-inset ring-sky-500/20': detailFinding?.severity==='LOW'
+              }"
+              x-text="detailFinding?.severity"></span>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium shrink-0"
+              :class="{
+                'bg-red-500/10 text-red-400': detailFinding?.status==='OPEN',
+                'bg-emerald-500/10 text-emerald-400': detailFinding?.status==='RESOLVED',
+                'bg-zinc-700/50 text-zinc-400': detailFinding?.status==='FALSE_POSITIVE',
+                'bg-amber-500/10 text-amber-400': detailFinding?.status==='ACCEPTED_RISK'
+              }"
+              x-text="detailFinding?.status?.replace('_',' ')"></span>
+          </div>
+          <p class="text-sm font-semibold text-zinc-100 leading-snug" x-text="detailFinding?.test_title || detailFinding?.test_key"></p>
+          <p class="text-xs text-zinc-500 font-mono mt-0.5" x-text="detailFinding?.test_key"></p>
+        </div>
+        <button @click="detailDrawer=false" class="text-zinc-500 hover:text-zinc-300 shrink-0 mt-0.5">
+          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+
+      <!-- Body -->
+      <div class="flex-1 overflow-y-auto p-5 space-y-5">
+
+        <!-- Meta grid -->
+        <div class="grid grid-cols-2 gap-3 text-xs">
+          <div class="bg-zinc-800/60 rounded-lg p-3">
+            <p class="text-zinc-500 mb-1 font-medium uppercase tracking-wider" style="font-size:10px">Resource</p>
+            <p class="text-zinc-300 font-mono break-all" x-text="detailFinding?.resource_id || '—'"></p>
+          </div>
+          <div class="bg-zinc-800/60 rounded-lg p-3">
+            <p class="text-zinc-500 mb-1 font-medium uppercase tracking-wider" style="font-size:10px">Owner</p>
+            <p class="text-zinc-300" x-text="detailFinding?.owner_email || 'unassigned'"></p>
+          </div>
+          <div class="bg-zinc-800/60 rounded-lg p-3">
+            <p class="text-zinc-500 mb-1 font-medium uppercase tracking-wider" style="font-size:10px">First Seen</p>
+            <p class="text-zinc-300" x-text="fmtDate(detailFinding?.first_seen_at)"></p>
+          </div>
+          <div class="bg-zinc-800/60 rounded-lg p-3" :class="detailFinding?.sla_breached ? 'bg-red-500/10 ring-1 ring-inset ring-red-500/20' : ''">
+            <p class="font-medium uppercase tracking-wider mb-1" style="font-size:10px" :class="detailFinding?.sla_breached ? 'text-red-400' : 'text-zinc-500'">SLA Due</p>
+            <p :class="detailFinding?.sla_breached ? 'text-red-400 font-medium' : 'text-zinc-300'" x-text="detailFinding?.sla_due_at ? fmtDate(detailFinding.sla_due_at) + (detailFinding.sla_breached ? ' ⚠ BREACHED' : '') : '—'"></p>
+          </div>
+        </div>
+
+        <!-- Remediation -->
+        <div>
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <h4 class="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Remediation Advice</h4>
+          </div>
+          <template x-if="detailFinding?.remediation">
+            <div class="bg-emerald-500/5 border border-emerald-500/20 rounded-xl p-4">
+              <p class="text-sm text-zinc-200 whitespace-pre-wrap leading-relaxed" x-text="detailFinding.remediation"></p>
+            </div>
+          </template>
+          <template x-if="!detailFinding?.remediation">
+            <div class="bg-zinc-800/40 border border-zinc-700/50 rounded-xl p-4">
+              <p class="text-sm text-zinc-500 italic">No remediation advice available for this check.</p>
+            </div>
+          </template>
+        </div>
+
+        <!-- AI Analysis (on-demand) -->
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <div class="flex items-center gap-2">
+              <svg class="w-4 h-4 text-violet-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m1.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.347.346A3.51 3.51 0 0114.5 18.5H9.5a3.51 3.51 0 01-2.47-1.021l-.347-.347z"/></svg>
+              <h4 class="text-xs font-semibold text-zinc-200 uppercase tracking-wider">AI Analysis</h4>
+            </div>
+            <button
+              x-show="!aiAnalysis && !aiLoading"
+              @click="runAiAnalysis()"
+              class="inline-flex items-center gap-1.5 px-3 py-1 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/20 rounded-lg text-xs font-medium transition-colors">
+              <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              Analyse
+            </button>
+            <button
+              x-show="aiAnalysis && !aiLoading"
+              @click="aiAnalysis = null"
+              class="text-xs text-zinc-500 hover:text-zinc-400 transition-colors">
+              Clear
+            </button>
+          </div>
+
+          <!-- Not yet requested -->
+          <div x-show="!aiAnalysis && !aiLoading"
+            class="bg-zinc-800/30 border border-zinc-700/40 rounded-xl p-4 text-center">
+            <p class="text-xs text-zinc-500">Click <span class="text-violet-400">Analyse</span> to get AI insights for this specific finding.</p>
+            <p class="text-xs text-zinc-600 mt-1">Not called automatically to save tokens.</p>
+          </div>
+
+          <!-- Loading -->
+          <div x-show="aiLoading" class="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4 flex items-center gap-3">
+            <svg class="w-4 h-4 text-violet-400 animate-spin shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            <p class="text-xs text-violet-300">Analyzing with AI…</p>
+          </div>
+
+          <!-- Result -->
+          <div x-show="aiAnalysis && !aiLoading" class="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4">
+            <p class="text-xs text-zinc-200 whitespace-pre-wrap leading-relaxed" x-text="aiAnalysis"></p>
+            <p class="text-xs text-zinc-600 mt-3 pt-2 border-t border-violet-500/10" x-text="'via ' + (aiProvider || 'AI') + ' · advisory only'"></p>
+          </div>
+        </div>
+
+        <!-- Jira ticket -->
+        <div x-show="detailFinding?.jira_ticket_url">
+          <div class="flex items-center gap-2 mb-2">
+            <svg class="w-4 h-4 text-blue-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 5v2m0 4v2m0 4v2M5 5a2 2 0 00-2 2v3a2 2 0 110 4v3a2 2 0 002 2h14a2 2 0 002-2v-3a2 2 0 110-4V7a2 2 0 00-2-2H5z"/></svg>
+            <h4 class="text-xs font-semibold text-zinc-200 uppercase tracking-wider">Jira Ticket</h4>
+          </div>
+          <a :href="detailFinding?.jira_ticket_url" target="_blank" rel="noopener"
+            class="inline-flex items-center gap-2 px-3 py-2 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium border border-blue-500/20 transition-colors">
+            🎫 <span x-text="detailFinding?.jira_ticket_key || 'View ticket'"></span>
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Footer actions -->
+      <div class="px-5 py-4 border-t border-zinc-800 flex items-center gap-3 shrink-0">
+        <button @click="openEditModal(detailFinding); detailDrawer=false"
+          class="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center justify-center gap-2">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+          Update Status
+        </button>
+        <button x-show="!detailFinding?.jira_ticket_url" @click="createJiraTicket(detailFinding)"
+          :disabled="jiraCreating === detailFinding?.id"
+          class="px-4 py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 rounded-lg text-sm font-medium border border-blue-500/20 transition-colors inline-flex items-center gap-2 disabled:opacity-40">
+          <svg x-show="jiraCreating === detailFinding?.id" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span x-show="jiraCreating !== detailFinding?.id">🎫</span>
+          <span x-text="jiraCreating === detailFinding?.id ? 'Creating…' : 'Create Jira'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit modal -->
+  <div x-show="editModal" x-cloak class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" @click="closeEditModal()"></div>
+    <div class="relative bg-zinc-900 border border-zinc-700 rounded-2xl w-full max-w-md shadow-2xl" @click.stop>
+      <div class="flex items-center justify-between px-6 py-4 border-b border-zinc-800">
+        <h3 class="text-sm font-semibold text-zinc-100">Update Finding</h3>
+        <button @click="closeEditModal()" class="text-zinc-500 hover:text-zinc-300">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+      </div>
+      <div class="p-6 space-y-4" x-show="editTarget">
+        <!-- Finding info -->
+        <div class="p-3 bg-zinc-800/60 rounded-lg">
+          <p class="text-xs font-medium text-zinc-300 truncate" x-text="editTarget?.test_title || editTarget?.test_key"></p>
+          <p class="text-xs text-zinc-500 font-mono mt-0.5" x-text="editTarget?.test_key"></p>
+          <div class="flex items-center gap-2 mt-2">
+            <span class="text-xs font-bold uppercase px-1.5 py-0.5 rounded"
+              :class="{
+                'bg-red-500/15 text-red-400': editTarget?.severity==='CRITICAL',
+                'bg-orange-500/15 text-orange-400': editTarget?.severity==='HIGH',
+                'bg-amber-500/15 text-amber-400': editTarget?.severity==='MEDIUM',
+                'bg-sky-500/15 text-sky-400': editTarget?.severity==='LOW'
+              }"
+              x-text="editTarget?.severity"></span>
+            <span class="text-xs text-zinc-500">Resource: <span class="text-zinc-400 font-mono" x-text="editTarget?.resource_id || '—'"></span></span>
+          </div>
+        </div>
+
+        <!-- Status -->
+        <div>
+          <label class="block text-xs font-medium text-zinc-400 mb-1.5">New Status</label>
+          <select x-model="editStatus" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500">
+            <option value="OPEN">Open</option>
+            <option value="RESOLVED">Resolved</option>
+            <option value="FALSE_POSITIVE">False Positive</option>
+            <option value="ACCEPTED_RISK">Accepted Risk</option>
+          </select>
+        </div>
+
+        <!-- Owner -->
+        <div>
+          <label class="block text-xs font-medium text-zinc-400 mb-1.5">Assign Owner (optional)</label>
+          <input x-model="editOwner" type="email" placeholder="owner@company.com"
+            class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <!-- Error -->
+        <p x-show="editError" class="text-xs text-red-400 bg-red-500/10 px-3 py-2 rounded-lg" x-text="editError"></p>
+      </div>
+      <div class="px-6 py-4 border-t border-zinc-800 flex items-center justify-end gap-3">
+        <button @click="closeEditModal()" class="px-4 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors">Cancel</button>
+        <button @click="saveEdit()" :disabled="saving"
+          class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 inline-flex items-center gap-2">
+          <svg x-show="saving" class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+          <span x-text="saving ? 'Saving…' : 'Save'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+<script>
+function app() {
+  return {
+    user: null,
+    findings: [],
+    loading: true,
+    filterStatus: 'OPEN',
+    filterSeverity: '',
+    stats: { open: 0, critical: 0, sla_breached: 0, resolved: 0 },
+
+    detailDrawer: false,
+    detailFinding: null,
+    aiAnalysis: null,
+    aiLoading: false,
+    aiProvider: '',
+
+    editModal: false,
+    editTarget: null,
+    editStatus: 'OPEN',
+    editOwner: '',
+    editError: '',
+    saving: false,
+
+    // Jira config state
+    jiraOpen: false,
+    jiraCfgSaved: false,
+    jiraCfg: { base_url: '', email: '', api_token: '', project_key: 'SEC' },
+    jiraCreating: null,   // finding.id being created
+
+    async init() {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) { location.href = '/login'; return; }
+        this.user = await r.json();
+      } catch { location.href = '/login'; return; }
+      this._loadJiraCfgFromStorage();
+      await this.loadFindings();
+      await this.loadStats();
+    },
+
+    _loadJiraCfgFromStorage() {
+      try {
+        const raw = localStorage.getItem('jira_cfg');
+        if (raw) {
+          this.jiraCfg = { ...this.jiraCfg, ...JSON.parse(raw) };
+          this.jiraCfgSaved = !!(this.jiraCfg.base_url && this.jiraCfg.email && this.jiraCfg.api_token);
+        }
+      } catch {}
+    },
+
+    saveJiraCfg() {
+      localStorage.setItem('jira_cfg', JSON.stringify(this.jiraCfg));
+      this.jiraCfgSaved = !!(this.jiraCfg.base_url && this.jiraCfg.email && this.jiraCfg.api_token);
+    },
+
+    clearJiraCfg() {
+      localStorage.removeItem('jira_cfg');
+      this.jiraCfg = { base_url: '', email: '', api_token: '', project_key: 'SEC' };
+      this.jiraCfgSaved = false;
+    },
+
+    async createJiraTicket(finding) {
+      if (!this.jiraCfgSaved) {
+        this.jiraOpen = true;
+        alert('Please configure Jira credentials first.');
+        return;
+      }
+      this.jiraCreating = finding.id;
+      try {
+        const r = await fetch(`/api/v1/findings/${finding.id}/jira-ticket`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.jiraCfg),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          alert(`Jira error: ${err.detail || r.status}`);
+          return;
+        }
+        const data = await r.json();
+        // Update the finding in-place
+        const idx = this.findings.findIndex(f => f.id === finding.id);
+        if (idx >= 0) {
+          this.findings[idx] = {
+            ...this.findings[idx],
+            jira_ticket_url: data.ticket_url,
+            jira_ticket_key: data.ticket_key,
+          };
+        }
+      } catch(e) {
+        alert('Network error — could not create Jira ticket');
+      }
+      this.jiraCreating = null;
+    },
+
+    async loadFindings() {
+      this.loading = true;
+      const params = new URLSearchParams({ status: this.filterStatus, limit: '200' });
+      if (this.filterSeverity) params.set('severity', this.filterSeverity);
+      try {
+        const r = await fetch(`/api/v1/findings?${params}`);
+        if (r.ok) {
+          this.findings = await r.json();
+          this._computeStats();
+        }
+      } catch {}
+      this.loading = false;
+    },
+
+    async loadStats() {
+      const results = await Promise.allSettled([
+        fetch('/api/v1/findings?status=OPEN&limit=500').then(r => r.json()),
+        fetch('/api/v1/findings?status=RESOLVED&limit=500').then(r => r.json()),
+      ]);
+      const open = results[0].status === 'fulfilled' ? results[0].value : [];
+      const resolved = results[1].status === 'fulfilled' ? results[1].value : [];
+      this.stats.open = open.length;
+      this.stats.critical = open.filter(f => f.severity === 'CRITICAL').length;
+      this.stats.sla_breached = open.filter(f => f.sla_breached).length;
+      this.stats.resolved = resolved.length;
+    },
+
+    _computeStats() {
+      if (this.filterStatus === 'OPEN') {
+        this.stats.open = this.findings.length;
+        this.stats.critical = this.findings.filter(f => f.severity === 'CRITICAL').length;
+        this.stats.sla_breached = this.findings.filter(f => f.sla_breached).length;
+      } else if (this.filterStatus === 'RESOLVED') {
+        this.stats.resolved = this.findings.length;
+      }
+    },
+
+    fmtDate(iso) {
+      if (!iso) return '—';
+      return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    },
+
+    openDetail(finding) {
+      this.detailFinding = finding;
+      this.detailDrawer = true;
+      this.aiAnalysis = null;
+      this.aiLoading = false;
+    },
+
+    async runAiAnalysis() {
+      if (!this.detailFinding) return;
+      this.aiLoading = true;
+      this.aiAnalysis = null;
+      try {
+        const r = await fetch(`/api/v1/findings/${this.detailFinding.id}/ai-analysis`, { method: 'POST' });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          this.aiAnalysis = `Error: ${err.detail || r.status}`;
+        } else {
+          const data = await r.json();
+          this.aiAnalysis = data.analysis;
+          this.aiProvider = data.provider || '';
+        }
+      } catch (e) {
+        this.aiAnalysis = 'Network error — could not reach AI service';
+      }
+      this.aiLoading = false;
+    },
+
+    openEditModal(finding) {
+      this.editTarget = finding;
+      this.editStatus = finding.status;
+      this.editOwner = finding.owner_email || '';
+      this.editError = '';
+      this.editModal = true;
+    },
+
+    closeEditModal() {
+      this.editModal = false;
+      this.editTarget = null;
+      this.editError = '';
+    },
+
+    async saveEdit() {
+      if (!this.editTarget) return;
+      this.saving = true;
+      this.editError = '';
+      try {
+        const r = await fetch(`/api/v1/findings/${this.editTarget.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: this.editStatus, owner_email: this.editOwner || null }),
+        });
+        if (!r.ok) {
+          const err = await r.json().catch(() => ({}));
+          this.editError = err.detail || `Error ${r.status}`;
+          this.saving = false;
+          return;
+        }
+        const updated = await r.json();
+        const idx = this.findings.findIndex(f => f.id === updated.id);
+        if (idx >= 0) this.findings[idx] = updated;
+        else this.findings = this.findings.filter(f => f.id !== updated.id);
+        this._computeStats();
+        this.closeEditModal();
+      } catch(e) {
+        this.editError = 'Network error — please retry';
+      }
+      this.saving = false;
+    },
+
+    async logout() {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      location.href = '/login';
+    },
+  };
+}
+</script>
+</body>
+</html>

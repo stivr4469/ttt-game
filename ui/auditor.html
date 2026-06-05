@@ -1,325 +1,537 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Auditor Portal — Compliance Sandbox</title>
-<style>
-  :root {
-    --bg:       #080d1a;
-    --s1:       #0d1426;
-    --s2:       #111b2e;
-    --s3:       #162035;
-    --border:   #1e2d4a;
-    --text:     #e2e8f0;
-    --muted:    #64748b;
-    --accent:   #3b82f6;
-    --accent2:  #60a5fa;
-    --pass:     #22c55e;
-    --fail:     #ef4444;
-    --warn:     #f59e0b;
-    --header-h: 56px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
-
-  header {
-    height: var(--header-h); display: flex; align-items: center; gap: 12px;
-    padding: 0 20px; background: var(--s1); border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 100;
-  }
-  header h1 { font-size: 15px; font-weight: 700; flex: 1; display: flex; align-items: center; gap: 10px; }
-  header .summary { font-size: 12px; color: var(--muted); background: var(--s2); padding: 4px 12px; border-radius: 20px; }
-  .btn-back { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; }
-  .btn-back:hover { background: var(--s2); color: var(--text); }
-
-  /* ── Горизонтальная навигация ── */
-  .top-nav {
-    display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
-    scrollbar-width: none; margin: 0 12px;
-  }
-  .top-nav::-webkit-scrollbar { display: none; }
-  .top-nav a {
-    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
-    color: var(--muted); text-decoration: none; border-radius: 6px;
-    font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
-  }
-  .top-nav a:hover { background: var(--s2); color: var(--text); }
-  .top-nav a.active { background: rgba(59,130,246,.15); color: var(--accent2); }
-  .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
-
-  main { max-width: 1000px; margin: 0 auto; padding: 30px 20px; }
-
-  .toolbar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; }
-  .filter-btn {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 7px 14px; color: var(--muted); font-size: 12px; cursor: pointer;
-  }
-  .filter-btn.active { border-color: var(--accent); color: var(--accent2); background: rgba(59,130,246,.1); }
-
-  .controls-list { display: flex; flex-direction: column; gap: 12px; }
-  .control-card { background: var(--s1); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
-  .control-header { 
-    padding: 16px 20px; display: grid; grid-template-columns: 80px 1fr 100px 100px 40px; 
-    align-items: center; gap: 15px; cursor: pointer; transition: background .15s;
-  }
-  .control-header:hover { background: var(--s2); }
-  .code { font-family: monospace; font-weight: 700; color: var(--accent2); }
-  .title { font-weight: 500; }
-  .badge { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; text-align: center; }
-  .badge.PASS { color: var(--pass); background: rgba(34,197,94,.1); border: 1px solid rgba(34,197,94,.2); }
-  .badge.FAIL { color: var(--fail); background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.2); }
-  .count { font-size: 12px; color: var(--muted); }
-  .chevron { transition: transform .2s; color: var(--muted); text-align: center; }
-  .expanded .chevron { transform: rotate(180deg); }
-
-  .control-details { display: none; padding: 0 20px 20px; border-top: 1px solid var(--border); background: #0a1121; }
-  .expanded + .control-details { display: block; }
-
-  h3 { font-size: 12px; text-transform: uppercase; color: var(--muted); margin: 20px 0 10px; letter-spacing: .5px; }
-
-  /* Evidence List */
-  .evidence-grid { display: flex; flex-direction: column; gap: 8px; }
-  .evidence-item { background: var(--s3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; }
-  .ev-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
-  .ev-meta { font-size: 11px; color: var(--muted); display: flex; gap: 15px; }
-
-  /* Comments */
-  .comment-item { background: rgba(59,130,246,.03); border: 1px solid rgba(59,130,246,.1); border-radius: 8px; padding: 12px; margin-bottom: 8px; position: relative; }
-  .comment-text { font-size: 13px; line-height: 1.5; margin-bottom: 8px; }
-  .comment-footer { font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
-  .sev-observation { border-left: 4px solid var(--accent); }
-  .sev-finding     { border-left: 4px solid var(--warn); }
-  .sev-exception   { border-left: 4px solid var(--fail); }
-
-  /* Comment Form */
-  .comment-form { background: var(--s2); border-radius: 8px; padding: 16px; margin-top: 20px; }
-  .form-row { display: flex; gap: 10px; margin-bottom: 10px; }
-  textarea { 
-    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; 
-    padding: 10px; color: var(--text); font-family: inherit; font-size: 13px; resize: vertical; min-height: 60px;
-    outline: none; margin-bottom: 10px;
-  }
-  textarea:focus { border-color: var(--accent); }
-  select, input { 
-    background: var(--bg); border: 1px solid var(--border); color: var(--text); 
-    padding: 6px 10px; border-radius: 6px; font-size: 12px; outline: none;
-  }
-  .submit-btn { 
-    background: var(--accent); color: #fff; border: none; padding: 8px 16px; 
-    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
-  }
-  .submit-btn:hover { background: var(--accent2); }
-
-  .empty { padding: 20px; text-align: center; color: var(--muted); font-size: 12px; font-style: italic; }
-
-  .loading-overlay { position: fixed; inset: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; z-index: 1000; }
-  .spinner { width: 30px; height: 30px; border: 3px solid var(--s3); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
 </style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
 
-<header>
-  <h1><span>🔍</span> Auditor Portal</h1>
-  <!-- Горизонтальная навигация по разделам платформы -->
-  <nav class="top-nav" id="topNav">
-    <a href="/">📊 Dashboard</a>
-    <span class="nav-sep"></span>
-    <a href="/training">🎓 Training</a>
-    <a href="/background-checks">👤 BG Checks</a>
-    <span class="nav-sep"></span>
-    <a href="/vulnerabilities">🔒 Vulns</a>
-    <a href="/pentests">🔍 Pen Tests</a>
-    <a href="/risk-register">⚠️ Risk</a>
-    <span class="nav-sep"></span>
-    <a href="/audit-timeline">📅 Timeline</a>
-    <a href="/questionnaires">📋 Questionnaires</a>
-    <span class="nav-sep"></span>
-    <a href="/access-review">👥 Access Review</a>
-    <a href="/auditor-portal" class="active">🔎 Auditor</a>
-    <span class="nav-sep"></span>
-    <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+    <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+          <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        </div>
+        <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+      </div>
+</div>
+    <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+      <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+        Dashboard
+      </a>
+      <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+        Frameworks
+      </a>
+      <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        Risk Register
+      </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>
+        Vulnerabilities
+      </a>
+      <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Pen Tests
+      </a>
+      <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Access Review
+      </a>
+      <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
+        BG Checks
+      </a>
+      <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
+        Training
+      </a>
+      <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        Questionnaires
+      </a>
+      <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+        Tests Catalog
+      </a>
+      <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+        Audit Timeline
+      </a>
+      <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Time Machine
+      </a>
+      <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+        Onboarding
+      </a>
+      <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        AI Decisions
+      </a>
+      <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+        Trust Center
+      </a>
+      <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+        Auditor Portal
+      </a>
+      <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
   </nav>
-  <div class="summary" id="summaryHeader">Loading summary...</div>
-</header>
-
-<main>
-  <div class="toolbar">
-    <button class="filter-btn active" onclick="setFilter('all', this)">All Controls</button>
-    <button class="filter-btn" onclick="setFilter('findings', this)">With Findings/Exceptions</button>
-    <button class="filter-btn" onclick="setFilter('comments', this)">With Comments</button>
-  </div>
-
-  <div class="controls-list" id="controlsList">
-    <!-- Controls injected here -->
-  </div>
-</main>
-
-<div id="loading" class="loading-overlay"><div class="spinner"></div></div>
-
-<script>
-  let controls = [];
-  let currentFilter = 'all';
-
-  async function init() {
-    await fetchSummary();
-    await fetchControls();
-    document.getElementById('loading').style.display = 'none';
-  }
-
-  async function fetchSummary() {
-    const r = await fetch('/api/auditor/summary');
-    const data = await r.json();
-    document.getElementById('summaryHeader').textContent = 
-      `${data.controls_reviewed} reviewed | ${data.findings_count} findings | ${data.exceptions_count} exceptions`;
-  }
-
-  async function fetchControls() {
-    const r = await fetch('/api/auditor/controls');
-    controls = await r.json();
-    renderControls();
-  }
-
-  function renderControls() {
-    const list = document.getElementById('controlsList');
-    list.innerHTML = '';
-
-    const filtered = controls.filter(c => {
-      if (currentFilter === 'findings') return c.comment_count > 0; // Simplified for demo
-      if (currentFilter === 'comments') return c.comment_count > 0;
-      return true;
-    });
-
-    filtered.forEach(c => {
-      const card = document.createElement('div');
-      card.className = 'control-card';
-      card.innerHTML = `
-        <div class="control-header" onclick="toggleControl('${c.control_code}', this)">
-          <span class="code">${c.control_code}</span>
-          <span class="title">${c.control_code} Control</span>
-          <span class="badge ${c.status}">${c.status}</span>
-          <span class="count">${c.evidence_count} evidence</span>
-          <span class="chevron">▼</span>
-        </div>
-        <div class="control-details" id="details-${c.control_code}">
-          <div id="content-${c.control_code}"><div class="spinner" style="margin:20px auto; display:block;"></div></div>
-        </div>
-      `;
-      list.appendChild(card);
-    });
-  }
-
-  function setFilter(f, btn) {
-    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    currentFilter = f;
-    renderControls();
-  }
-
-  async function toggleControl(code, el) {
-    const isExpanded = el.classList.toggle('expanded');
-    if (isExpanded) {
-      await loadControlDetails(code);
-    }
-  }
-
-  async function loadControlDetails(code) {
-    const container = document.getElementById(`content-${code}`);
-    
-    // Fetch evidence and comments in parallel
-    const [evRes, commRes] = await Promise.all([
-      fetch(`/api/auditor/controls/${code}/evidence`),
-      fetch(`/api/auditor/comments/${code}`)
-    ]);
-    
-    const { evidence } = await evRes.json();
-    const comments = await commRes.json();
-
-    let html = `
-      <h3>Auditor Comments</h3>
-      <div class="comments-list" id="comments-list-${code}">
-        ${comments.length ? comments.map(renderComment).join('') : '<div class="empty">No auditor notes for this control.</div>'}
+    <div class="p-3 border-t border-zinc-800 shrink-0">
+      <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+        <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+        <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+        <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
       </div>
+    </div>
+  </aside>
 
-      <div class="comment-form">
-        <form onsubmit="submitComment(event, '${code}')">
-          <textarea name="comment" placeholder="Add auditor observation, finding or exception..." required></textarea>
-          <div class="form-row">
-            <select name="severity">
-              <option value="observation">Observation (Low)</option>
-              <option value="finding">Finding (Medium)</option>
-              <option value="exception">Exception (High/Critical)</option>
-            </select>
-            <input type="text" name="auditor_name" placeholder="Auditor Name" required>
-            <button type="submit" class="submit-btn">Post Comment</button>
+  <!-- Main -->
+  <div class="ml-60 flex flex-col min-h-screen">
+    <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+      <div>
+        <h1 class="text-sm font-semibold text-zinc-100">Auditor Portal</h1>
+        <p class="text-xs text-zinc-500">Review controls, add findings and evidence comments</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <!-- Summary pills -->
+        <div x-show="!loadingSummary" class="flex items-center gap-2">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <span x-text="`${summary.controls_reviewed||0} reviewed`"></span>
+          </span>
+          <span x-show="summary.findings_count > 0" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+            <span x-text="`${summary.findings_count} findings`"></span>
+          </span>
+          <span x-show="summary.exceptions_count > 0" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+            <span x-text="`${summary.exceptions_count} exceptions`"></span>
+          </span>
+        </div>
+        <!-- Export placeholder -->
+        <div class="relative" x-data="{ open: false }">
+          <button @click="open=!open" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 inline-flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export
+            <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+          </button>
+          <div x-show="open" @click.away="open=false" class="absolute right-0 top-10 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl py-1 w-36 z-10">
+            <a href="#" @click.prevent="open=false" class="flex items-center gap-2 px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              PDF Report
+            </a>
+            <a href="#" @click.prevent="open=false" class="flex items-center gap-2 px-3 py-2 text-xs text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors">
+              <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M3 14h18M10 3v18M14 3v18"/></svg>
+              CSV Export
+            </a>
           </div>
-        </form>
+        </div>
+            <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
+      </div>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+    </header>
+
+    <main class="flex-1 p-6">
+
+      <!-- Summary stat bar -->
+      <div class="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Controls Reviewed</p>
+          <p class="text-3xl font-bold text-zinc-100 mt-2" x-text="loadingSummary ? '—' : summary.controls_reviewed||0"></p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Observations</p>
+          <p class="text-3xl font-bold text-sky-400 mt-2" x-text="loadingSummary ? '—' : summary.observations_count||0"></p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Findings</p>
+          <p class="text-3xl font-bold text-amber-400 mt-2" x-text="loadingSummary ? '—' : summary.findings_count||0"></p>
+        </div>
+        <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Exceptions</p>
+          <p class="text-3xl font-bold text-red-400 mt-2" x-text="loadingSummary ? '—' : summary.exceptions_count||0"></p>
+        </div>
       </div>
 
-      <h3>Collected Evidence</h3>
-      <div class="evidence-grid">
-        ${evidence.length ? evidence.map(ev => `
-          <div class="evidence-item">
-            <div class="ev-title">${ev.title}</div>
-            <div class="ev-meta">
-              <span>Source: <b>${ev.source}</b></span>
-              <span>Collected: ${ev.collected_at.slice(0, 16).replace('T', ' ')}</span>
+      <!-- Two-pane layout: controls list + detail panel -->
+      <div class="grid grid-cols-1 xl:grid-cols-[1fr_420px] gap-6 items-start">
+
+        <!-- Controls list -->
+        <div class="space-y-3">
+          <!-- Toolbar -->
+          <div class="flex items-center gap-2 flex-wrap">
+            <button @click="setFilter('all')" :class="filter==='all' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:text-zinc-200'" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors">All Controls</button>
+            <button @click="setFilter('findings')" :class="filter==='findings' ? 'bg-amber-500/20 text-amber-400 border-amber-500/30' : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:text-zinc-200'" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors">With Findings</button>
+            <button @click="setFilter('comments')" :class="filter==='comments' ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30' : 'bg-zinc-800/60 text-zinc-400 border-zinc-700 hover:text-zinc-200'" class="px-3 py-1.5 rounded-lg text-xs font-medium border transition-colors">With Comments</button>
+            <span class="ml-auto text-xs text-zinc-600" x-text="`${filteredControls.length} controls`"></span>
+          </div>
+
+          <!-- Loading skeletons -->
+          <div x-show="loadingControls" class="space-y-2">
+            <template x-for="i in 6">
+              <div class="bg-zinc-900 border border-zinc-800 rounded-xl px-5 py-4 flex items-center gap-4">
+                <div class="animate-pulse bg-zinc-800 rounded h-3 w-14 shrink-0"></div>
+                <div class="animate-pulse bg-zinc-800 rounded h-3 flex-1"></div>
+                <div class="animate-pulse bg-zinc-800 rounded-full h-5 w-12"></div>
+                <div class="animate-pulse bg-zinc-800 rounded h-3 w-16"></div>
+              </div>
+            </template>
+          </div>
+
+          <!-- Empty state -->
+          <div x-show="!loadingControls && filteredControls.length === 0" class="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col items-center justify-center py-14 text-center">
+            <svg class="w-10 h-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+            <p class="text-sm font-medium text-zinc-400">No controls found</p>
+          </div>
+
+          <!-- Controls table -->
+          <div x-show="!loadingControls && filteredControls.length > 0" class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+            <table class="w-full">
+              <thead class="bg-zinc-800/30">
+                <tr>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Code</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Control</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Status</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Evidence</th>
+                  <th class="text-xs font-medium text-zinc-500 uppercase tracking-wider py-3 px-4 text-left">Comments</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-zinc-800/50">
+                <template x-for="ctrl in filteredControls" :key="ctrl.control_code">
+                  <tr
+                    @click="selectControl(ctrl)"
+                    class="hover:bg-zinc-800/30 transition-colors cursor-pointer"
+                    :class="selectedControl?.control_code === ctrl.control_code ? 'bg-indigo-600/5 border-l-2 border-l-indigo-500' : ''"
+                  >
+                    <td class="py-3 px-4 font-mono text-xs font-bold text-indigo-400" x-text="ctrl.control_code"></td>
+                    <td class="py-3 px-4 text-sm text-zinc-300" x-text="ctrl.control_code + ' Control'"></td>
+                    <td class="py-3 px-4">
+                      <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" :class="ctrl.status==='PASS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : ctrl.status==='FAIL' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'" x-text="ctrl.status||'N/A'"></span>
+                    </td>
+                    <td class="py-3 px-4 text-xs text-zinc-500" x-text="`${ctrl.evidence_count||0} items`"></td>
+                    <td class="py-3 px-4 text-xs" :class="ctrl.comment_count > 0 ? 'text-amber-400 font-medium' : 'text-zinc-600'" x-text="ctrl.comment_count > 0 ? `${ctrl.comment_count} notes` : '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Right panel: detail + comments -->
+        <div class="sticky top-20">
+
+          <!-- Empty state -->
+          <div x-show="!selectedControl" class="bg-zinc-900 border border-zinc-800 rounded-xl flex flex-col items-center justify-center py-20 text-center">
+            <svg class="w-10 h-10 text-zinc-700 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+            <p class="text-sm font-medium text-zinc-400">Select a control</p>
+            <p class="text-xs text-zinc-600 mt-1">Click any row to view evidence and add comments</p>
+          </div>
+
+          <!-- Detail panel -->
+          <div x-show="selectedControl" class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+
+            <!-- Panel header -->
+            <div class="px-5 py-4 border-b border-zinc-800">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-mono text-sm font-bold text-indigo-400" x-text="selectedControl?.control_code"></span>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" :class="selectedControl?.status==='PASS' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' : selectedControl?.status==='FAIL' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-zinc-500/10 text-zinc-400 border-zinc-500/20'" x-text="selectedControl?.status||'N/A'"></span>
+              </div>
+              <p class="text-xs text-zinc-500" x-text="`${selectedControl?.evidence_count||0} evidence items · ${selectedControl?.comment_count||0} comments`"></p>
+            </div>
+
+            <!-- Loading indicator -->
+            <div x-show="loadingDetail" class="px-5 py-8 flex flex-col items-center gap-3 text-center">
+              <svg class="w-6 h-6 animate-spin text-indigo-500" viewBox="0 0 24 24" fill="none"><circle class="opacity-20" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2.5"/><path class="opacity-80" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+              <p class="text-xs text-zinc-500">Loading evidence and comments…</p>
+            </div>
+
+            <div x-show="!loadingDetail" class="divide-y divide-zinc-800/50 max-h-[70vh] overflow-y-auto">
+
+              <!-- Comments section -->
+              <div class="px-5 py-4">
+                <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Auditor Notes</h3>
+
+                <!-- Comment timeline -->
+                <div class="space-y-3 mb-4">
+                  <div x-show="comments.length === 0" class="text-xs text-zinc-600 italic py-2">No auditor notes for this control.</div>
+                  <template x-for="c in comments" :key="c.id || c.created_at">
+                    <div class="relative pl-4 border-l-2" :class="c.severity==='exception' ? 'border-red-500/60' : c.severity==='finding' ? 'border-amber-500/60' : 'border-sky-500/60'">
+                      <div class="flex items-start justify-between gap-2 mb-1">
+                        <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-semibold border uppercase" :class="c.severity==='exception' ? 'bg-red-500/10 text-red-400 border-red-500/20' : c.severity==='finding' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-sky-500/10 text-sky-400 border-sky-500/20'" x-text="c.severity"></span>
+                        <span class="text-xs text-zinc-600 whitespace-nowrap" x-text="(c.created_at||'').slice(0,16).replace('T',' ')"></span>
+                      </div>
+                      <p class="text-sm text-zinc-300 leading-relaxed" x-text="c.comment"></p>
+                      <p class="text-xs text-zinc-600 mt-1" x-text="`by ${c.auditor_name}`"></p>
+                    </div>
+                  </template>
+                </div>
+
+                <!-- Add comment form -->
+                <div class="bg-zinc-800/40 rounded-xl p-4 space-y-3">
+                  <p class="text-xs font-medium text-zinc-400">Add Note</p>
+                  <textarea
+                    x-model="commentForm.comment"
+                    rows="3"
+                    placeholder="Add an observation, finding, or exception…"
+                    class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 w-full resize-none"
+                  ></textarea>
+                  <div class="flex items-center gap-2">
+                    <select x-model="commentForm.severity" class="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:border-indigo-500 flex-1">
+                      <option value="observation">Observation (Low)</option>
+                      <option value="finding">Finding (Medium)</option>
+                      <option value="exception">Exception (High)</option>
+                    </select>
+                    <input type="text" x-model="commentForm.auditor_name" placeholder="Your name" class="bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-1.5 text-xs text-zinc-300 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 flex-1">
+                  </div>
+                  <button @click="submitComment()" :disabled="commentSubmitting || !commentForm.comment.trim() || !commentForm.auditor_name.trim()" class="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed" x-text="commentSubmitting ? 'Posting…' : 'Post Comment'"></button>
+                </div>
+              </div>
+
+              <!-- Evidence section -->
+              <div class="px-5 py-4">
+                <h3 class="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Collected Evidence</h3>
+                <div class="space-y-2">
+                  <div x-show="evidence.length === 0" class="text-xs text-zinc-600 italic py-2">No technical evidence collected yet.</div>
+                  <template x-for="ev in evidence" :key="ev.id||ev.title">
+                    <div class="bg-zinc-800/40 rounded-lg px-3 py-2.5 border border-zinc-800">
+                      <p class="text-xs font-medium text-zinc-300 mb-1" x-text="ev.title"></p>
+                      <div class="flex items-center gap-3 text-xs text-zinc-600">
+                        <span x-text="`Source: ${ev.source}`"></span>
+                        <span x-text="(ev.created_at||ev.collected_at||'').slice(0,16).replace('T',' ')"></span>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
             </div>
           </div>
-        `).join('') : '<div class="empty">No technical evidence collected yet.</div>'}
-      </div>
-    `;
-    container.innerHTML = html;
-  }
-
-  function renderComment(c) {
-    return `
-      <div class="comment-item sev-${c.severity}">
-        <div class="comment-text">${c.comment}</div>
-        <div class="comment-footer">
-          <span><b>${c.severity.toUpperCase()}</b> by ${c.auditor_name}</span>
-          <span>${c.created_at.slice(0, 16).replace('T', ' ')}</span>
         </div>
       </div>
-    `;
-  }
+    </main>
+  </div>
 
-  async function submitComment(e, code) {
-    e.preventDefault();
-    const form = e.target;
-    const btn = form.querySelector('button');
-    btn.disabled = true;
+  <!-- Toast -->
+  <div x-show="toast.show" x-cloak x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 translate-y-2" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl" :class="toast.type==='success' ? 'bg-zinc-900 border-emerald-500/30 text-emerald-400' : 'bg-zinc-900 border-red-500/30 text-red-400'">
+    <svg x-show="toast.type==='success'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+    <svg x-show="toast.type!=='success'" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/></svg>
+    <span class="text-sm" x-text="toast.msg"></span>
+  </div>
 
-    const payload = {
-      control_code: code,
-      comment: form.comment.value,
-      severity: form.severity.value,
-      auditor_name: form.auditor_name.value
-    };
+<script>
+function app() {
+  return {
+    user: null,
+    loadingSummary: true,
+    loadingControls: true,
+    loadingDetail: false,
+    summary: {},
+    controls: [],
+    filter: 'all',
+    selectedControl: null,
+    evidence: [],
+    comments: [],
+    commentForm: { comment: '', severity: 'observation', auditor_name: '' },
+    commentSubmitting: false,
+    toast: { show: false, msg: '', type: 'success' },
 
-    try {
-      const r = await fetch('/api/auditor/comments', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (r.ok) {
-        form.reset();
-        await loadControlDetails(code);
-        fetchSummary(); // Update global header
-        // Update local count in main list (optional, requires re-fetching or local state)
-      }
-    } catch (err) {
-      alert('Failed to save comment');
-    } finally {
-      btn.disabled = false;
+    get filteredControls() {
+      if (this.filter === 'findings') return this.controls.filter(c => c.comment_count > 0);
+      if (this.filter === 'comments') return this.controls.filter(c => c.comment_count > 0);
+      return this.controls;
+    },
+
+    async init() {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) { location.href = '/login'; return; }
+        this.user = await r.json();
+      } catch { location.href = '/login'; return; }
+      await Promise.all([this.loadSummary(), this.loadControls()]);
+    },
+
+    async loadSummary() {
+      this.loadingSummary = true;
+      try {
+        const r = await fetch('/api/auditor/summary');
+        if (r.ok) this.summary = await r.json();
+      } catch (e) { console.error(e); }
+      finally { this.loadingSummary = false; }
+    },
+
+    async loadControls() {
+      this.loadingControls = true;
+      try {
+        const r = await fetch('/api/auditor/controls');
+        if (r.ok) this.controls = await r.json();
+      } catch (e) { console.error(e); }
+      finally { this.loadingControls = false; }
+    },
+
+    setFilter(f) {
+      this.filter = f;
+    },
+
+    async selectControl(ctrl) {
+      this.selectedControl = ctrl;
+      this.evidence = [];
+      this.comments = [];
+      this.loadingDetail = true;
+      await this.loadControlDetail(ctrl.control_code);
+    },
+
+    async loadControlDetail(code) {
+      this.loadingDetail = true;
+      try {
+        const [evRes, commRes] = await Promise.all([
+          fetch(`/api/auditor/controls/${code}/evidence`),
+          fetch(`/api/auditor/comments/${code}`)
+        ]);
+        if (evRes.ok) {
+          const data = await evRes.json();
+          this.evidence = data.evidence || [];
+        }
+        if (commRes.ok) {
+          this.comments = await commRes.json();
+        }
+      } catch (e) { console.error(e); }
+      finally { this.loadingDetail = false; }
+    },
+
+    async submitComment() {
+      if (!this.commentForm.comment.trim() || !this.commentForm.auditor_name.trim()) return;
+      if (!this.selectedControl) return;
+      this.commentSubmitting = true;
+      try {
+        const r = await fetch('/api/auditor/comments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            control_code: this.selectedControl.control_code,
+            comment: this.commentForm.comment,
+            severity: this.commentForm.severity,
+            auditor_name: this.commentForm.auditor_name
+          })
+        });
+        if (r.ok) {
+          this.commentForm.comment = '';
+          this.showToast('Comment posted', 'success');
+          // Reload detail and summary
+          await Promise.all([
+            this.loadControlDetail(this.selectedControl.control_code),
+            this.loadSummary()
+          ]);
+          // Update local comment count
+          const ctrl = this.controls.find(c => c.control_code === this.selectedControl.control_code);
+          if (ctrl) ctrl.comment_count = (ctrl.comment_count||0) + 1;
+        } else {
+          this.showToast('Failed to post comment', 'error');
+        }
+      } catch { this.showToast('Network error', 'error'); }
+      finally { this.commentSubmitting = false; }
+    },
+
+    showToast(msg, type = 'success') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    },
+
+    async logout() {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      location.href = '/login';
     }
-  }
-
-  init();
+  };
+}
 </script>
-
 </body>
 </html>

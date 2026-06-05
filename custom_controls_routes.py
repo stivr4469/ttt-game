@@ -3,13 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Body
 from typing import Optional, List
 from auth import require_auth, require_admin, require_auditor
 from custom_controls import CustomControlsManager
-from evidence_client import EvidenceClient
 
 router = APIRouter(prefix="/api/custom-controls", tags=["custom-controls"])
 _manager = CustomControlsManager()
-
-from config import get_settings as _get_settings
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", _get_settings().evidence_tracker_url)
 
 @router.get("")
 async def get_custom_controls(
@@ -37,21 +33,8 @@ async def get_all_combined(payload: dict = Depends(require_auth)):
     from db_repository import ControlRepository
     from database import AsyncSessionLocal
 
-    # Стандартные контроли через EvidenceClient (fallback уже встроен в get_controls())
-    standard: list = []
-    try:
-        ec = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="custom_controls")
-        result = ec.get_controls()
-        if isinstance(result, list):
-            standard = result
-    except Exception:
-        pass
-
-    # Индекс для нормализации UUID-ключей Evidence Tracker → SOC2-коды
-    soc2_by_description: dict = {m.description: m.soc2 for m in CONTROL_MAPPINGS}
-    soc2_index: dict = {m.soc2: m for m in CONTROL_MAPPINGS}
-
-    # DB-статусы — источник истины (сюда пишут агенты)
+    # DB-статусы — источник истины (сюда пишут агенты).
+    # Читаем напрямую из SQLite — без HTTP вызовов к самому себе.
     db_statuses: dict = {}
     try:
         async with AsyncSessionLocal() as session:
@@ -61,31 +44,18 @@ async def get_all_combined(payload: dict = Depends(require_auth)):
     except Exception:
         pass
 
-    if not standard:
-        standard = [
-            {
-                "id": m.soc2,
-                "code": m.soc2,
-                "title": m.description,
-                "description": m.description,
-                "framework": "SOC2",
-                "category": m.category,
-                "status": db_statuses.get(m.soc2, "UNKNOWN"),
-            }
-            for m in CONTROL_MAPPINGS
-        ]
-    else:
-        # Нормализуем UUID-ключи и подставляем DB-статусы
-        for ctrl in standard:
-            code = ctrl.get("code") or ctrl.get("id", "")
-            if code not in soc2_index:
-                title = ctrl.get("title", "") or ctrl.get("description", "")
-                code = soc2_by_description.get(title, code)
-                if code in soc2_index:
-                    ctrl["code"] = code
-                    ctrl["id"] = code
-            if code in db_statuses:
-                ctrl["status"] = db_statuses[code]
+    standard = [
+        {
+            "id": m.soc2,
+            "code": m.soc2,
+            "title": m.description,
+            "description": m.description,
+            "framework": "SOC2",
+            "category": m.category,
+            "status": db_statuses.get(m.soc2, "UNKNOWN"),
+        }
+        for m in CONTROL_MAPPINGS
+    ]
 
     return _manager.get_all_controls_combined(standard)
 

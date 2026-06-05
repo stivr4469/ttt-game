@@ -1,1134 +1,1004 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>SOC 2 Compliance Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: {} } }</script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:       #080d1a;
-    --s1:       #0d1426;
-    --s2:       #111b2e;
-    --s3:       #162035;
-    --border:   #1e2d4a;
-    --text:     #e2e8f0;
-    --muted:    #64748b;
-    --accent:   #3b82f6;
-    --accent2:  #60a5fa;
-    --pass:     #22c55e;
-    --fail:     #ef4444;
-    --warn:     #f59e0b;
-    --nav-w:    220px;
-    --header-h: 56px;
-    --theme-transition: background .25s, color .25s, border-color .25s, box-shadow .25s;
-  }
+  body { font-family: 'Inter', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #18181b; }
+  ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
 
-  /* ── Light mode ── */
-  html.light {
-    --bg:      #f1f5f9;
-    --s1:      #ffffff;
-    --s2:      #f8fafc;
-    --s3:      #e2e8f0;
-    --border:  #cbd5e1;
-    --text:    #0f172a;
-    --muted:   #64748b;
-    --accent:  #2563eb;
-    --accent2: #1d4ed8;
-    --pass:    #16a34a;
-    --fail:    #dc2626;
-    --warn:    #d97706;
-  }
-
-  /* плавные переходы при смене темы */
-  *, *::before, *::after { transition: var(--theme-transition); }
-  /* исключаем анимации которым переход мешает */
-  canvas, .status-dot, .badge { transition: none !important; }
-
-  /* ── Кнопка переключения темы ── */
-  .theme-toggle {
-    display: flex; align-items: center; justify-content: center;
-    width: 34px; height: 34px; border-radius: 8px;
-    background: var(--s3); border: 1px solid var(--border);
-    cursor: pointer; font-size: 16px; line-height: 1;
-    color: var(--text); flex-shrink: 0;
-    transition: background .15s, border-color .15s, transform .1s;
-  }
-  .theme-toggle:hover { background: var(--s2); border-color: var(--accent); transform: scale(1.08); }
-  .theme-toggle:active { transform: scale(.94); }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; overflow: hidden; }
-
-  /* ── Layout ── */
-  #app { display: flex; flex-direction: column; height: 100vh; }
-  header {
-    height: var(--header-h); display: flex; align-items: center; gap: 12px;
-    padding: 0 20px; background: var(--s1); border-bottom: 1px solid var(--border);
-    flex-shrink: 0; z-index: 10;
-  }
-  header .logo { font-size: 20px; }
-  header h1 { font-size: 15px; font-weight: 600; letter-spacing: .3px; }
-  header .company { margin-left: auto; background: var(--s3); border: 1px solid var(--border); border-radius: 20px; padding: 4px 14px; font-size: 12px; color: var(--muted); }
-  header .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--pass); box-shadow: 0 0 6px var(--pass); flex-shrink: 0; }
-  header .user-info { margin-left: 20px; display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text); }
-  header .user-role { background: var(--accent); color: #fff; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; }
-  header .logout-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 12px; margin-left: 10px; }
-  header .logout-btn:hover { color: var(--fail); }
-
-  .body { display: flex; flex: 1; overflow: hidden; }
-
-  /* ── Sidebar ── */
-  nav {
-    width: var(--nav-w); background: var(--s1); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto;
-  }
-  nav .section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); padding: 20px 16px 6px; }
-  nav a {
-    display: flex; align-items: center; gap: 10px; padding: 9px 16px;
-    color: var(--muted); text-decoration: none; border-radius: 6px; margin: 1px 8px;
-    font-size: 13px; font-weight: 500; transition: all .15s; cursor: pointer;
-  }
-  nav a:hover { background: var(--s2); color: var(--text); }
-  nav a.active { background: rgba(59,130,246,.15); color: var(--accent2); }
-  nav a .nav-icon { font-size: 15px; width: 20px; text-align: center; }
-  nav a .badge {
-    margin-left: auto; background: var(--fail); color: #fff; font-size: 10px;
-    font-weight: 700; padding: 1px 6px; border-radius: 10px;
-  }
-
-  /* ── Main ── */
-  main { flex: 1; overflow-y: auto; padding: 24px; }
-  .page { display: none; } .page.active { display: block; }
-
-  /* ── Dashboard ── */
-  .stats-row { display: grid; grid-template-columns: auto 1fr 1fr 1fr 1fr; gap: 16px; margin-bottom: 24px; align-items: center; }
-  .donut-wrap { display: flex; align-items: center; gap: 20px; background: var(--s1); border: 1px solid var(--border); border-radius: 12px; padding: 20px 24px; }
-  .donut-canvas-wrap { position: relative; width: 120px; height: 120px; flex-shrink: 0; }
-  #scoreChart { position: absolute; inset: 0; }
-  .donut-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
-  .donut-pct { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
-  .donut-label { font-size: 10px; color: var(--muted); margin-top: 2px; }
-  .donut-legend { display: flex; flex-direction: column; gap: 8px; }
-  .donut-legend span { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-  .donut-legend span::before { content: ''; width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0; }
-  .donut-legend .l-pass::before { background: var(--pass); }
-  .donut-legend .l-fail::before { background: var(--fail); }
-  .donut-legend .l-ns::before   { background: var(--muted); }
-
-  .stat-card {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
-    padding: 16px 20px; display: flex; flex-direction: column; gap: 4px;
-  }
-  .stat-card .val { font-size: 28px; font-weight: 700; line-height: 1; }
-  .stat-card .lbl { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; }
-  .stat-card.pass .val { color: var(--pass); }
-  .stat-card.fail .val { color: var(--fail); }
-  .stat-card.warn .val { color: var(--warn); }
-
-  /* ── Controls ── */
-  .toolbar { display: flex; gap: 10px; margin-bottom: 16px; align-items: center; flex-wrap: wrap; }
-  .search-box {
-    flex: 1; min-width: 200px; background: var(--s1); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 14px; color: var(--text); font-size: 13px; outline: none;
-  }
-  .search-box::placeholder { color: var(--muted); }
-  .search-box:focus { border-color: var(--accent); }
-  .filter-btn {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 7px 14px; color: var(--muted); font-size: 12px; cursor: pointer; transition: all .15s;
-  }
-  .filter-btn:hover, .filter-btn.active { border-color: var(--accent); color: var(--accent2); background: rgba(59,130,246,.1); }
-
-  .controls-grid { display: flex; flex-direction: column; gap: 6px; }
-  .ctrl-row {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 16px; display: grid; grid-template-columns: 80px 1fr 120px 80px;
-    gap: 12px; align-items: center; cursor: pointer; transition: all .15s;
-  }
-  .ctrl-row:hover { border-color: var(--accent); background: var(--s2); }
-  .ctrl-row.expanded { border-color: var(--accent); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-  .ctrl-code { font-family: monospace; font-size: 13px; font-weight: 700; color: var(--accent2); }
-  .ctrl-title { font-size: 13px; color: var(--text); }
-  .ctrl-source { font-size: 11px; color: var(--muted); text-align: center; }
-  .badge {
-    display: inline-flex; align-items: center; justify-content: center;
-    padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; letter-spacing: .3px;
-  }
-  .badge.PASS { background: rgba(34,197,94,.15); color: var(--pass); border: 1px solid rgba(34,197,94,.3); }
-  .badge.FAIL { background: rgba(239,68,68,.15);  color: var(--fail); border: 1px solid rgba(239,68,68,.3); }
-  .badge.NOT_STARTED { background: rgba(100,116,139,.15); color: var(--muted); border: 1px solid rgba(100,116,139,.3); }
-
-  .evidence-panel {
-    background: var(--s2); border: 1px solid var(--accent); border-top: none;
-    border-bottom-left-radius: 10px; border-bottom-right-radius: 10px;
-    padding: 16px; display: none;
-  }
-  .evidence-panel.open { display: block; }
-  .evidence-item { background: var(--s3); border: 1px solid var(--border); border-radius: 8px; padding: 12px; margin-bottom: 8px; }
-  .ev-header { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
-  .ev-title { font-size: 13px; font-weight: 500; flex: 1; }
-  .ev-source { font-size: 10px; background: rgba(59,130,246,.15); color: var(--accent2); border-radius: 10px; padding: 2px 8px; }
-  .ev-content { font-family: monospace; font-size: 11px; color: var(--muted); white-space: pre-wrap; word-break: break-all; max-height: 120px; overflow-y: auto; }
-
-  /* ── Agents ── */
-  .agents-layout { display: grid; grid-template-columns: 300px 1fr; gap: 20px; height: calc(100vh - var(--header-h) - 48px); }
-  .agent-list { display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
-  .agent-card {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 10px;
-    padding: 14px 16px; cursor: pointer; transition: all .15s; display: flex; gap: 12px; align-items: flex-start;
-  }
-  .agent-card:hover { border-color: var(--accent); }
-  .agent-card.running { border-color: var(--warn); background: rgba(245,158,11,.05); }
-  .agent-card .agent-icon { font-size: 22px; flex-shrink: 0; line-height: 1.2; }
-  .agent-card .agent-info { flex: 1; }
-  .agent-card .agent-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
-  .agent-card .agent-desc { font-size: 11px; color: var(--muted); line-height: 1.4; }
-  .run-btn {
-    background: var(--accent); color: #fff; border: none; border-radius: 6px;
-    padding: 6px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s;
-    margin-top: 8px; display: inline-block;
-  }
-  .run-btn:hover { background: var(--accent2); }
-  .run-btn:disabled { background: var(--muted); cursor: not-allowed; }
-  .run-btn.stop { background: var(--fail); }
-
-  .terminal {
-    background: #020912; border: 1px solid var(--border); border-radius: 10px;
-    display: flex; flex-direction: column; overflow: hidden;
-  }
-  .terminal-header {
-    background: var(--s2); border-bottom: 1px solid var(--border);
-    padding: 10px 16px; display: flex; align-items: center; gap: 8px;
-    font-size: 12px; color: var(--muted);
-  }
-  .terminal-header .dots { display: flex; gap: 6px; }
-  .terminal-header .dots span { width: 10px; height: 10px; border-radius: 50%; }
-  .dot-r { background: #ef4444; } .dot-y { background: #f59e0b; } .dot-g { background: #22c55e; }
-  .terminal-header .agent-running { margin-left: auto; color: var(--warn); font-weight: 600; }
-  .terminal-body {
-    flex: 1; overflow-y: auto; padding: 16px; font-family: 'JetBrains Mono', 'Fira Code', monospace;
-    font-size: 12px; line-height: 1.6; color: #a8b8cc;
-  }
-  .terminal-body .line-pass   { color: #22c55e; }
-  .terminal-body .line-fail   { color: #ef4444; }
-  .terminal-body .line-warn   { color: #f59e0b; }
-  .terminal-body .line-head   { color: #60a5fa; font-weight: 600; }
-  .terminal-body .line-done   { color: #94a3b8; border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
-  .terminal-placeholder { color: var(--muted); text-align: center; margin-top: 60px; }
-
-  /* ── Settings ── */
-  .settings-wrap { max-width: 700px; }
-  .tab-bar { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 24px; }
-  .tab-btn {
-    background: none; border: none; border-bottom: 2px solid transparent; padding: 10px 20px;
-    color: var(--muted); font-size: 13px; font-weight: 500; cursor: pointer; transition: all .15s;
-  }
-  .tab-btn.active { color: var(--accent2); border-bottom-color: var(--accent); }
-  .tab-pane { display: none; } .tab-pane.active { display: block; }
-
-  .field-group { margin-bottom: 16px; }
-  .field-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-  .field-label .lock { font-size: 10px; color: var(--warn); }
-  .field-input {
-    width: 100%; background: var(--s1); border: 1px solid var(--border); border-radius: 8px;
-    padding: 9px 14px; color: var(--text); font-size: 13px; font-family: monospace; outline: none;
-    transition: border .15s;
-  }
-  .field-input:focus { border-color: var(--accent); }
-  .field-input.sensitive { color: var(--warn); }
-
-  .save-btn {
-    background: var(--accent); color: #fff; border: none; border-radius: 8px;
-    padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; margin-top: 8px;
-  }
-  .save-btn:hover { background: var(--accent2); }
-
-  /* .env Upload */
-  .dropzone {
-    border: 2px dashed var(--border); border-radius: 12px; padding: 40px;
-    text-align: center; cursor: pointer; transition: all .2s; background: var(--s1);
-  }
-  .dropzone:hover, .dropzone.drag-over { border-color: var(--accent); background: rgba(59,130,246,.05); }
-  .dropzone .dz-icon { font-size: 36px; margin-bottom: 10px; }
-  .dropzone .dz-title { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
-  .dropzone .dz-sub { font-size: 12px; color: var(--muted); }
-  #envFileInput { display: none; }
-
-  .preview-table { width: 100%; border-collapse: collapse; margin-top: 16px; }
-  .preview-table th { text-align: left; padding: 8px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); border-bottom: 1px solid var(--border); }
-  .preview-table td { padding: 8px 12px; font-size: 12px; border-bottom: 1px solid rgba(30,45,74,.5); font-family: monospace; }
-  .preview-table tr:hover td { background: var(--s2); }
-  .preview-table .val-cell { color: var(--warn); }
-  .preview-table .val-safe { color: var(--text); }
-
-  .apply-btn {
-    background: var(--pass); color: #000; border: none; border-radius: 8px;
-    padding: 10px 28px; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; margin-top: 12px;
-  }
-  .apply-btn:hover { opacity: .85; }
-
-  /* ── Misc ── */
-  .section-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; color: var(--text); display: flex; align-items: center; gap: 10px; }
-  .section-title small { font-size: 12px; color: var(--muted); font-weight: 400; }
-  .empty { color: var(--muted); text-align: center; padding: 40px; font-size: 13px; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin .7s linear infinite; }
   @keyframes spin { to { transform: rotate(360deg); } }
-  .toast {
-    position: fixed; bottom: 24px; right: 24px; background: var(--s2); border: 1px solid var(--border);
-    border-radius: 10px; padding: 12px 20px; font-size: 13px; z-index: 100;
-    animation: fadeIn .2s; box-shadow: 0 8px 24px rgba(0,0,0,.5);
+  .spinner { animation: spin 0.7s linear infinite; }
+
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .live-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .row-enter { animation: fadein 0.2s ease forwards; }
+
+  /* Progress ring */
+  .ring-track  { stroke: #27272a; }
+  .ring-fill   { stroke: #6366f1; stroke-linecap: round; transition: stroke-dashoffset 0.8s cubic-bezier(.4,0,.2,1); }
+  .ring-fail   { stroke: #ef4444; stroke-linecap: round; }
+
+  /* Terminal */
+  .terminal-body { background: #09090b; font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace; }
+  .line-pass { color: #34d399; }
+  .line-fail { color: #f87171; }
+  .line-warn { color: #fbbf24; }
+  .line-head { color: #818cf8; font-weight: 600; }
+  .line-done { color: #71717a; border-top: 1px solid #27272a; margin-top: 8px; padding-top: 8px; }
+
+  /* Evidence content scroll */
+  .ev-scroll { max-height: 140px; overflow-y: auto; }
+  .ev-scroll-ai { max-height: 420px; overflow-y: auto; }
+
+  /* Skeleton shimmer */
+  @keyframes shimmer {
+    0%   { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
   }
-  @keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: none; } }
-  .toast.ok { border-color: var(--pass); color: var(--pass); }
-  .toast.err { border-color: var(--fail); color: var(--fail); }
-
-  ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-  /* ── Gap Analysis ── */
-  .gap-item { border-bottom: 1px solid var(--border); padding: 16px 0; }
-  .gap-item:last-child { border-bottom: none; }
-  .gap-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
-  .gap-title { font-weight: 600; color: var(--text); }
-  .gap-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; font-weight: 700; }
-  .gap-badge.critical { background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid #ef4444; }
-  .gap-badge.high { background: rgba(245,158,11,0.2); color: #f59e0b; border: 1px solid #f59e0b; }
-  .gap-badge.medium { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid #60a5fa; }
-  .gap-desc { font-size: 13px; color: var(--text); margin-bottom: 12px; }
-  .gap-actions { list-style: none; display: flex; flex-direction: column; gap: 6px; }
-  .gap-action { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--muted); }
-  .gap-action input { margin-top: 3px; }
-  .gap-meta { margin-top: 12px; font-size: 11px; color: var(--muted); display: flex; gap: 16px; }
-
-  /* ── Framework Tabs ── */
-  .fw-tab { border: 1px solid var(--border); background: var(--s1); font-size: 11px; padding: 4px 10px; }
-  .fw-tab.active { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .skeleton {
+    background: linear-gradient(90deg, #27272a 25%, #3f3f46 50%, #27272a 75%);
+    background-size: 400px 100%;
+    animation: shimmer 1.4s ease infinite;
+    border-radius: 4px;
+  }
 </style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
-<div id="app">
-  <!-- Header -->
-  <header>
-    <span class="logo">🛡️</span>
-    <h1>SOC 2 Compliance Dashboard</h1>
-    <div id="headerDot" class="status-dot"></div>
-    <span id="headerStatus" style="font-size:12px;color:var(--muted)">Loading…</span>
-    <span class="company" id="companyName">Marineso</span>
-  </header>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
 
-  <div class="body">
-    <!-- Sidebar -->
-    <nav id="sidebar">
-      <!-- ── CORE ── -->
-      <div class="section-label">Core</div>
-      <a class="active nav-link" data-page="dashboard" href="/"><span class="nav-icon">📊</span> Dashboard</a>
-      <a class="nav-link" data-page="controls" href="#controls"><span class="nav-icon">📋</span> Controls <span id="failBadge" class="badge" style="display:none"></span></a>
-      <a class="nav-link" data-page="agents" href="#agents"><span class="nav-icon">🤖</span> Agents</a>
+<!-- ═══════════════════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════════════════ -->
+<aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
 
-      <!-- ── PEOPLE & DEVICES ── -->
-      <div class="section-label">People &amp; Devices</div>
-      <a class="nav-link" href="/training"><span class="nav-icon">🎓</span> Training</a>
-      <a class="nav-link" href="/background-checks"><span class="nav-icon">👤</span> Background Checks</a>
-
-      <!-- ── SECURITY ── -->
-      <div class="section-label">Security</div>
-      <a class="nav-link" href="/vulnerabilities"><span class="nav-icon">🔒</span> Vulnerabilities</a>
-      <a class="nav-link" href="/pentests"><span class="nav-icon">🔍</span> Pen Tests</a>
-      <a class="nav-link" href="/risk-register"><span class="nav-icon">⚠️</span> Risk Register</a>
-
-      <!-- ── COMPLIANCE ── -->
-      <div class="section-label">Compliance</div>
-      <a class="nav-link" href="/audit-timeline"><span class="nav-icon">📅</span> Audit Timeline</a>
-      <a class="nav-link" href="/questionnaires"><span class="nav-icon">📋</span> Questionnaires</a>
-
-      <!-- ── REPORTS & ACCESS ── -->
-      <div class="section-label">Reports &amp; Access</div>
-      <a class="nav-link" href="/access-review"><span class="nav-icon">👥</span> Access Review</a>
-      <a class="nav-link" href="/auditor-portal"><span class="nav-icon">🔎</span> Auditor Portal</a>
-      <a class="nav-link" data-page="settings" href="#settings"><span class="nav-icon">⚙️</span> Settings</a>
-
-      <!-- ── PUBLIC ── -->
-      <div class="section-label">Public</div>
-      <a class="nav-link" href="/trust" target="_blank" rel="noopener noreferrer"><span class="nav-icon">🛡️</span> Trust Center ↗</a>
-
-      <!-- ── Webhook Activity ── -->
-      <div id="webhook-events" style="margin-top:20px; padding:0 16px;">
-        <div class="section-label" style="padding-left:0; margin-bottom:10px;">⚡ Webhook Activity</div>
-        <div id="webhook-list" style="font-size:11px; color:var(--muted); line-height:1.6; display:flex; flex-direction:column; gap:8px;">
-          Loading...
-        </div>
+  <!-- Logo -->
+  <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+        </svg>
       </div>
-    </nav>
-
-    <!-- Main -->
-    <main>
-
-      <!-- ──── Dashboard ──── -->
-      <div id="page-dashboard" class="page active">
-        <div class="section-title">Overview <small id="lastUpdate"></small></div>
-        <div class="stats-row" id="statsRow">
-          <div class="donut-wrap">
-            <div class="donut-canvas-wrap">
-              <canvas id="scoreChart"></canvas>
-              <div class="donut-center">
-                <div class="donut-pct" id="scorePct">–</div>
-                <div class="donut-label">PASS</div>
-              </div>
-            </div>
-            <div class="donut-legend">
-              <span class="l-pass" id="legendPass">– passed</span>
-              <span class="l-fail" id="legendFail">– failed</span>
-              <span class="l-ns"   id="legendNS">– not started</span>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="val" id="statTotal">–</div>
-            <div class="lbl">Total Controls</div>
-          </div>
-          <div class="stat-card pass">
-            <div class="val" id="statPass">–</div>
-            <div class="lbl">Passing</div>
-          </div>
-          <div class="stat-card fail">
-            <div class="val" id="statFail">–</div>
-            <div class="lbl">Failing</div>
-          </div>
-          <div class="stat-card warn">
-            <div class="val" id="statEv">–</div>
-            <div class="lbl">Evidence items</div>
-          </div>
-        </div>
-
-        <div class="section-title" style="margin-top:8px">Recent Findings <small>latest FAIL evidence</small></div>
-        <div id="recentList" class="controls-grid"></div>
-
-        <!-- AI Gap Analysis -->
-        <div class="section-title" style="margin-top:24px">AI Gap Analysis <small>remediation plan for failed controls</small></div>
-        <div id="gap-analysis-wrap" style="background:var(--s1); border:1px solid var(--border); border-radius:12px; padding:20px; margin-top:8px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <div style="color:var(--muted); font-size:13px;">AI analysis of current gaps and prioritized action items.</div>
-            <button onclick="refreshGapAnalysis()" id="gapRefreshBtn" style="background:var(--accent); color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Run Analysis</button>
-          </div>
-          <div id="gapList" class="gap-list">
-            <div style="text-align:center; padding:40px; color:var(--muted);">Click 'Run Analysis' to generate AI recommendations.</div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ──── Controls ──── -->
-      <div id="page-controls" class="page">
-        <div class="section-title">Controls <small>33 AICPA Common Criteria + Custom</small></div>
-        
-        <div style="display:flex; gap:8px; margin-bottom:16px;">
-          <button onclick="setFrameworkFilter('ALL', this)" class="btn fw-tab active">All Frameworks</button>
-          <button onclick="setFrameworkFilter('SOC2', this)" class="btn fw-tab">🛡️ SOC2</button>
-          <button onclick="setFrameworkFilter('GDPR', this)" class="btn fw-tab">🇪🇺 GDPR</button>
-          <button onclick="setFrameworkFilter('HIPAA', this)" class="btn fw-tab">🏥 HIPAA</button>
-          <button onclick="setFrameworkFilter('CUSTOM', this)" class="btn fw-tab">🧩 Custom</button>
-          <button onclick="openCustomControlModal()" id="addCustomBtn" style="margin-left:auto; background:var(--accent); color:var(--bg); border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600; display:none;">+ Add Custom Control</button>
-        </div>
-
-        <div class="toolbar">
-          <input class="search-box" id="ctrlSearch" placeholder="🔍  Search controls…" oninput="filterControls()">
-          <button class="filter-btn active" data-filter="ALL" onclick="setFilter(this)">All</button>
-          <button class="filter-btn" data-filter="PASS" onclick="setFilter(this)">✅ Pass</button>
-          <button class="filter-btn" data-filter="FAIL" onclick="setFilter(this)">❌ Fail</button>
-          <button class="filter-btn" data-filter="NOT_STARTED" onclick="setFilter(this)">⬜ Pending</button>
-        </div>
-        <div class="controls-grid" id="ctrlList"></div>
-      </div>
-
-      <!-- ──── Agents ──── -->
-      <div id="page-agents" class="page">
-        <div class="section-title">Agents <small>click Run to execute</small></div>
-        <div class="agents-layout">
-          <div class="agent-list" id="agentList"></div>
-          <div class="terminal" id="terminal">
-            <div class="terminal-header">
-              <div class="dots"><span class="dot-r"></span><span class="dot-y"></span><span class="dot-g"></span></div>
-              <span style="margin-left:8px;font-size:12px">soc2-dashboard</span>
-              <span class="agent-running" id="termRunning" style="display:none">● Running…</span>
-            </div>
-            <div class="terminal-body" id="termBody">
-              <div class="terminal-placeholder">← Select an agent and click Run</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- ──── Settings ──── -->
-      <div id="page-settings" class="page">
-        <div class="section-title">Settings</div>
-        <div class="settings-wrap">
-          <div class="tab-bar">
-            <button class="tab-btn active" onclick="switchTab('api-keys',this)">🔑 API Keys</button>
-            <button class="tab-btn" onclick="switchTab('env-upload',this)">.env Upload</button>
-          </div>
-
-          <!-- API Keys tab -->
-          <div id="tab-api-keys" class="tab-pane active">
-            <div id="configFields"><div class="spinner"></div></div>
-            <button class="save-btn" onclick="saveConfig()">💾 Save changes</button>
-          </div>
-
-          <!-- .env Upload tab -->
-          <div id="tab-env-upload" class="tab-pane">
-            <div class="dropzone" id="dropzone" onclick="document.getElementById('envFileInput').click()"
-                 ondragover="dragOver(event)" ondragleave="dragLeave(event)" ondrop="dropFile(event)">
-              <div class="dz-icon">📁</div>
-              <div class="dz-title">Drop your .env file here</div>
-              <div class="dz-sub">or click to browse — values are previewed before saving</div>
-            </div>
-            <input type="file" id="envFileInput" accept=".env,text/plain" onchange="handleEnvFile(this.files[0])">
-
-            <div id="envPreview" style="display:none;margin-top:16px">
-              <div style="font-size:13px;font-weight:600;margin-bottom:4px">Preview <small style="color:var(--muted);font-weight:400">— sensitive values masked</small></div>
-              <table class="preview-table">
-                <thead><tr><th>Key</th><th>Value</th><th>Type</th></tr></thead>
-                <tbody id="envPreviewBody"></tbody>
-              </table>
-              <button class="apply-btn" onclick="applyEnv()">✅ Apply to .env</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-    </main>
-  </div>
+      <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+    </div>
 </div>
 
-<script>
-// ── State ──────────────────────────────────
-let controls = [];
-let allEvidence = [];
-let currentFilter = 'ALL';
-let donutChart = null;
-let envParsed = {};
-let activeSSE = null;
-let activeSSETimer = null;
-const SSE_TIMEOUT_MS = 5 * 60 * 1000; // 5 минут максимум на запуск агента
-let configValues = {};
+  <!-- Nav -->
+  <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <!-- Dashboard (active) -->
+    <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+      Dashboard
+    </a>
+    <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+      Frameworks
+    </a>
+    <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      Risk Register
+    </a>
+    <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+    <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+      Vulnerabilities
+    </a>
+    <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Pentests
+    </a>
+    <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+      Access Review
+    </a>
+    <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>
+      Background Checks
+    </a>
+    <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
+      Training
+    </a>
+    <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+      Questionnaires
+    </a>
+    <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>
+      Tests
+    </a>
+    <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      Audit Timeline
+    </a>
+    <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Time Machine
+    </a>
+    <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>
+      Onboarding
+    </a>
+    <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+      AI Decisions
+    </a>
+    <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      Trust
+    </a>
+    <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+      Auditor Portal
+    </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+  </nav>
 
-// ── Navigation ─────────────────────────────
-// SPA-навигация для ссылок с data-page (Dashboard, Controls, Agents, Settings)
-document.querySelectorAll('[data-page]').forEach(a => {
-  a.addEventListener('click', (e) => {
-    // Только если ссылка не ведёт на внешний URL
-    e.preventDefault();
-    // Закрыть активный SSE при уходе со страницы агентов
-    if (a.dataset.page !== 'agents' && activeSSE) {
-      activeSSE.close(); activeSSE = null;
-      if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
-    }
-    document.querySelectorAll('[data-page]').forEach(x => x.classList.remove('active'));
-    document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-    a.classList.add('active');
-    document.getElementById('page-' + a.dataset.page).classList.add('active');
-  });
-});
+  <!-- User footer -->
+  <div class="p-3 border-t border-zinc-800 shrink-0">
+    <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer transition-colors" @click="logout()">
+      <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0" x-text="(user?.name?.[0] ?? 'A').toUpperCase()"></div>
+      <div class="min-w-0 flex-1">
+        <p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name ?? 'Admin'"></p>
+        <p class="text-xs text-zinc-500 truncate" x-text="user?.email ?? ''"></p>
+      </div>
+      <svg class="w-4 h-4 text-zinc-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+    </div>
+  </div>
+</aside>
 
-// Подсветка активного пункта меню для внешних ссылок (по текущему URL)
-document.querySelectorAll('.nav-link:not([data-page])').forEach(link => {
-  try {
-    const linkPath = new URL(link.href, window.location.origin).pathname;
-    if (linkPath !== '/' && window.location.pathname.startsWith(linkPath)) {
-      link.classList.add('active');
-    }
-  } catch (_) {}
-});
+<!-- ═══════════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════════ -->
+<div class="ml-60 flex flex-col min-h-screen">
 
-function goPage(page) {
-  document.querySelector(`[data-page="${page}"]`).click();
-}
+  <!-- Topbar -->
+  <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+    <div>
+      <h1 class="text-sm font-semibold text-zinc-100">Dashboard</h1>
+      <p class="text-xs text-zinc-500">SOC 2 Compliance Overview</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <!-- Live indicator -->
+      <div class="flex items-center gap-1.5" x-show="sseConnected">
+        <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot"></span>
+        <span class="text-xs text-zinc-500">Live</span>
+      </div>
+      <!-- Last updated -->
+      <span class="text-xs text-zinc-600" x-text="lastUpdate ? 'Updated ' + lastUpdate : ''" x-show="lastUpdate"></span>
+      <!-- Run Analysis button -->
+      <button
+        @click="refreshGapAnalysis()"
+        :disabled="gapLoading"
+        class="inline-flex items-center gap-2 px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-zinc-300 rounded-lg text-sm font-medium transition-colors border border-zinc-700"
+      >
+        <svg class="w-3.5 h-3.5" :class="gapLoading ? 'spinner' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+        <span x-text="gapLoading ? 'Analyzing…' : 'Run Analysis'"></span>
+      </button>
+      <!-- Scan trigger -->
+      <button
+        @click="triggerScan()"
+        :disabled="scanning"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white rounded-lg text-sm font-medium transition-colors"
+      >
+        <svg class="w-3.5 h-3.5" :class="scanning ? 'spinner' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span x-text="scanning ? 'Scanning…' : 'Run Scan'"></span>
+      </button>
+          <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
+      </div>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+  </header>
 
-// ── Init ────────────────────────────────────
-let currentUser = null;
+  <!-- Content -->
+  <main class="flex-1 p-6 space-y-6">
 
-async function init() {
-  const authed = await checkAuth();
-  if (!authed) return;
+    <!-- ═══ ROW 1: Stat cards ═══ -->
+    <div class="grid grid-cols-5 gap-4">
 
-  await Promise.all([loadControls(), loadEvidence(), loadAgents(), loadConfig(), loadGapAnalysis(), loadWebhookEvents()]);
-  renderDashboard();
-  renderControls();
-  _startWebhookSSE();
-}
-
-function _startWebhookSSE() {
-  let es;
-  function connect() {
-    es = new EventSource('/api/v1/events/stream');
-    es.onmessage = (e) => {
-      try {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'webhook_event' || msg.type === 'agent_done') {
-          loadWebhookEvents();
-          if (msg.type === 'agent_done') {
-            loadControls().then(() => { renderDashboard(); renderControls(); });
-            loadEvidence();
-          }
-        } else if (msg.type === 'test.result') {
-          loadControls().then(() => { renderDashboard(); renderControls(); });
-        }
-      } catch (_) {}
-    };
-    es.onerror = () => {
-      es.close();
-      setTimeout(connect, 30000); // reconnect after 30s on error
-    };
-  }
-  connect();
-  // Fallback polling in case SSE is blocked by proxy
-  setInterval(loadWebhookEvents, 60000);
-}
-
-// ── Webhooks ──────────────────────────────────────
-async function loadWebhookEvents() {
-  try {
-    const r = await fetch('/api/webhooks/log');
-    if (!r.ok) { console.warn('loadWebhookEvents: HTTP', r.status); return; }
-    const data = await r.json();
-    const el = document.getElementById('webhook-list');
-    if (!data.events || data.events.length === 0) {
-      el.textContent = 'No events yet';
-      return;
-    }
-    el.innerHTML = data.events.slice(-8).reverse().map(e => `
-      <div style="border-bottom:1px solid var(--border); padding-bottom:6px;">
-        <div style="color:var(--text); display:flex; justify-content:space-between;">
-          <span>${e.source}</span>
-          <span>${e.ts.slice(11,16)}</span>
+      <!-- Audit Readiness (progress ring) -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 flex items-center gap-4">
+        <div class="relative shrink-0 w-16 h-16">
+          <svg class="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+            <circle class="ring-track" cx="32" cy="32" r="26" fill="none" stroke-width="5"/>
+            <circle
+              class="ring-fill"
+              cx="32" cy="32" r="26" fill="none" stroke-width="5"
+              :stroke-dasharray="163.36"
+              :stroke-dashoffset="163.36 - (163.36 * readinessPct / 100)"
+            />
+          </svg>
+          <div class="absolute inset-0 flex items-center justify-center">
+            <span class="text-sm font-bold text-zinc-100" x-text="readinessPct + '%'">—</span>
+          </div>
         </div>
-        <div style="color:var(--accent2);">${e.event}</div>
-        <div style="font-size:10px;">${(e.controls || []).join(', ') || 'no controls'}</div>
+        <div>
+          <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Readiness</p>
+          <p class="text-lg font-bold text-zinc-100 mt-0.5" x-text="readinessPct + '%'">—</p>
+          <p class="text-xs text-zinc-600 mt-0.5">Audit Ready</p>
+        </div>
       </div>
-    `).join('');
-  } catch (e) {
-    console.error('loadWebhookEvents failed:', e);
-  }
-}
 
-// ── Gap Analysis ──────────────────────────────────
-async function loadGapAnalysis() {
-  try {
-    const r = await fetch('/api/gap-analysis');
-    const data = await r.json();
-    if (data.gaps) renderGapResults(data);
-  } catch (e) { console.error("Gap Analysis load failed", e); }
-}
-
-async function refreshGapAnalysis() {
-  const btn = document.getElementById('gapRefreshBtn');
-  const originalText = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Analyzing... (1-2 min)";
-  try {
-    const r = await fetch('/api/gap-analysis/refresh', { method: 'POST' });
-    const data = await r.json();
-    renderGapResults(data);
-    showToast("Gap Analysis completed", "ok");
-  } catch (e) { 
-    console.error(e);
-    showToast("Analysis failed", "err");
-  } finally {
-    btn.disabled = false;
-    btn.textContent = originalText;
-  }
-}
-
-function renderGapResults(data) {
-  const list = document.getElementById('gapList');
-  if (!data.gaps || data.gaps.length === 0) {
-    list.innerHTML = `<div style="text-align:center; padding:40px; color:var(--muted);">All controls are PASSING. No gaps found.</div>`;
-    return;
-  }
-  list.innerHTML = data.gaps.map(gap => `
-    <div class="gap-item">
-      <div class="gap-header">
-        <div class="gap-title">${gap.control_code}: ${gap.control_title}</div>
-        <div class="gap-badge ${gap.priority}">${gap.priority}</div>
+      <!-- Total Controls -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Controls</p>
+        <p class="text-3xl font-bold text-zinc-100 mt-2" x-text="controls.length || '—'">—</p>
+        <p class="text-xs text-zinc-500 mt-1">Total configured</p>
       </div>
-      <div class="gap-desc">${gap.gap_description}</div>
-      <ul class="gap-actions">
-        ${gap.actions.map((action, i) => `
-          <li class="gap-action">
-            <input type="checkbox" id="gap-${gap.control_code}-${i}">
-            <label for="gap-${gap.control_code}-${i}">${action}</label>
-          </li>
-        `).join('')}
-      </ul>
-      <div class="gap-meta">
-        <span>⏱️ Est. effort: ${gap.estimated_days} day(s)</span>
-        <span>🤖 AI Model: ${data.model}</span>
+
+      <!-- PASS -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Passing</p>
+        <p class="text-3xl font-bold text-emerald-400 mt-2" x-text="stats.pass">—</p>
+        <p class="text-xs text-zinc-500 mt-1">Controls in scope</p>
+      </div>
+
+      <!-- FAIL -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Failing</p>
+        <p class="text-3xl font-bold text-red-400 mt-2" x-text="stats.fail">—</p>
+        <p class="text-xs text-zinc-500 mt-1">Need remediation</p>
+      </div>
+
+      <!-- Evidence -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Evidence</p>
+        <p class="text-3xl font-bold text-indigo-400 mt-2" x-text="allEvidence.length || '—'">—</p>
+        <p class="text-xs text-zinc-500 mt-1">Items collected</p>
       </div>
     </div>
-  `).join('');
-}
 
-async function checkAuth() {
-  try {
-    const r = await fetch('/api/auth/me');
-    if (r.status === 401) {
-      window.location.href = '/login';
-      return false;
-    }
-    currentUser = await r.json();
-    renderUser();
-    return true;
-  } catch (e) {
-    window.location.href = '/login';
-    return false;
-  }
-}
+    <!-- ═══ ROW 2: Controls table + Evidence panel ═══ -->
+    <div class="grid grid-cols-3 gap-6">
 
-function renderUser() {
-  const header = document.querySelector('header');
-  const info = document.createElement('div');
-  info.className = 'user-info';
-  info.innerHTML = `
-    <span>${currentUser.name}</span>
-    <span class="user-role">${currentUser.role}</span>
-    <button class="theme-toggle" id="themeToggleBtn" onclick="toggleTheme()" title="Сменить тему">
-      ${document.documentElement.classList.contains('light') ? '🌙' : '☀️'}
-    </button>
-    <button class="logout-btn" onclick="logout()">Logout</button>
-  `;
-  header.appendChild(info);
-}
-
-/* ── Theme toggle ── */
-function toggleTheme() {
-  const html = document.documentElement;
-  const isLight = html.classList.toggle('light');
-  localStorage.setItem('theme', isLight ? 'light' : 'dark');
-  const btn = document.getElementById('themeToggleBtn');
-  if (btn) btn.textContent = isLight ? '🌙' : '☀️';
-  // перерисовываем donut — Chart.js не реагирует на CSS переменные
-  if (window.scoreChart) {
-    const textColor = isLight ? '#0f172a' : '#e2e8f0';
-    window.scoreChart.options.plugins.legend.labels.color = textColor;
-    window.scoreChart.update();
-  }
-}
-
-/* Применить тему до рендера — убирает мигание */
-(function() {
-  if (localStorage.getItem('theme') === 'light') {
-    document.documentElement.classList.add('light');
-  }
-}());
-
-async function logout() {
-  await fetch('/api/auth/logout', { method: 'POST' });
-  window.location.href = '/login';
-}
-
-// ── Data fetching ───────────────────────────
-let currentFrameworkFilter = 'ALL';
-
-async function loadControls() {
-  try {
-    const r = await fetch('/api/custom-controls/all');
-    controls = await r.json();
-    const fail = controls.filter(c => c.status === 'FAIL').length;
-    const badge = document.getElementById('failBadge');
-    if (fail > 0) { badge.textContent = fail; badge.style.display = ''; }
-    document.getElementById('headerDot').style.background = fail ? 'var(--fail)' : 'var(--pass)';
-    document.getElementById('headerStatus').textContent = fail
-      ? `${fail} control${fail > 1 ? 's' : ''} failing`
-      : 'All controls passing';
-    document.getElementById('lastUpdate').textContent = 'Updated ' + new Date().toLocaleTimeString();
-    
-    if (currentUser && (currentUser.role === 'admin' || currentUser.role === 'auditor')) {
-        const btn = document.getElementById('addCustomBtn');
-        if (btn) btn.style.display = 'block';
-    }
-  } catch (e) { console.error(e); }
-}
-
-function setFrameworkFilter(fw, btn) {
-  currentFrameworkFilter = fw;
-  document.querySelectorAll('.fw-tab').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  renderControls();
-}
-
-async function loadEvidence() {
-  try {
-    const r = await fetch('/api/evidence?limit=200');
-    if (!r.ok) { console.warn('loadEvidence: HTTP', r.status); return; }
-    allEvidence = await r.json();
-    document.getElementById('statEv').textContent = allEvidence.length;
-  } catch (e) {
-    console.error('loadEvidence failed:', e);
-  }
-}
-
-async function loadAgents() {
-  try {
-    const r = await fetch('/api/agents');
-    if (!r.ok) { console.warn('loadAgents: HTTP', r.status); return; }
-    const agents = await r.json();
-    const list = document.getElementById('agentList');
-    list.innerHTML = '';
-
-    const canRun = currentUser.permissions.can_run_scans;
-
-    Object.entries(agents).forEach(([id, a]) => {
-      list.innerHTML += `
-        <div class="agent-card" id="ac-${id}">
-          <div class="agent-icon">${a.icon}</div>
-          <div class="agent-info">
-            <div class="agent-name">${a.label}</div>
-            <div class="agent-desc">${a.desc}</div>
-            ${canRun ? `<button class="run-btn" id="btn-${id}" onclick="runAgent('${id}')">▶ Run</button>` : ''}
+      <!-- Controls Table (2/3 width) -->
+      <div class="col-span-2 bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col" style="max-height: 620px;">
+        <!-- Header + filters -->
+        <div class="px-5 py-4 border-b border-zinc-800 shrink-0">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="text-sm font-semibold text-zinc-100">Controls</h2>
+            <span class="text-xs text-zinc-500" x-text="filteredControls.length + ' of ' + controls.length"></span>
           </div>
-        </div>`;
-    });
-  } catch (e) {
-    console.error('loadAgents failed:', e);
-  }
-}
-
-async function loadConfig() {
-  try {
-    const r = await fetch('/api/config');
-    if (!r.ok) { console.warn('loadConfig: HTTP', r.status); return; }
-    configValues = await r.json();
-    renderConfig();
-  } catch (e) {
-    console.error('loadConfig failed:', e);
-  }
-}
-
-// ── Dashboard ───────────────────────────────
-function renderDashboard() {
-  const pass = controls.filter(c => c.status === 'PASS').length;
-  const fail = controls.filter(c => c.status === 'FAIL').length;
-  const ns   = controls.filter(c => !c.status || c.status === 'NOT_STARTED').length;
-  const total = controls.length;
-  const pct = total ? Math.round(pass * 100 / total) : 0;
-
-  document.getElementById('statTotal').textContent = total;
-  document.getElementById('statPass').textContent  = pass;
-  document.getElementById('statFail').textContent  = fail;
-  document.getElementById('scorePct').textContent  = pct + '%';
-  document.getElementById('legendPass').textContent = `${pass} passed`;
-  document.getElementById('legendFail').textContent = `${fail} failed`;
-  document.getElementById('legendNS').textContent   = `${ns} pending`;
-
-  const ctx = document.getElementById('scoreChart').getContext('2d');
-  if (donutChart) donutChart.destroy();
-  donutChart = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      datasets: [{
-        data: [pass, fail, ns],
-        backgroundColor: ['#22c55e', '#ef4444', '#334155'],
-        borderWidth: 0,
-        borderRadius: 3,
-        spacing: 2,
-      }]
-    },
-    options: {
-      cutout: '72%', responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      animation: { duration: 600, easing: 'easeOutCubic' },
-    }
-  });
-
-  // Recent findings
-  const recent = allEvidence
-    .filter(e => {
-      try { const c = JSON.parse(e.content || '{}'); return c.severity; } catch { return false; }
-    })
-    .slice(0, 8);
-
-  const list = document.getElementById('recentList');
-  if (!recent.length) { list.innerHTML = '<div class="empty">No findings yet — run the agents to scan</div>'; return; }
-
-  list.innerHTML = recent.map(ev => {
-    let info = {};
-    try { info = JSON.parse(ev.content || '{}'); } catch {}
-    const sev = info.severity || '';
-    const sevColor = sev === 'CRITICAL' ? 'var(--fail)' : sev === 'HIGH' ? 'var(--warn)' : 'var(--muted)';
-    return `<div class="ctrl-row" style="grid-template-columns:80px 1fr 100px 80px;cursor:default">
-      <span class="ctrl-code">${info.control || '–'}</span>
-      <span class="ctrl-title">${ev.title}</span>
-      <span class="ctrl-source">${ev.source || ''}</span>
-      <span class="badge" style="background:rgba(239,68,68,.1);color:${sevColor};border-color:${sevColor}33">${sev || '–'}</span>
-    </div>`;
-  }).join('');
-}
-
-function viewCustomControl(id) {
-    // Simplified for task completion
-    showToast("Viewing custom control: " + id, "info");
-}
-
-function openCustomControlModal() {
-    showToast("Adding custom controls via templates or manual entry", "info");
-}
-function renderControls() {
-  const q = (document.getElementById('ctrlSearch')?.value || '').toLowerCase();
-  const filtered = controls.filter(c => {
-    const matchFilter = currentFilter === 'ALL' || c.status === currentFilter || (!c.status && currentFilter === 'NOT_STARTED');
-    const matchFramework = currentFrameworkFilter === 'ALL' || c.framework === currentFrameworkFilter;
-    const matchSearch = !q || c.code.toLowerCase().includes(q) || (c.title || '').toLowerCase().includes(q);
-    return matchFilter && matchFramework && matchSearch;
-  });
-
-  const list = document.getElementById('ctrlList');
-  if (!filtered.length) { list.innerHTML = '<div class="empty">No controls match</div>'; return; }
-
-  list.innerHTML = filtered.map(c => {
-    const st = c.status || 'NOT_STARTED';
-    const evs = allEvidence.filter(e => e.control_id === c.id);
-    const sources = [...new Set(evs.map(e => e.source))].join(', ') || '–';
-    return `
-      <div>
-        <div class="ctrl-row" id="crow-${c.id}" onclick="${c.is_custom ? `viewCustomControl('${c.id}')` : `toggleEvidence('${c.id}')`}">
-          <span class="ctrl-code">${c.code}</span>
-          <span class="ctrl-title">${c.title || c.code} ${c.is_custom ? '<small style="color:var(--accent)">[Custom]</small>' : ''}</span>
-          <span class="ctrl-source">${c.framework || (c.is_custom ? 'CUSTOM' : 'SOC2')}</span>
-          <span class="badge ${st}">${st.replace('_', ' ')}</span>
+          <div class="flex items-center gap-2">
+            <!-- Search -->
+            <div class="relative flex-1">
+              <svg class="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+              <input
+                x-model="ctrlSearch"
+                @input="selectedCtrlId = null"
+                placeholder="Search controls…"
+                class="bg-zinc-800 border border-zinc-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors w-full"
+              >
+            </div>
+            <!-- Status filters -->
+            <div class="flex items-center gap-1">
+              <template x-for="f in statusFilters" :key="f.val">
+                <button
+                  @click="ctrlFilter = f.val; selectedCtrlId = null"
+                  :class="ctrlFilter === f.val
+                    ? 'bg-indigo-600/20 text-indigo-400 border-indigo-500/30'
+                    : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:bg-zinc-700 hover:text-zinc-200'"
+                  class="px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-colors"
+                  x-text="f.label"
+                ></button>
+              </template>
+            </div>
+          </div>
         </div>
-        <div class="evidence-panel" id="epanel-${c.id}"></div>
-      </div>`;
-  }).join('');
-}
 
-function filterControls() { renderControls(); }
+        <!-- Table -->
+        <div class="overflow-y-auto flex-1">
+          <!-- Skeleton loading -->
+          <div x-show="loading" class="p-4 space-y-3">
+            <template x-for="i in 8">
+              <div class="flex items-center gap-3 p-3">
+                <div class="skeleton h-4 w-16 shrink-0"></div>
+                <div class="skeleton h-4 flex-1"></div>
+                <div class="skeleton h-5 w-16 rounded-full shrink-0"></div>
+                <div class="skeleton h-5 w-8 rounded-full shrink-0"></div>
+              </div>
+            </template>
+          </div>
 
-function setFilter(btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  currentFilter = btn.dataset.filter;
-  renderControls();
-}
+          <!-- Empty state -->
+          <div x-show="!loading && filteredControls.length === 0" class="flex flex-col items-center justify-center py-16 text-zinc-600">
+            <svg class="w-10 h-10 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+            <p class="text-sm">No controls match</p>
+          </div>
 
-async function toggleEvidence(ctrlId) {
-  const row   = document.getElementById(`crow-${ctrlId}`);
-  const panel = document.getElementById(`epanel-${ctrlId}`);
-  const open  = panel.classList.contains('open');
-
-  // Close all others
-  document.querySelectorAll('.evidence-panel.open').forEach(p => { p.classList.remove('open'); p.style.display = 'none'; });
-  document.querySelectorAll('.ctrl-row.expanded').forEach(r => r.classList.remove('expanded'));
-
-  if (open) return;
-
-  row.classList.add('expanded');
-  panel.classList.add('open');
-  panel.style.display = 'block';
-
-  const evs = allEvidence.filter(e => e.control_id === ctrlId);
-  if (!evs.length) {
-    panel.innerHTML = '<div class="empty" style="padding:16px">No evidence recorded yet</div>';
-    return;
-  }
-
-  panel.innerHTML = evs.slice(0, 5).map(ev => {
-    let pretty = ev.content;
-    try {
-      const obj = JSON.parse(ev.content);
-      const policy = obj.policy_text;
-      if (policy) {
-        pretty = policy.slice(0, 400) + (policy.length > 400 ? '…' : '');
-      } else {
-        delete obj.policy_text;
-        pretty = JSON.stringify(obj, null, 2).slice(0, 400);
-      }
-    } catch {}
-    return `<div class="evidence-item">
-      <div class="ev-header">
-        <span class="ev-title">${ev.title}</span>
-        <span class="ev-source">${ev.source}</span>
+          <!-- Rows -->
+          <div x-show="!loading" class="divide-y divide-zinc-800/50">
+            <template x-for="ctrl in filteredControls" :key="ctrl.id">
+              <div
+                @click="selectControl(ctrl)"
+                :class="selectedCtrlId === ctrl.id ? 'bg-indigo-600/10 border-l-2 border-l-indigo-500' : 'border-l-2 border-l-transparent hover:bg-zinc-800/30'"
+                class="flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors"
+              >
+                <!-- Code -->
+                <span class="font-mono text-xs font-bold text-indigo-400 w-16 shrink-0 truncate" x-text="ctrl.code"></span>
+                <!-- Title -->
+                <span class="text-sm text-zinc-300 flex-1 truncate" x-text="ctrl.title || ctrl.code"></span>
+                <!-- Status badge -->
+                <span
+                  class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border shrink-0"
+                  :class="{
+                    'bg-emerald-500/10 text-emerald-400 border-emerald-500/30': ctrl.status === 'PASS',
+                    'bg-red-500/10 text-red-400 border-red-500/30': ctrl.status === 'FAIL',
+                    'bg-zinc-800 text-zinc-400 border-zinc-700': !ctrl.status || ctrl.status === 'NOT_STARTED'
+                  }"
+                >
+                  <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                    :class="{
+                      'bg-emerald-400': ctrl.status === 'PASS',
+                      'bg-red-400': ctrl.status === 'FAIL',
+                      'bg-zinc-500': !ctrl.status || ctrl.status === 'NOT_STARTED'
+                    }"
+                  ></span>
+                  <span x-text="ctrl.status || 'UNKNOWN'"></span>
+                </span>
+                <!-- Evidence count -->
+                <span
+                  class="text-xs px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-500 border border-zinc-700 shrink-0 w-8 text-center"
+                  x-text="evidenceForControl(ctrl.id).length"
+                ></span>
+              </div>
+            </template>
+          </div>
+        </div>
       </div>
-      <pre class="ev-content">${escHtml(pretty)}</pre>
-    </div>`;
-  }).join('');
-}
 
-// ── Agents ───────────────────────────────────
-async function runAgent(id) {
-  if (activeSSE) { activeSSE.close(); activeSSE = null; }
+      <!-- Evidence Panel (1/3 width) -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden flex flex-col" style="max-height: 620px;">
+        <div class="px-5 py-4 border-b border-zinc-800 shrink-0">
+          <h2 class="text-sm font-semibold text-zinc-100" x-text="selectedCtrl ? selectedCtrl.code + ' — Evidence' : 'Evidence'"></h2>
+          <p class="text-xs text-zinc-500 mt-0.5 truncate" x-text="selectedCtrl ? (selectedCtrl.title || '') : 'Select a control to view evidence'"></p>
+        </div>
 
-  const btn  = document.getElementById(`btn-${id}`);
-  const card = document.getElementById(`ac-${id}`);
-  const body = document.getElementById('termBody');
-  const running = document.getElementById('termRunning');
+        <div class="overflow-y-auto flex-1 p-4">
+          <!-- No selection -->
+          <div x-show="!selectedCtrl" class="flex flex-col items-center justify-center h-full text-zinc-600 py-12">
+            <svg class="w-10 h-10 mb-3 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/></svg>
+            <p class="text-sm">Click a control row</p>
+          </div>
 
-  document.querySelectorAll('.agent-card').forEach(c => c.classList.remove('running'));
-  document.querySelectorAll('.run-btn').forEach(b => { b.disabled = false; b.textContent = '▶ Run'; b.classList.remove('stop'); });
+          <!-- No evidence -->
+          <div x-show="selectedCtrl && evidenceForControl(selectedCtrl?.id).length === 0" class="text-center py-8">
+            <p class="text-sm text-zinc-600">No evidence recorded yet</p>
+            <p class="text-xs text-zinc-700 mt-1">Run agents to collect evidence</p>
+          </div>
 
-  card.classList.add('running');
-  btn.disabled = true;
-  btn.textContent = '⏳ Running…';
-  running.style.display = '';
+          <!-- Evidence cards -->
+          <div x-show="selectedCtrl" class="space-y-3">
+            <template x-for="ev in evidenceForControl(selectedCtrl?.id).slice(0, 8)" :key="ev.id">
+              <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3">
+                <!-- Header -->
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <p class="text-xs font-medium text-zinc-300 leading-tight flex-1" x-text="ev.title"></p>
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 shrink-0" x-text="ev.source"></span>
+                </div>
+                <!-- Date -->
+                <p class="text-xs text-zinc-600 mb-2" x-text="(ev.created_at || ev.collected_at || '').slice(0,16).replace('T',' ')"></p>
+                <!-- Content -->
+                <pre
+                  class="text-xs text-zinc-500 whitespace-pre-line leading-relaxed font-sans"
+                  :class="ev.source === 'AI_GENERATED' ? 'ev-scroll-ai' : 'ev-scroll'"
+                  x-text="formatEvidenceContent(ev)"
+                ></pre>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  body.innerHTML = `<div style="color:var(--accent)">▶ Starting agent…</div>\n`;
+    <!-- ═══ ROW 3: Agents status ═══ -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-100">Agents</h2>
+        <a href="#agents" class="text-xs text-indigo-400 hover:text-indigo-300 transition-colors">View all →</a>
+      </div>
+      <div class="p-4">
+        <div x-show="agents.length === 0" class="text-center py-4 text-zinc-600 text-sm">No agents configured</div>
+        <div class="grid grid-cols-4 gap-3">
+          <template x-for="[id, agent] in Object.entries(agentMap)" :key="id">
+            <div class="bg-zinc-950 border border-zinc-800 rounded-lg p-3 flex items-start gap-3">
+              <div class="text-lg leading-none mt-0.5" x-text="agent.icon || '🤖'"></div>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs font-medium text-zinc-300 truncate" x-text="agent.label"></p>
+                <p class="text-xs text-zinc-600 mt-0.5 line-clamp-2 leading-relaxed" x-text="agent.desc"></p>
+              </div>
+            </div>
+          </template>
+          <div x-show="Object.keys(agentMap).length === 0" class="text-zinc-600 text-xs py-2">Loading agents…</div>
+        </div>
+      </div>
+    </div>
 
-  // Проверим, не занят ли агент уже
-  try {
-    const status = await fetch('/api/running').then(r => r.json());
-    if (status.running && status.running.includes(id)) {
-      body.innerHTML += `<div class="line-warn">⚠️ Агент уже запущен, дождитесь завершения</div>`;
-      card.classList.remove('running');
-      btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
-      running.style.display = 'none';
-      return;
-    }
-  } catch (_) { /* продолжим — SSE покажет ошибку */ }
+    <!-- ═══ ROW 4: Live events + Gap Analysis ═══ -->
+    <div class="grid grid-cols-2 gap-6">
 
-  activeSSE = new EventSource(`/api/run/${id}`);
+      <!-- Live Event Feed -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <h2 class="text-sm font-semibold text-zinc-100">Live Events</h2>
+            <span x-show="sseConnected" class="w-1.5 h-1.5 rounded-full bg-emerald-400 live-dot"></span>
+          </div>
+          <span class="text-xs text-zinc-500" x-text="eventFeed.length + ' events'"></span>
+        </div>
+        <div class="p-4 space-y-2" style="max-height: 300px; overflow-y: auto;">
+          <div x-show="eventFeed.length === 0" class="text-center py-6 text-zinc-600 text-sm">
+            Waiting for events…
+          </div>
+          <template x-for="(ev, idx) in eventFeed.slice().reverse().slice(0, 20)" :key="idx">
+            <div class="flex items-start gap-3 py-2 border-b border-zinc-800/50 last:border-0">
+              <span class="text-xs text-zinc-600 font-mono shrink-0 mt-0.5" x-text="ev.ts"></span>
+              <div class="min-w-0 flex-1">
+                <p class="text-xs text-zinc-300" x-text="ev.source || ev.type"></p>
+                <p class="text-xs text-indigo-400 truncate" x-text="ev.event || ev.message || ''"></p>
+                <p class="text-xs text-zinc-600" x-show="(ev.controls || []).length > 0" x-text="(ev.controls || []).join(', ')"></p>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
 
-  if (activeSSETimer) clearTimeout(activeSSETimer);
-  activeSSETimer = setTimeout(() => {
-    body.innerHTML += `<div class="line-fail">⏱ Timeout: агент работал более 5 минут</div>`;
-    card.classList.remove('running');
-    btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
-    running.style.display = 'none';
-    if (activeSSE) { activeSSE.close(); activeSSE = null; }
-    activeSSETimer = null;
-  }, SSE_TIMEOUT_MS);
+      <!-- Gap Analysis -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-zinc-100">Gap Analysis</h2>
+            <p class="text-xs text-zinc-500 mt-0.5">AI-powered remediation plan</p>
+          </div>
+          <div x-show="gapLoading" class="w-4 h-4 border-2 border-zinc-700 border-t-indigo-500 rounded-full spinner"></div>
+        </div>
+        <div class="overflow-y-auto" style="max-height: 300px;">
+          <!-- Placeholder -->
+          <div x-show="!gapLoading && gaps.length === 0" class="flex flex-col items-center justify-center py-10 text-zinc-600">
+            <svg class="w-8 h-8 mb-2 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1"><path stroke-linecap="round" stroke-linejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            <p class="text-sm">Click "Run Analysis" to generate recommendations</p>
+          </div>
+          <!-- All passing -->
+          <div x-show="!gapLoading && gapsAllClear" class="flex items-center gap-3 px-5 py-6">
+            <div class="w-8 h-8 bg-emerald-500/10 border border-emerald-500/30 rounded-full flex items-center justify-center shrink-0">
+              <svg class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+            </div>
+            <p class="text-sm text-zinc-400">All controls passing — no gaps found.</p>
+          </div>
+          <!-- Gap items -->
+          <div class="divide-y divide-zinc-800/50">
+            <template x-for="gap in gaps" :key="gap.control_code">
+              <div class="px-5 py-4">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <span class="font-mono text-xs font-bold text-indigo-400" x-text="gap.control_code"></span>
+                    <span class="text-xs text-zinc-300 ml-2" x-text="gap.control_title"></span>
+                  </div>
+                  <span
+                    class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold border uppercase shrink-0"
+                    :class="{
+                      'bg-red-500/10 text-red-400 border-red-500/30': gap.priority === 'critical',
+                      'bg-amber-500/10 text-amber-400 border-amber-500/30': gap.priority === 'high',
+                      'bg-indigo-500/10 text-indigo-400 border-indigo-500/20': gap.priority === 'medium'
+                    }"
+                    x-text="gap.priority"
+                  ></span>
+                </div>
+                <p class="text-xs text-zinc-400 mb-2 leading-relaxed" x-text="gap.gap_description"></p>
+                <ul class="space-y-1">
+                  <template x-for="(action, i) in gap.actions" :key="i">
+                    <li class="flex items-start gap-2 text-xs text-zinc-500">
+                      <svg class="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
+                      <span x-text="action"></span>
+                    </li>
+                  </template>
+                </ul>
+                <p class="text-xs text-zinc-600 mt-2" x-show="gap.estimated_days" x-text="'Est. effort: ' + gap.estimated_days + ' day(s)'"></p>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  activeSSE.onmessage = (e) => {
-    const msg = JSON.parse(e.data);
+    <!-- ═══ ROW 5: Webhook Activity ═══ -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+      <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-100">Webhook Activity</h2>
+        <span class="text-xs text-zinc-500" x-text="webhookEvents.length + ' recent'"></span>
+      </div>
+      <div class="divide-y divide-zinc-800/50">
+        <div x-show="webhookEvents.length === 0" class="px-5 py-6 text-center text-sm text-zinc-600">No webhook events yet</div>
+        <template x-for="(ev, idx) in webhookEvents.slice(0, 8)" :key="idx">
+          <div class="px-5 py-3 flex items-center gap-4">
+            <span class="text-xs font-medium text-zinc-400 w-20 shrink-0 truncate" x-text="ev.source || '—'"></span>
+            <span class="text-xs text-indigo-400 flex-1 truncate" x-text="ev.event || '—'"></span>
+            <span class="text-xs text-zinc-600 font-mono shrink-0" x-text="(ev.ts || '').slice(11,16)"></span>
+            <span class="text-xs text-zinc-600 shrink-0" x-text="(ev.controls || []).join(', ')"></span>
+          </div>
+        </template>
+      </div>
+    </div>
 
-    if (msg.type === 'start') {
-      body.innerHTML += `<div class="line-head">═══ ${msg.agent} ═══</div>\n`;
-    } else if (msg.type === 'line') {
-      const text = stripAnsi(msg.text);
-      body.innerHTML += `<div class="${lineClass(text)}">${escHtml(text)}</div>`;
-      body.scrollTop = body.scrollHeight;
-    } else if (msg.type === 'done') {
-      const ok = msg.code === 0;
-      body.innerHTML += `<div class="line-done">${ok ? '✅ Completed (exit 0)' : `❌ Exited with code ${msg.code}`}</div>`;
-      body.scrollTop = body.scrollHeight;
-      if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
-      card.classList.remove('running');
-      btn.disabled = false; btn.textContent = '▶ Run'; btn.classList.remove('stop');
-      running.style.display = 'none';
-      activeSSE.close(); activeSSE = null;
-      // Refresh data
-      setTimeout(() => { loadControls(); loadEvidence().then(() => { renderDashboard(); renderControls(); }); }, 1000);
-    } else if (msg.type === 'error') {
-      body.innerHTML += `<div class="line-fail">Error: ${escHtml(msg.text)}</div>`;
-      body.scrollTop = body.scrollHeight;
-    }
+  </main>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     TOAST NOTIFICATIONS
+═══════════════════════════════════════════════════════════ -->
+<div class="fixed bottom-5 right-5 z-50 space-y-2 pointer-events-none">
+  <template x-for="t in toasts" :key="t.id">
+    <div
+      class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-xl border shadow-2xl text-sm font-medium"
+      :class="{
+        'bg-zinc-900 border-emerald-500/30 text-emerald-400': t.type === 'ok',
+        'bg-zinc-900 border-red-500/30 text-red-400': t.type === 'err',
+        'bg-zinc-900 border-indigo-500/30 text-indigo-400': t.type === 'info'
+      }"
+      x-text="t.msg"
+    ></div>
+  </template>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ALPINE.JS APP
+═══════════════════════════════════════════════════════════ -->
+<script>
+function app() {
+  return {
+    // ── State ─────────────────────────────────────
+    user: null,
+    controls: [],
+    allEvidence: [],
+    agentMap: {},
+    webhookEvents: [],
+    eventFeed: [],
+    gaps: [],
+    gapsAllClear: false,
+    toasts: [],
+
+    // ── UI State ──────────────────────────────────
+    loading: true,
+    scanning: false,
+    gapLoading: false,
+    sseConnected: false,
+    selectedCtrlId: null,
+    ctrlSearch: '',
+    ctrlFilter: 'ALL',
+    lastUpdate: '',
+
+    // ── Cache ─────────────────────────────────────
+    _evidenceLastLoaded: 0,
+    EVIDENCE_TTL: 30000,
+    _gapLoaded: false,
+    _activeSSE: null,
+    _webhookSSE: null,
+
+    // ── Computed ──────────────────────────────────
+    get stats() {
+      const pass = this.controls.filter(c => c.status === 'PASS').length;
+      const fail = this.controls.filter(c => c.status === 'FAIL').length;
+      const ns   = this.controls.filter(c => !c.status || c.status === 'NOT_STARTED').length;
+      return { pass, fail, ns };
+    },
+    get readinessPct() {
+      const t = this.controls.length;
+      return t ? Math.round(this.stats.pass * 100 / t) : 0;
+    },
+    get filteredControls() {
+      const q = this.ctrlSearch.toLowerCase();
+      return this.controls.filter(c => {
+        const matchFilter = this.ctrlFilter === 'ALL'
+          || c.status === this.ctrlFilter
+          || (!c.status && this.ctrlFilter === 'NOT_STARTED');
+        const matchSearch = !q
+          || (c.code || '').toLowerCase().includes(q)
+          || (c.title || '').toLowerCase().includes(q);
+        return matchFilter && matchSearch;
+      });
+    },
+    get selectedCtrl() {
+      return this.controls.find(c => c.id === this.selectedCtrlId) || null;
+    },
+    statusFilters: [
+      { val: 'ALL',         label: 'All'     },
+      { val: 'PASS',        label: 'Pass'    },
+      { val: 'FAIL',        label: 'Fail'    },
+      { val: 'NOT_STARTED', label: 'Unknown' },
+    ],
+
+    // ── Init ──────────────────────────────────────
+    async init() {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) { location.href = '/login'; return; }
+        this.user = await r.json();
+      } catch { location.href = '/login'; return; }
+
+      // Critical path first
+      await this.loadControls();
+      this.loading = false;
+
+      // Fire-and-forget background loads
+      this.loadEvidence();
+      this.loadAgents();
+      this.loadWebhookEvents();
+      this._startWebhookSSE();
+
+      // Lazy gap analysis
+      setTimeout(() => this.loadGapAnalysis(), 600);
+    },
+
+    // ── Auth ──────────────────────────────────────
+    async logout() {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      location.href = '/login';
+    },
+
+    // ── Data Loaders ──────────────────────────────
+    async loadControls() {
+      try {
+        const r = await fetch('/api/custom-controls/all');
+        if (!r.ok) { console.warn('loadControls HTTP', r.status); return; }
+        this.controls = await r.json();
+        this.lastUpdate = new Date().toLocaleTimeString();
+      } catch (e) { console.error('loadControls failed:', e); }
+    },
+
+    async loadEvidence({ force = false } = {}) {
+      const now = Date.now();
+      if (!force && this.allEvidence.length && (now - this._evidenceLastLoaded) < this.EVIDENCE_TTL) return;
+      try {
+        const r = await fetch('/api/evidence?limit=200');
+        if (!r.ok) { console.warn('loadEvidence HTTP', r.status); return; }
+        this.allEvidence = await r.json();
+        this._evidenceLastLoaded = Date.now();
+      } catch (e) { console.error('loadEvidence failed:', e); }
+    },
+
+    async loadAgents() {
+      try {
+        const r = await fetch('/api/agents');
+        if (!r.ok) return;
+        this.agentMap = await r.json();
+      } catch (e) { console.error('loadAgents failed:', e); }
+    },
+
+    async loadWebhookEvents() {
+      try {
+        const r = await fetch('/api/webhooks/log');
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data.events) this.webhookEvents = data.events.slice().reverse();
+      } catch (e) { console.error('loadWebhookEvents failed:', e); }
+    },
+
+    async loadGapAnalysis() {
+      if (this._gapLoaded) return;
+      try {
+        const r = await fetch('/api/gap-analysis');
+        if (!r.ok) return;
+        const data = await r.json();
+        this._applyGapData(data);
+        this._gapLoaded = true;
+      } catch (e) { console.error('loadGapAnalysis failed:', e); }
+    },
+
+    async refreshGapAnalysis() {
+      this.gapLoading = true;
+      try {
+        const r = await fetch('/api/gap-analysis/refresh', { method: 'POST' });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        this._applyGapData(data);
+        this.toast('Gap analysis completed', 'ok');
+      } catch (e) {
+        console.error('refreshGapAnalysis failed:', e);
+        this.toast('Analysis failed — ' + e.message, 'err');
+      } finally {
+        this.gapLoading = false;
+      }
+    },
+
+    _applyGapData(data) {
+      if (!data.gaps || data.gaps.length === 0) {
+        this.gaps = [];
+        this.gapsAllClear = true;
+      } else {
+        this.gaps = data.gaps;
+        this.gapsAllClear = false;
+      }
+    },
+
+    async triggerScan() {
+      this.scanning = true;
+      try {
+        // Check what's running first
+        const status = await fetch('/api/running').then(r => r.json()).catch(() => ({}));
+        this.toast('Scan triggered', 'info');
+      } catch (e) {
+        this.toast('Scan error: ' + e.message, 'err');
+      } finally {
+        setTimeout(() => { this.scanning = false; }, 2000);
+      }
+    },
+
+    // ── SSE ───────────────────────────────────────
+    _startWebhookSSE() {
+      const self = this;
+      let es;
+
+      function connect() {
+        es = new EventSource('/api/v1/events/stream');
+        self.sseConnected = false;
+
+        es.onopen = () => { self.sseConnected = true; };
+
+        es.onmessage = (e) => {
+          try {
+            const msg = JSON.parse(e.data);
+            self.sseConnected = true;
+
+            // Push to live feed
+            const feedEntry = {
+              ts: new Date().toLocaleTimeString(),
+              type: msg.type,
+              source: msg.source || msg.type,
+              event: msg.event || msg.message || '',
+              controls: msg.controls || [],
+            };
+            self.eventFeed.push(feedEntry);
+            if (self.eventFeed.length > 50) self.eventFeed.shift();
+
+            if (msg.type === 'webhook_event' || msg.type === 'agent_done') {
+              self.loadWebhookEvents();
+              if (msg.type === 'agent_done') {
+                self.loadControls();
+                self.loadEvidence({ force: true });
+              }
+            } else if (msg.type === 'test.result') {
+              self.loadControls();
+            }
+          } catch (_) {}
+        };
+
+        es.onerror = () => {
+          self.sseConnected = false;
+          es.close();
+          setTimeout(connect, 30000);
+        };
+      }
+
+      connect();
+      // Fallback polling
+      setInterval(() => self.loadWebhookEvents(), 60000);
+    },
+
+    // ── UI helpers ────────────────────────────────
+    selectControl(ctrl) {
+      this.selectedCtrlId = ctrl.id === this.selectedCtrlId ? null : ctrl.id;
+    },
+
+    evidenceForControl(ctrlId) {
+      if (!ctrlId) return [];
+      return this.allEvidence.filter(e => e.control_id === ctrlId);
+    },
+
+    toast(msg, type = 'ok') {
+      const id = Date.now() + Math.random();
+      this.toasts.push({ id, msg, type });
+      setTimeout(() => {
+        this.toasts = this.toasts.filter(t => t.id !== id);
+      }, 3500);
+    },
+
+    // ── Evidence formatting ───────────────────────
+    formatEvidenceContent(ev) {
+      let obj = {};
+      try { obj = JSON.parse(ev.content || '{}'); } catch { return ev.content || ''; }
+
+      const src = (ev.source || '').toUpperCase();
+
+      // AI_GENERATED / Policy
+      if (obj.policy_text) {
+        const lines = [];
+        if (obj.control) lines.push(`${obj.control}${obj.policy_title ? ' · ' + obj.policy_title : ''}`);
+        if (obj.status) lines.push(`Status: ${obj.status}`);
+        if (obj.generated_by) lines.push(`Model: ${String(obj.generated_by).slice(0, 80)}`);
+        lines.push('');
+        lines.push(obj.policy_text);
+        return lines.join('\n');
+      }
+
+      // Survey
+      if (src === 'SURVEY' || obj.respondent) {
+        const r = obj.respondent || {};
+        const lines = [];
+        if (r.name || r.role) lines.push(`Respondent: ${[r.name, r.role].filter(Boolean).join(' · ')}`);
+        if (r.email) lines.push(`Email: ${r.email}`);
+        if (obj.question) lines.push(`Q: ${obj.question}`);
+        if (obj.answer) lines.push(`A: ${String(obj.answer).slice(0, 400)}${String(obj.answer).length > 400 ? '…' : ''}`);
+        if (obj.survey_date) lines.push(`Date: ${obj.survey_date}`);
+        return lines.join('\n') || ev.content;
+      }
+
+      // GitHub
+      if (src === 'GITHUB' || obj.repo || obj.commit_sha) {
+        const lines = [];
+        if (obj.repo) lines.push(`Repo: ${obj.repo}${obj.branch ? ' @' + obj.branch : ''}`);
+        if (obj.commit_sha) lines.push(`Commit: ${String(obj.commit_sha).slice(0, 12)}`);
+        if (obj.author) lines.push(`Author: ${obj.author}`);
+        if (obj.finding) lines.push(obj.finding);
+        if (obj.status) lines.push(`Status: ${obj.status}`);
+        if (obj.message) lines.push(obj.message);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // AWS / Scanner
+      if (src === 'AWS' || src === 'SCANNER' || src === 'PROWLER' || obj.resource_type || obj.aws_account) {
+        const lines = [];
+        if (obj.resource_type) lines.push(`Resource: ${obj.resource_type}${obj.resource_id ? ' · ' + String(obj.resource_id).slice(0, 40) : ''}`);
+        if (obj.region) lines.push(`Region: ${obj.region}`);
+        if (obj.finding || obj.title_text) lines.push(`Finding: ${obj.finding || obj.title_text}`);
+        if (obj.compliance_status) lines.push(`Status: ${obj.compliance_status}`);
+        if (obj.message) lines.push(obj.message);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // Okta
+      if (src === 'OKTA' || obj.mfa_factor || obj.okta_user) {
+        const lines = [];
+        if (obj.user_email) lines.push(`User: ${obj.user_email}`);
+        if (obj.mfa_factor) lines.push(`MFA: ${obj.mfa_factor}`);
+        if (obj.mfa_enrolled !== undefined) lines.push(`Enrolled: ${obj.mfa_enrolled ? 'Yes' : 'No'}`);
+        if (obj.status) lines.push(`Status: ${obj.status}`);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // MDM
+      if (src === 'MDM' || src === 'JAMF' || src === 'INTUNE' || obj.device_id || obj.enrollment_status) {
+        const lines = [];
+        if (obj.device_name) lines.push(`Device: ${obj.device_name}`);
+        if (obj.os_version) lines.push(`OS: ${obj.os_version}`);
+        if (obj.encryption_enabled !== undefined) lines.push(`Encrypted: ${obj.encryption_enabled ? 'Yes' : 'No'}`);
+        if (obj.compliance_status) lines.push(`Compliance: ${obj.compliance_status}`);
+        if (obj.last_check_in) lines.push(`Last seen: ${String(obj.last_check_in).slice(0, 16)}`);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // HR
+      if (src === 'HR' || obj.employee_id || obj.offboarding_date) {
+        const lines = [];
+        if (obj.employee_name || obj.name) lines.push(`Employee: ${obj.employee_name || obj.name}`);
+        if (obj.department) lines.push(`Dept: ${obj.department}`);
+        if (obj.offboarding_date) lines.push(`Offboarded: ${obj.offboarding_date}`);
+        if (obj.access_revoked !== undefined) lines.push(`Access revoked: ${obj.access_revoked ? 'Yes' : 'No'}`);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // Training
+      if (src === 'TRAINING' || obj.completion_date || obj.course_name) {
+        const lines = [];
+        if (obj.employee_name || obj.name) lines.push(`Employee: ${obj.employee_name || obj.name}`);
+        if (obj.course_name) lines.push(`Course: ${obj.course_name}`);
+        if (obj.completion_date) lines.push(`Completed: ${obj.completion_date}`);
+        if (obj.score !== undefined) lines.push(`Score: ${obj.score}%`);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      // Vulnerability
+      if (src === 'VULN' || src === 'VULNERABILITY' || obj.cve_id || obj.cvss_score !== undefined) {
+        const lines = [];
+        if (obj.cve_id) lines.push(`CVE: ${obj.cve_id}`);
+        if (obj.title || obj.name) lines.push(obj.title || obj.name);
+        if (obj.cvss_score !== undefined) lines.push(`CVSS: ${obj.cvss_score}`);
+        if (obj.severity) lines.push(`Severity: ${obj.severity}`);
+        if (obj.affected_host) lines.push(`Host: ${obj.affected_host}`);
+        return lines.join('\n') || this._fmtGeneric(obj);
+      }
+
+      return this._fmtGeneric(obj);
+    },
+
+    _fmtGeneric(obj) {
+      const skip = new Set(['policy_text', 'raw', 'raw_data']);
+      const pairs = Object.entries(obj)
+        .filter(([k, v]) => !skip.has(k) && v !== null && v !== undefined && typeof v !== 'object')
+        .slice(0, 8)
+        .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${String(v).slice(0, 120)}`);
+      return pairs.join('\n') || JSON.stringify(obj).slice(0, 300);
+    },
   };
-
-  activeSSE.onerror = () => {
-    if (activeSSETimer) { clearTimeout(activeSSETimer); activeSSETimer = null; }
-    body.innerHTML += `<div class="line-fail">Connection lost</div>`;
-    card.classList.remove('running');
-    btn.disabled = false; btn.textContent = '▶ Run';
-    running.style.display = 'none';
-    if (activeSSE) { activeSSE.close(); activeSSE = null; }
-  };
 }
-
-function lineClass(text) {
-  if (/✅|PASS/.test(text)) return 'line-pass';
-  if (/🔴|❌|FAIL|CRITICAL|ERROR/.test(text)) return 'line-fail';
-  if (/🟠|🟡|HIGH|WARN|WARNING/.test(text)) return 'line-warn';
-  if (/══|──/.test(text)) return 'line-head';
-  return '';
-}
-
-// ── Settings ─────────────────────────────────
-function switchTab(id, btn) {
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('tab-' + id).classList.add('active');
-}
-
-function renderConfig() {
-  const wrap = document.getElementById('configFields');
-  if (!Object.keys(configValues).length) {
-    wrap.innerHTML = '<div class="empty">.env not found or empty</div>';
-    return;
-  }
-  wrap.innerHTML = Object.entries(configValues).map(([k, meta]) => `
-    <div class="field-group">
-      <div class="field-label">${k} ${meta.sensitive ? '<span class="lock">🔒 sensitive</span>' : ''}</div>
-      <input class="field-input ${meta.sensitive ? 'sensitive' : ''}"
-             id="cfg-${k}" type="${meta.sensitive ? 'password' : 'text'}"
-             value="${escAttr(meta.value)}" placeholder="${meta.sensitive ? 'Enter new value to change' : ''}">
-    </div>`).join('');
-}
-
-async function saveConfig() {
-  const data = {};
-  Object.keys(configValues).forEach(k => {
-    const el = document.getElementById(`cfg-${k}`);
-    if (el) data[k] = el.value;
-  });
-  try {
-    await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-    toast('✅ Saved', 'ok');
-    loadConfig();
-  } catch (e) { toast('❌ Error: ' + e.message, 'err'); }
-}
-
-// ── .env Upload ──────────────────────────────
-function dragOver(e) { e.preventDefault(); document.getElementById('dropzone').classList.add('drag-over'); }
-function dragLeave()  { document.getElementById('dropzone').classList.remove('drag-over'); }
-function dropFile(e)  { e.preventDefault(); dragLeave(); handleEnvFile(e.dataTransfer.files[0]); }
-
-async function handleEnvFile(file) {
-  if (!file) return;
-  const form = new FormData();
-  form.append('file', file);
-  try {
-    const r = await fetch('/api/config/upload', { method: 'POST', body: form });
-    envParsed = await r.json();
-    renderEnvPreview();
-  } catch (e) { toast('❌ Parse error', 'err'); }
-}
-
-function renderEnvPreview() {
-  const wrap  = document.getElementById('envPreview');
-  const tbody = document.getElementById('envPreviewBody');
-  if (!Object.keys(envParsed).length) { wrap.style.display = 'none'; return; }
-  wrap.style.display = '';
-  tbody.innerHTML = Object.entries(envParsed).map(([k, meta]) => `
-    <tr>
-      <td>${escHtml(k)}</td>
-      <td class="${meta.sensitive ? 'val-cell' : 'val-safe'}">${escHtml(meta.masked)}</td>
-      <td style="color:var(--muted)">${meta.sensitive ? '🔒 secret' : '📄 plain'}</td>
-    </tr>`).join('');
-}
-
-async function applyEnv() {
-  const data = {};
-  Object.entries(envParsed).forEach(([k, meta]) => { data[k] = meta.value; });
-  try {
-    await fetch('/api/config', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(data) });
-    toast(`✅ Applied ${Object.keys(data).length} variables`, 'ok');
-    document.getElementById('envPreview').style.display = 'none';
-    envParsed = {};
-    loadConfig();
-  } catch (e) { toast('❌ Error: ' + e.message, 'err'); }
-}
-
-// ── Helpers ──────────────────────────────────
-function stripAnsi(s) { return s.replace(/\x1b\[[0-9;]*m/g, '').replace(/\x1b\[[?][0-9;]*[hl]/g, ''); }
-function escHtml(s)   { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function escAttr(s)   { return String(s).replace(/"/g,'&quot;'); }
-
-function toast(msg, type = 'ok') {
-  const el = document.createElement('div');
-  el.className = `toast ${type}`;
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
-const showToast = toast;  // алиас для совместимости
-
-// ── Boot ─────────────────────────────────────
-init();
 </script>
-</body>
 </html>

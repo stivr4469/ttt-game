@@ -4,7 +4,6 @@ Retry с exponential backoff, явные таймауты, API-ключ, structu
 При исчерпании всех попыток evidence записывается в EventQueue для последующей доставки.
 """
 
-import asyncio
 import json
 import os
 import time
@@ -18,9 +17,9 @@ from log_config import get_logger
 
 log = get_logger(__name__)
 
-_DEFAULT_TIMEOUT  = 10   # секунд на один запрос
-_MAX_RETRIES      = 3
-_RETRY_BACKOFF    = 1.5  # множитель задержки между попытками
+_DEFAULT_TIMEOUT  = 30   # секунд на один запрос — при параллельных агентах может очередь
+_MAX_RETRIES      = 2    # попытки
+_RETRY_BACKOFF    = 2.0  # множитель задержки между попытками
 
 
 class EvidenceClientError(RuntimeError):
@@ -143,6 +142,41 @@ class EvidenceClient:
     def update_control_status(self, control_id: str, status: str) -> Dict[str, Any]:
         return self._request("PATCH", f"/api/v1/controls/{control_id}/status", json={"status": status})
 
+    def submit_test_result(
+        self,
+        control_id: str,
+        status: str,
+        test_key: str,
+        resource_id: str = "*",
+        producer: str = "agent",
+        details: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """Submit a test result through the proper test engine pipeline.
+
+        Routes through POST /api/v1/test-results/batch which triggers
+        rollup derivation and cross-walk propagation to other frameworks.
+        Status must be one of: PASS, FAIL, ERROR, NA.
+        """
+        payload = {
+            "producer": producer,
+            "trigger": "agent",
+            "results": [{
+                "test_key": test_key,
+                "resource_id": resource_id,
+                "status": status,
+                "details": {**(details or {}), "control_id": control_id},
+            }],
+        }
+        try:
+            return self._request("POST", "/api/v1/test-results/batch", json=payload)
+        except EvidenceClientError as exc:
+            log.warning(
+                "submit_test_result failed for %s (%s), falling back to direct status",
+                test_key, control_id, extra={"error": str(exc)}
+            )
+            # Fallback: direct status update (deprecated path)
+            return self.update_control_status(control_id, status)
+
     # ── Evidence ────────────────────────────────────────────────────────────
     def create_evidence(self, control_id: str, title: str, content: str, source: str) -> Dict[str, Any]:
         # Обрезаем до лимита сервера (100 KB) чтобы не получить 422
@@ -191,34 +225,40 @@ class EvidenceClient:
         return result
 
     def _enqueue_retry(self, control_id: str, title: str, content: str, source: str) -> None:
-        """Записать неудавшееся evidence в EventQueue для последующей доставки."""
-        async def _insert() -> None:
-            from database import AsyncSessionLocal
-            from models import EventQueue
-            async with AsyncSessionLocal() as session:
-                entry = EventQueue(
-                    id=str(uuid.uuid4()),
-                    event_type="evidence.retry",
-                    entity_id=control_id,
-                    payload=json.dumps({
-                        "control_id": control_id,
-                        "title":      title,
-                        "content":    content,
-                        "source":     source,
-                        "base_url":   self.base_url,
-                    }),
-                    status="pending",
-                    created_at=datetime.now(timezone.utc),
-                    tenant_id=self._tenant_id,
-                )
-                session.add(entry)
-                await session.commit()
-
+        """Записать неудавшееся evidence в EventQueue через синхронный sqlite3 (без asyncio)."""
+        import sqlite3 as _sqlite3
+        import os as _os
         try:
-            asyncio.run(_insert())
-        except RuntimeError:
-            # Already inside a running event loop (unlikely in Celery/agent context)
-            log.warning("evidence_client: _enqueue_retry вызван внутри event loop, retry потерян")
+            db_url = _os.getenv("DATABASE_URL", "")
+            if not db_url or "sqlite" not in db_url:
+                log.warning("evidence_client: _enqueue_retry поддерживается только для SQLite")
+                return
+            # Extract file path from sqlite+aiosqlite:///./path or sqlite:///path
+            db_path = db_url.split("///", 1)[-1]
+            conn = _sqlite3.connect(db_path, timeout=5)
+            try:
+                conn.execute(
+                    "INSERT OR IGNORE INTO event_queue (id, event_type, entity_id, payload, status, created_at, tenant_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                    (
+                        str(uuid.uuid4()),
+                        "evidence.retry",
+                        control_id,
+                        json.dumps({
+                            "control_id": control_id,
+                            "title":      title,
+                            "content":    content,
+                            "source":     source,
+                            "base_url":   self.base_url,
+                        }),
+                        "pending",
+                        datetime.now(timezone.utc).isoformat(),
+                        self._tenant_id,
+                    ),
+                )
+                conn.commit()
+            finally:
+                conn.close()
         except Exception as eq_exc:
             log.error(
                 "evidence_client: не удалось записать в EventQueue",

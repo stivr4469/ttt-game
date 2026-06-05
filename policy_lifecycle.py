@@ -38,7 +38,7 @@ def _run_async(coro: Any) -> Any:
 
 
 # ── Evidence Tracker URL ───────────────────────────────────────────────────────
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 
 # ── Статусы жизненного цикла ──────────────────────────────────────────────────
@@ -496,7 +496,7 @@ class PolicyLifecycleManager:
         try:
             from evidence_client import EvidenceClient
             client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="policy_lifecycle")
-            client.update_control_status(control_id, status)
+            client.submit_test_result(control_id, status, test_key="policy_lifecycle.policy_approved", producer="policy_lifecycle")
             log.info(
                 f"Контрол {control_id} переведён в {status} после approve политики {policy_id}"
             )

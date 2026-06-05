@@ -41,7 +41,7 @@ async def sync_controls_map() -> int:
     Raises:
         Ничего — при сбое логирует warning и возвращает 0.
     """
-    base_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+    base_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
     api_key = os.getenv("EVIDENCE_API_KEY", "")
 
     url = f"{base_url}/api/v1/controls/?limit=200"

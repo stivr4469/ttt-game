@@ -21,7 +21,7 @@ REPORTS_DIR = _BASE_DIR / "reports"
 TEMPLATES_DIR = _BASE_DIR / "templates"
 
 # URL Evidence Tracker из переменных окружения
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 # Описания категорий контролей по коду
 _CONTROL_CATEGORIES: Dict[str, str] = {

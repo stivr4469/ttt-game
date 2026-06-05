@@ -13,7 +13,7 @@ from evidence_client import EvidenceClient
 
 log = get_logger(__name__)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 VERSIONS_FILE = "policy_versions.json"
 
 VALID_STATUSES = {"draft", "pending_approval", "approved", "rejected"}

@@ -1,474 +1,394 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Marineso Security &amp; Trust Center</title>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg:       #f8fafc;
-      --surface:  #ffffff;
-      --border:   #e2e8f0;
-      --text:     #1e293b;
-      --muted:    #64748b;
-      --accent:   #0f766e;
-      --accent-lt:#f0fdf9;
-      --pass:     #16a34a;
-      --pass-bg:  #dcfce7;
-      --fail:     #dc2626;
-      --fail-bg:  #fee2e2;
-      --gray:     #6b7280;
-      --gray-bg:  #f3f4f6;
-      --radius:   10px;
-    }
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: 'Inter', sans-serif;
-      font-size: 15px;
-      line-height: 1.6;
-    }
-
-    /* ── Topbar ── */
-    .topbar {
-      position: fixed; top: 0; right: 0; z-index: 50;
-      padding: 10px 20px;
-    }
-    .topbar a {
-      font-size: 13px; color: var(--muted); text-decoration: none;
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: 6px; padding: 5px 14px;
-      transition: color .15s, border-color .15s;
-    }
-    .topbar a:hover { color: var(--accent); border-color: var(--accent); }
-
-    /* ── Layout ── */
-    .container { max-width: 980px; margin: 0 auto; padding: 0 24px; }
-
-    /* ── Hero ── */
-    .hero {
-      background: linear-gradient(135deg, #0f766e 0%, #0d9488 100%);
-      color: #fff;
-      padding: 80px 0 60px;
-      text-align: center;
-    }
-    .hero-badge {
-      display: inline-flex; align-items: center; gap: 8px;
-      background: rgba(255,255,255,.15); border: 1px solid rgba(255,255,255,.3);
-      border-radius: 20px; padding: 5px 16px; font-size: 13px; font-weight: 500;
-      margin-bottom: 24px; letter-spacing: .4px;
-    }
-    .hero h1 {
-      font-size: clamp(28px, 5vw, 42px);
-      font-weight: 700; letter-spacing: -.5px; margin-bottom: 16px;
-    }
-    .hero p {
-      font-size: 18px; opacity: .85; margin-bottom: 32px;
-    }
-    .overall-status {
-      display: inline-flex; align-items: center; gap: 10px;
-      background: rgba(255,255,255,.18); border: 1px solid rgba(255,255,255,.35);
-      border-radius: 8px; padding: 10px 24px; font-size: 15px; font-weight: 500;
-    }
-    .status-dot {
-      width: 10px; height: 10px; border-radius: 50%;
-      background: #4ade80;
-      box-shadow: 0 0 0 3px rgba(74,222,128,.35);
-    }
-    .status-dot.degraded { background: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,.35); }
-    .status-dot.outage   { background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.35); }
-
-    /* ── Section titles ── */
-    section { padding: 56px 0; }
-    .section-header { margin-bottom: 28px; }
-    .section-header h2 { font-size: 22px; font-weight: 700; }
-    .section-header p  { color: var(--muted); margin-top: 4px; font-size: 14px; }
-
-    /* ── Summary cards ── */
-    .summary-cards {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
-      margin-bottom: 32px;
-    }
-    .summary-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 24px; text-align: center;
-    }
-    .summary-card .val {
-      font-size: 36px; font-weight: 700; display: block; color: var(--accent);
-    }
-    .summary-card .lbl {
-      font-size: 13px; color: var(--muted); text-transform: uppercase;
-      letter-spacing: .8px; margin-top: 4px; display: block;
-    }
-
-    /* ── Controls table ── */
-    .table-wrap {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); overflow: hidden;
-    }
-    table { width: 100%; border-collapse: collapse; }
-    thead th {
-      background: #f1f5f9; text-align: left;
-      padding: 12px 16px; font-size: 12px; font-weight: 600;
-      text-transform: uppercase; letter-spacing: .7px; color: var(--muted);
-      border-bottom: 1px solid var(--border);
-    }
-    tbody tr { border-bottom: 1px solid var(--border); }
-    tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: #f8fafc; }
-    tbody td { padding: 12px 16px; font-size: 14px; vertical-align: middle; }
-    .badge {
-      display: inline-block; padding: 3px 10px; border-radius: 20px;
-      font-size: 12px; font-weight: 600; letter-spacing: .3px;
-    }
-    .badge-pass        { background: var(--pass-bg); color: var(--pass); }
-    .badge-fail        { background: var(--fail-bg); color: var(--fail); }
-    .badge-not_started { background: var(--gray-bg); color: var(--gray); }
-    .badge-unknown     { background: var(--gray-bg); color: var(--gray); }
-
-    .no-data { text-align: center; padding: 48px 24px; color: var(--muted); }
-
-    /* ── Form section ── */
-    .form-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 36px;
-      max-width: 560px;
-    }
-    .form-grid { display: grid; gap: 20px; }
-    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .field label {
-      display: block; font-size: 13px; font-weight: 500;
-      margin-bottom: 6px; color: var(--text);
-    }
-    .field input, .field textarea {
-      width: 100%; border: 1px solid var(--border); border-radius: 6px;
-      padding: 10px 14px; font-size: 14px; font-family: inherit;
-      outline: none; background: #fff; color: var(--text);
-      transition: border-color .15s;
-    }
-    .field input:focus, .field textarea:focus {
-      border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-lt);
-    }
-    .field textarea { resize: vertical; min-height: 80px; }
-    .btn-primary {
-      background: var(--accent); color: #fff; border: none;
-      padding: 12px 28px; border-radius: 7px; font-size: 14px;
-      font-weight: 600; cursor: pointer; transition: opacity .15s;
-    }
-    .btn-primary:hover { opacity: .88; }
-    .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
-    .success-banner {
-      display: none; background: var(--pass-bg); border: 1px solid #86efac;
-      border-radius: 8px; padding: 16px 20px; color: var(--pass);
-      font-size: 14px; font-weight: 500; margin-top: 16px;
-    }
-    .error-banner {
-      display: none; background: var(--fail-bg); border: 1px solid #fca5a5;
-      border-radius: 8px; padding: 16px 20px; color: var(--fail);
-      font-size: 14px; font-weight: 500; margin-top: 16px;
-    }
-
-    /* ── Subprocessors ── */
-    .subprocessors-grid {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-      gap: 16px;
-    }
-    .sp-card {
-      background: var(--surface); border: 1px solid var(--border);
-      border-radius: var(--radius); padding: 20px;
-    }
-    .sp-card .sp-name {
-      font-weight: 600; font-size: 15px; margin-bottom: 4px;
-    }
-    .sp-card .sp-purpose { font-size: 13px; color: var(--muted); margin-bottom: 8px; }
-    .sp-card .sp-country {
-      display: inline-block; font-size: 12px; background: var(--accent-lt);
-      color: var(--accent); border-radius: 4px; padding: 2px 8px; font-weight: 500;
-    }
-
-    /* ── Footer ── */
-    footer {
-      border-top: 1px solid var(--border);
-      padding: 28px 0; text-align: center;
-      color: var(--muted); font-size: 13px;
-    }
-
-    /* ── Divider ── */
-    .divider { border: none; border-top: 1px solid var(--border); }
-
-    @media (max-width: 640px) {
-      .summary-cards { grid-template-columns: 1fr; }
-      .form-row { grid-template-columns: 1fr; }
-    }
-  </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor — Trust Center</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
-
-  <div class="topbar"><a href="/">← Dashboard</a></div>
-
-  <!-- Hero -->
-  <div class="hero">
-    <div class="container">
-      <div class="hero-badge">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-        Security &amp; Compliance
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
+<aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+  <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
       </div>
-      <h1>Our Security &amp; Trust Center</h1>
-      <p>Transparent security practices built for enterprise confidence.</p>
-      <div class="overall-status" id="overallStatus">
-        <span class="status-dot" id="statusDot"></span>
-        <span id="statusText">Loading...</span>
-      </div>
+      <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+    </div>
+</div>
+  <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>Dashboard</a>
+    <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>Frameworks</a>
+    <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Risk Register</a>
+    <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>Vulnerabilities</a>
+    <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Pentests</a>
+    <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Access Review</a>
+    <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>BG Checks</a>
+    <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>Training</a>
+    <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Questionnaires</a>
+    <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>Tests</a>
+    <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Audit Timeline</a>
+    <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Time Machine</a>
+    <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>Onboarding</a>
+    <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>AI Decisions</a>
+    <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Trust Center</a>
+    <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>Auditor Portal</a>
+    <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+  </nav>
+  <div class="p-3 border-t border-zinc-800 shrink-0">
+    <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+      <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+      <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+      <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
     </div>
   </div>
+</aside>
 
-  <!-- Controls Status -->
-  <div class="container">
-    <section>
-      <div class="section-header">
-        <h2>Compliance Controls</h2>
-        <p>Real-time status of our SOC 2 control implementation.</p>
+<div class="ml-60 flex flex-col min-h-screen">
+  <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+    <div><h1 class="text-sm font-semibold text-zinc-100">Trust Center</h1><p class="text-xs text-zinc-500">Security &amp; compliance posture — public transparency</p></div>
+    <div class="flex items-center gap-3">
+      <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border" :class="overallClass" x-text="overallText"></span>
+      <span class="text-xs text-zinc-600" x-text="lastUpdated ? 'Updated ' + lastUpdated : ''"></span>
+          <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
       </div>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+  </header>
 
-      <div class="summary-cards">
-        <div class="summary-card">
-          <span class="val" id="totalControls">—</span>
-          <span class="lbl">Total Controls</span>
+  <main class="flex-1 p-6">
+    <!-- Hero banner -->
+    <div class="bg-gradient-to-r from-indigo-900/60 to-indigo-800/30 border border-indigo-700/40 rounded-xl p-6 mb-6">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div class="w-12 h-12 bg-indigo-600/30 border border-indigo-500/40 rounded-xl flex items-center justify-center shrink-0">
+          <svg class="w-6 h-6 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
         </div>
-        <div class="summary-card">
-          <span class="val" id="passingControls" style="color:#16a34a">—</span>
-          <span class="lbl">Passing</span>
+        <div>
+          <h2 class="text-lg font-bold text-zinc-100">Security &amp; Trust Center</h2>
+          <p class="text-sm text-zinc-400 mt-0.5">Transparent security practices built for enterprise confidence. Real-time SOC 2 compliance status.</p>
         </div>
-        <div class="summary-card">
-          <span class="val" id="failingControls" style="color:#dc2626">—</span>
-          <span class="lbl">Failing</span>
+        <div class="sm:ml-auto flex flex-wrap gap-3">
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg">
+            <div class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></div>
+            <span class="text-xs text-zinc-300">SOC 2 Type II</span>
+          </div>
+          <div class="flex items-center gap-2 px-3 py-1.5 bg-zinc-900/60 border border-zinc-800 rounded-lg">
+            <svg class="w-3.5 h-3.5 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+            <span class="text-xs text-zinc-300">Encrypted in Transit &amp; At Rest</span>
+          </div>
         </div>
       </div>
+    </div>
 
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Code</th>
-              <th>Title</th>
-              <th>Category</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody id="controlsBody">
-            <tr><td colspan="4" class="no-data">Loading controls...</td></tr>
+    <!-- Summary stats -->
+    <div class="grid grid-cols-3 gap-4 mb-6">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 text-center">
+        <template x-if="loadingStatus"><div class="animate-pulse bg-zinc-800 rounded h-8 w-12 mx-auto mt-1"></div></template>
+        <p x-show="!loadingStatus" class="text-3xl font-bold text-indigo-400" x-text="summary.total ?? '—'"></p>
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider mt-1">Total Controls</p>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 text-center">
+        <template x-if="loadingStatus"><div class="animate-pulse bg-zinc-800 rounded h-8 w-12 mx-auto mt-1"></div></template>
+        <p x-show="!loadingStatus" class="text-3xl font-bold text-emerald-400" x-text="summary.passing ?? '—'"></p>
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider mt-1">Passing</p>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 text-center">
+        <template x-if="loadingStatus"><div class="animate-pulse bg-zinc-800 rounded h-8 w-12 mx-auto mt-1"></div></template>
+        <p x-show="!loadingStatus" class="text-3xl font-bold text-red-400" x-text="summary.failing ?? '—'"></p>
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider mt-1">Failing</p>
+      </div>
+    </div>
+
+    <!-- Controls table -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden mb-6">
+      <div class="px-5 py-4 border-b border-zinc-800">
+        <h2 class="text-sm font-semibold text-zinc-100">SOC 2 Compliance Controls</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">Real-time status of our SOC 2 control implementation.</p>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead><tr class="border-b border-zinc-800">
+            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Code</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Title</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Category</th>
+            <th class="px-4 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+          </tr></thead>
+          <tbody>
+            <template x-if="loadingStatus">
+              <tr><td colspan="4" class="px-4 py-8 text-center">
+                <div class="space-y-2 max-w-sm mx-auto">
+                  <template x-for="i in 6"><div class="animate-pulse bg-zinc-800 rounded h-10"></div></template>
+                </div>
+              </td></tr>
+            </template>
+            <template x-if="!loadingStatus && controls.length === 0">
+              <tr><td colspan="4" class="px-4 py-12 text-center text-zinc-500 text-sm">No controls data available.</td></tr>
+            </template>
+            <template x-for="c in controls" :key="c.code">
+              <tr class="border-b border-zinc-800/60 hover:bg-zinc-800/20 transition-colors">
+                <td class="px-4 py-3"><code class="font-mono text-xs text-indigo-400" x-text="c.code"></code></td>
+                <td class="px-4 py-3 text-zinc-300" x-text="c.title"></td>
+                <td class="px-4 py-3 text-xs text-zinc-500" x-text="c.category || '—'"></td>
+                <td class="px-4 py-3"><span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border" :class="statusBadge(c.status)" x-text="(c.status||'UNKNOWN').toUpperCase()"></span></td>
+              </tr>
+            </template>
           </tbody>
         </table>
       </div>
-    </section>
-
-    <hr class="divider">
-
-    <!-- Request Access -->
-    <section>
-      <div class="section-header">
-        <h2>Request Document Access</h2>
-        <p>Receive our SOC 2 report, security questionnaire answers, and DPA under NDA.</p>
-      </div>
-
-      <div class="form-card">
-        <form id="accessForm">
-          <div class="form-grid">
-            <div class="form-row">
-              <div class="field">
-                <label for="fieldName">Full Name *</label>
-                <input type="text" id="fieldName" placeholder="Jane Smith" required>
-              </div>
-              <div class="field">
-                <label for="fieldEmail">Work Email *</label>
-                <input type="email" id="fieldEmail" placeholder="jane@company.com" required>
-              </div>
-            </div>
-            <div class="field">
-              <label for="fieldCompany">Company *</label>
-              <input type="text" id="fieldCompany" placeholder="Acme Corp" required>
-            </div>
-            <div class="field">
-              <label for="fieldReason">Reason for Access</label>
-              <textarea id="fieldReason" placeholder="e.g., Vendor security review prior to procurement"></textarea>
-            </div>
-            <div>
-              <button type="submit" class="btn-primary" id="submitBtn">Submit Request</button>
-            </div>
-          </div>
-        </form>
-        <div class="success-banner" id="successBanner">
-          Your request has been received. We'll be in touch within 1 business day.
-        </div>
-        <div class="error-banner" id="errorBanner">
-          Something went wrong. Please try again or email us directly.
-        </div>
-      </div>
-    </section>
-
-    <hr class="divider">
+    </div>
 
     <!-- Subprocessors -->
-    <section>
-      <div class="section-header">
-        <h2>Subprocessors</h2>
-        <p>Third-party providers we use to deliver our services and process data.</p>
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl mb-6">
+      <div class="px-5 py-4 border-b border-zinc-800">
+        <h2 class="text-sm font-semibold text-zinc-100">Subprocessors</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">Third-party providers we use to deliver our services and process data.</p>
       </div>
-      <div class="subprocessors-grid" id="subprocessorsGrid">
-        <p style="color:var(--muted);font-size:14px;">Loading...</p>
+      <div class="p-5">
+        <template x-if="loadingSubs">
+          <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <template x-for="i in 6"><div class="animate-pulse bg-zinc-800 rounded-xl h-24"></div></template>
+          </div>
+        </template>
+        <template x-if="!loadingSubs && subprocessors.length === 0">
+          <p class="text-sm text-zinc-500">No subprocessors listed.</p>
+        </template>
+        <div x-show="!loadingSubs && subprocessors.length > 0" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+          <template x-for="sp in subprocessors" :key="sp.name">
+            <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+              <p class="text-sm font-semibold text-zinc-100" x-text="sp.name"></p>
+              <p class="text-xs text-zinc-500 mt-1" x-text="sp.purpose"></p>
+              <span class="inline-block mt-2 text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2 py-0.5 rounded" x-text="sp.country"></span>
+            </div>
+          </template>
+        </div>
       </div>
-    </section>
-  </div>
-
-  <footer>
-    <div class="container">
-      Last updated: <span id="lastUpdated">—</span> &nbsp;|&nbsp; Powered by Compliance Sandbox
     </div>
+
+    <!-- Security certifications -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl mb-6">
+      <div class="px-5 py-4 border-b border-zinc-800">
+        <h2 class="text-sm font-semibold text-zinc-100">Security Practices</h2>
+      </div>
+      <div class="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="practice in securityPractices" :key="practice.title">
+          <div class="flex items-start gap-3 p-4 bg-zinc-950 border border-zinc-800 rounded-xl">
+            <div class="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" :class="practice.color">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" x-html="practice.icon"></svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-zinc-200" x-text="practice.title"></p>
+              <p class="text-xs text-zinc-500 mt-0.5" x-text="practice.desc"></p>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Access request form -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl">
+      <div class="px-5 py-4 border-b border-zinc-800">
+        <h2 class="text-sm font-semibold text-zinc-100">Request Document Access</h2>
+        <p class="text-xs text-zinc-500 mt-0.5">Receive our SOC 2 report, security questionnaire answers, and DPA under NDA.</p>
+      </div>
+      <div class="p-5">
+        <div x-show="formSuccess" class="mb-4 px-4 py-3 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-sm text-emerald-400">Your request has been received. We'll be in touch within 1 business day.</div>
+        <div x-show="formError" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">Something went wrong. Please try again or email us directly.</div>
+        <form @submit.prevent="submitRequest()" x-show="!formSuccess" class="max-w-lg space-y-4">
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Full Name *</label>
+              <input type="text" x-model="form.name" required placeholder="Jane Smith" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Work Email *</label>
+              <input type="email" x-model="form.email" required placeholder="jane@company.com" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            </div>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Company *</label>
+            <input type="text" x-model="form.company" required placeholder="Acme Corp" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Reason for Access</label>
+            <textarea x-model="form.reason" rows="2" placeholder="e.g., Vendor security review prior to procurement" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
+          </div>
+          <button type="submit" :disabled="submitting" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50" x-text="submitting ? 'Submitting…' : 'Submit Request'"></button>
+        </form>
+      </div>
+    </div>
+  </main>
+
+  <footer class="border-t border-zinc-800 py-5 px-6 text-xs text-zinc-600 flex items-center justify-between">
+    <span>Powered by Compliance Sandbox</span>
+    <span x-show="lastUpdated" x-text="'Last updated: ' + lastUpdated"></span>
   </footer>
+</div>
 
-  <script>
-    function escHtml(str) {
-      if (str === null || str === undefined) return '';
-      return String(str)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-    }
+<script>
+function app() {
+  return {
+    user: null,
+    loadingStatus: true, loadingSubs: true,
+    controls: [], summary: {}, subprocessors: [],
+    overallText: 'Loading…', lastUpdated: '',
+    overallClass: 'bg-zinc-700/40 text-zinc-400 border-zinc-700',
+    formSuccess: false, formError: false, submitting: false,
+    form: { name:'', email:'', company:'', reason:'' },
 
-    function statusBadge(status) {
-      const s = (status || 'UNKNOWN').toUpperCase();
-      const cls = {
-        'PASS':        'badge-pass',
-        'FAIL':        'badge-fail',
-        'NOT_STARTED': 'badge-not_started',
-        'UNKNOWN':     'badge-unknown',
-        'PARTIAL':     'badge-not_started',
-      }[s] || 'badge-unknown';
-      return `<span class="badge ${cls}">${escHtml(s)}</span>`;
-    }
+    securityPractices: [
+      { title:'Encryption in Transit', desc:'All data encrypted via TLS 1.2+ in transit.', color:'bg-indigo-500/10 text-indigo-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>' },
+      { title:'Encryption at Rest', desc:'AES-256 encryption for all stored data.', color:'bg-emerald-500/10 text-emerald-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/>' },
+      { title:'MFA Enforced', desc:'Multi-factor authentication required for all access.', color:'bg-amber-500/10 text-amber-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>' },
+      { title:'Access Control', desc:'Least-privilege access with regular reviews.', color:'bg-sky-500/10 text-sky-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>' },
+      { title:'Vulnerability Management', desc:'Regular scanning and patching cadence.', color:'bg-red-500/10 text-red-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/>' },
+      { title:'Incident Response', desc:'Documented IR plan with 24-hr notification SLA.', color:'bg-violet-500/10 text-violet-400', icon:'<path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>' },
+    ],
 
-    async function loadStatus() {
+    async init() {
+      // Trust page is public-facing — try auth but don't redirect if it fails
+      try { const r = await fetch('/api/auth/me'); if (r.ok) this.user = await r.json(); } catch {}
+      await Promise.all([this.loadStatus(), this.loadSubprocessors()]);
+    },
+    async logout() { await fetch('/api/auth/logout', { method:'POST' }); location.href='/login'; },
+
+    async loadStatus() {
+      this.loadingStatus = true;
       try {
         const r = await fetch('/trust/status');
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const data = await r.json();
-
-        // Hero status
         const overall = data.overall || 'operational';
-        const dot = document.getElementById('statusDot');
-        const txt = document.getElementById('statusText');
         if (overall === 'operational') {
-          txt.textContent = 'All Systems Operational';
-          dot.className = 'status-dot';
+          this.overallText = 'All Systems Operational';
+          this.overallClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
         } else if (overall === 'degraded') {
-          txt.textContent = 'Some Controls Degraded';
-          dot.className = 'status-dot degraded';
+          this.overallText = 'Some Controls Degraded';
+          this.overallClass = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
         } else {
-          txt.textContent = 'Service Disruption';
-          dot.className = 'status-dot outage';
+          this.overallText = 'Service Disruption';
+          this.overallClass = 'bg-red-500/10 text-red-400 border-red-500/30';
         }
-
-        // Summary
         const s = data.summary || {};
-        document.getElementById('totalControls').textContent = s.total ?? 0;
-        document.getElementById('passingControls').textContent = s.passing ?? 0;
-        document.getElementById('failingControls').textContent = s.failing ?? 0;
-
-        // Controls table
-        const body = document.getElementById('controlsBody');
-        const controls = data.controls || [];
-        if (controls.length === 0) {
-          body.innerHTML = '<tr><td colspan="4" class="no-data">No controls data available.</td></tr>';
-        } else {
-          body.innerHTML = controls.map(c => `
-            <tr>
-              <td><code style="font-size:13px;color:var(--accent)">${escHtml(c.code)}</code></td>
-              <td>${escHtml(c.title)}</td>
-              <td style="color:var(--muted);font-size:13px">${escHtml(c.category || '—')}</td>
-              <td>${statusBadge(c.status)}</td>
-            </tr>
-          `).join('');
-        }
-
-        // Footer timestamp
-        if (data.updated_at) {
-          document.getElementById('lastUpdated').textContent =
-            new Date(data.updated_at).toLocaleString();
-        }
-      } catch (e) {
-        console.error('Failed to load trust status', e);
-        document.getElementById('statusText').textContent = 'Status unavailable';
-        document.getElementById('controlsBody').innerHTML =
-          '<tr><td colspan="4" class="no-data">Could not load controls data.</td></tr>';
+        this.summary = { total: s.total ?? 0, passing: s.passing ?? 0, failing: s.failing ?? 0 };
+        this.controls = data.controls || [];
+        if (data.updated_at) this.lastUpdated = new Date(data.updated_at).toLocaleString();
+      } catch {
+        this.overallText = 'Status unavailable';
+        this.overallClass = 'bg-zinc-700/40 text-zinc-400 border-zinc-700';
       }
-    }
+      this.loadingStatus = false;
+    },
 
-    async function loadSubprocessors() {
+    async loadSubprocessors() {
+      this.loadingSubs = true;
       try {
         const r = await fetch('/trust/subprocessors');
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        const data = await r.json();
-        const grid = document.getElementById('subprocessorsGrid');
-        if (!data || data.length === 0) {
-          grid.innerHTML = '<p style="color:var(--muted);font-size:14px;">No subprocessors listed.</p>';
-          return;
-        }
-        grid.innerHTML = data.map(sp => `
-          <div class="sp-card">
-            <div class="sp-name">${escHtml(sp.name)}</div>
-            <div class="sp-purpose">${escHtml(sp.purpose)}</div>
-            <span class="sp-country">${escHtml(sp.country)}</span>
-          </div>
-        `).join('');
-      } catch (e) {
-        console.error('Failed to load subprocessors', e);
-        document.getElementById('subprocessorsGrid').innerHTML =
-          '<p style="color:var(--muted);font-size:14px;">Could not load subprocessors.</p>';
-      }
-    }
+        if (r.ok) { const data = await r.json(); this.subprocessors = Array.isArray(data) ? data : []; }
+      } catch {}
+      this.loadingSubs = false;
+    },
 
-    document.getElementById('accessForm').addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const btn = document.getElementById('submitBtn');
-      btn.disabled = true;
-      btn.textContent = 'Submitting...';
+    statusBadge(s) {
+      const u = (s||'UNKNOWN').toUpperCase();
+      if (u==='PASS') return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+      if (u==='FAIL') return 'bg-red-500/10 text-red-400 border-red-500/30';
+      return 'bg-zinc-700/40 text-zinc-400 border-zinc-700';
+    },
 
-      const name    = document.getElementById('fieldName').value.trim();
-      const email   = document.getElementById('fieldEmail').value.trim();
-      const company = document.getElementById('fieldCompany').value.trim();
-      const reason  = document.getElementById('fieldReason').value.trim();
-
-      document.getElementById('successBanner').style.display = 'none';
-      document.getElementById('errorBanner').style.display = 'none';
-
+    async submitRequest() {
+      this.submitting = true; this.formError = false;
       try {
-        const r = await fetch('/trust/access-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name, email, company, reason }),
-        });
-        if (!r.ok) {
-          const err = await r.json().catch(() => ({}));
-          throw new Error(err.detail || 'Request failed');
-        }
-        document.getElementById('successBanner').style.display = 'block';
-        e.target.reset();
-      } catch (err) {
-        console.error('Access request failed', err);
-        document.getElementById('errorBanner').style.display = 'block';
-      } finally {
-        btn.disabled = false;
-        btn.textContent = 'Submit Request';
-      }
-    });
-
-    // Bootstrap
-    loadStatus();
-    loadSubprocessors();
-  </script>
+        const r = await fetch('/trust/access-request', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(this.form) });
+        if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.detail||'Request failed'); }
+        this.formSuccess = true; this.form = { name:'', email:'', company:'', reason:'' };
+      } catch { this.formError = true; }
+      this.submitting = false;
+    }
+  };
+}
+</script>
 </body>
 </html>

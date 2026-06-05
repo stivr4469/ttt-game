@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import select, update as sa_update
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models import Finding, TestDefinition
@@ -97,6 +98,7 @@ class FindingRepository:
         from database import get_tenant_id_from_session
         stmt = (
             select(Finding)
+            .options(selectinload(Finding.test))
             .where(Finding.status == status.upper())
             .order_by(Finding.first_seen_at.desc())
             .limit(limit)

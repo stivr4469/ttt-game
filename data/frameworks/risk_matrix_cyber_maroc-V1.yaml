@@ -1,0 +1,187 @@
+urn: urn:cmr:risk:library:cyber-maroc-V1
+locale: fr
+ref_id: cyber-maroc-V1
+name: Matrice de risques 4x4 - Loi 05-20 / Décret 2-21-406
+description: Matrice de risques conforme à la législation marocaine en cybersécurité.
+copyright: Loi-05-20
+version: 3
+publication_date: 2025-07-28
+provider: Loi-05-20
+packager: QoudhadhNadia
+translations:
+  en:
+    name: 4x4 Risk Matrix – Law 05-20 / Decree 2-21-406
+    description: Risk matrix compliant with Moroccan cybersecurity legislation.
+  de:
+    name: 4x4-Risikomatrix – Gesetz 05-20 / Dekret 2-21-406
+    description: Risikomatrix gemäß der marokkanischen Cybersicherheitsgesetzgebung.
+
+objects:
+  risk_matrix:
+    - urn: urn:cmr:risk:matrix:cyber-maroc-V1
+      ref_id: matrice-cyber-maroc-V1
+      name: Matrice cyber-maroc 4x4
+      description: Grille d'évaluation des risques selon la réglementation marocaine
+      translations:
+        en:
+          name: Cyber-Morocco 4x4 Risk Matrix
+          description: Risk assessment grid according to Moroccan regulations
+        de:
+          name: Cyber-Marokko-Risikomatrix 4x4
+          description: Raster zur Risikobewertung gemäß marokkanischer Regulierung
+
+      probability:
+        - id: 0
+          abbreviation: '1'
+          name: Rare
+          description: Très peu probable
+          hexcolor: '#BBF7D0'
+          translations:
+            en:
+              name: Rare
+              description: Rarely likely
+            de:
+              name: Selten
+              description: Sehr unwahrscheinlich
+        - id: 1
+          abbreviation: '2'
+          name: Probable
+          description: Probable
+          hexcolor: '#BEF264'
+          translations:
+            en:
+              name: Likely
+              description: Likely
+            de:
+              name: Wahrscheinlich
+              description: Wahrscheinlich
+        - id: 2
+          abbreviation: '3'
+          name: Très Probable
+          description: Très Probable
+          hexcolor: '#FEF08A'
+          translations:
+            en:
+              name: Very Likely
+              description: Very Likely
+            de:
+              name: Sehr wahrscheinlich
+              description: Sehr wahrscheinlich
+        - id: 3
+          abbreviation: '4'
+          name: Presque Certain
+          description: Presque Certain
+          hexcolor: '#FBBF24'
+          translations:
+            en:
+              name: Almost Certain
+              description: Almost certain
+            de:
+              name: Nahezu sicher
+              description: Nahezu sicher
+
+      impact:
+        - id: 0
+          abbreviation: '1'
+          name: Limité
+          description: Impact mineur
+          hexcolor: '#BBF7D0'
+          translations:
+            en:
+              name: Minor
+              description: Minor impact
+            de:
+              name: Begrenzt
+              description: Geringfügige Auswirkung
+        - id: 1
+          abbreviation: '2'
+          name: Modéré
+          description: Impact significatif
+          hexcolor: '#BEF264'
+          translations:
+            en:
+              name: Moderate
+              description: Moderate Impact
+            de:
+              name: Moderat
+              description: Signifikante Auswirkung
+        - id: 2
+          abbreviation: '3'
+          name: Grave
+          description: Impact majeur
+          hexcolor: '#FEF08A'
+          translations:
+            en:
+              name: Major
+              description: Major Impact
+            de:
+              name: Schwerwiegend
+              description: Erhebliche Auswirkung
+        - id: 3
+          abbreviation: '4'
+          name: Très Grave
+          description: Impact critique
+          hexcolor: '#F87171'
+          translations:
+            en:
+              name: Critical
+              description: Critical Impact
+            de:
+              name: Sehr schwerwiegend
+              description: Kritische Auswirkung
+
+      risk:
+        - id: 0
+          abbreviation: '0'
+          name: Tolérable
+          description: Risque négligeable
+          hexcolor: '#02A45A'
+          translations:
+            en:
+              name: Tolerable
+              description: Tolerable Risk
+            de:
+              name: Tolerierbar
+              description: Vernachlässigbares Risiko
+        - id: 1
+          abbreviation: '1'
+          name: Moyen
+          description: Risque limité
+          hexcolor: '#FFFF00'
+          translations:
+            en:
+              name: Medium
+              description: Medium Risk
+            de:
+              name: Mittel
+              description: Begrenztes Risiko
+        - id: 2
+          abbreviation: '2'
+          name: Élevé
+          description: Risque Significatif (mitigation recommandée)
+          hexcolor: '#ffc100'
+          translations:
+            en:
+              name: High
+              description: High Risk
+            de:
+              name: Hoch
+              description: Signifikantes Risiko (Risikobehandlung empfohlen)
+        - id: 3
+          abbreviation: '3'
+          name: Critique
+          description: Risque élevé (mitigation rapide)
+          hexcolor: '#FF1A00'
+          translations:
+            en:
+              name: Critical
+              description: Critical Risk
+            de:
+              name: Kritisch
+              description: Hohes Risiko (rasche Risikobehandlung erforderlich)
+
+      grid:
+        - [0, 0, 0, 0]
+        - [0, 0, 1, 1]
+        - [0, 1, 2, 2]
+        - [0, 1, 2, 3]

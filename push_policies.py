@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-TRACKER = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+TRACKER = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 API_KEY = os.getenv("EVIDENCE_API_KEY", "")
 HEADERS = {"X-API-Key": API_KEY, "Content-Type": "application/json"}
 COMPANY = os.getenv("COMPANY_NAME", "Marineso")

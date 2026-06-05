@@ -5,11 +5,14 @@ background_check_agent.py — Агент проверки биографичес
 Покрывает: CC6.2 (User Registration/Screening).
 """
 
-import os
+from __future__ import annotations
+
+import asyncio
 import json
+import os
 import uuid
 import hashlib
-import logging
+import concurrent.futures
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -18,16 +21,17 @@ import requests
 from dotenv import load_dotenv
 from evidence_client import EvidenceClient
 from constants import HR_ROSTER_FILE, CONTROLS_MAP_FILE
+from log_config import get_logger
 
 load_dotenv()
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 # ── Конфигурация ──────────────────────────────────────────────────────────────
 CHECKR_API_KEY = os.getenv("CHECKR_API_KEY", "")
 CHECKR_BASE_URL = "https://api.checkr.com/v1"
 CHECKS_FILE = Path(__file__).parent / "background_checks.json"
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 # Типы проверок Checkr
 PACKAGES = {
@@ -45,6 +49,21 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _parse_dt(value) -> Optional[datetime]:
+    """Парсит ISO-строку в datetime с timezone."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value
+    try:
+        dt = datetime.fromisoformat(str(value))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
 def _mock_status_for_email(email: str) -> str:
     """
     Детерминированный mock-статус на основе email.
@@ -59,13 +78,25 @@ def _mock_status_for_email(email: str) -> str:
         return "consider"
 
 
+def _run_async(coro):
+    """Запускает async корутину из синхронного контекста."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, coro).result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
+
+
 class BackgroundCheckAgent:
     """Агент для запуска и отслеживания background checks через Checkr API."""
 
     def __init__(self, controls_map: Optional[dict] = None):
         self.controls_map = controls_map or {}
         self.client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="bg_check_agent")
-        # Инициализируем файл хранения если не существует
+        # Инициализируем файл хранения если не существует (для обратной совместимости)
         self._ensure_checks_file()
 
     def _ensure_checks_file(self):
@@ -73,16 +104,149 @@ class BackgroundCheckAgent:
         if not CHECKS_FILE.exists():
             CHECKS_FILE.write_text(json.dumps([], indent=2), encoding="utf-8")
 
-    def _load_checks(self) -> list:
-        """Загружает все проверки из JSON-файла."""
+    # ── Async DB helpers ──────────────────────────────────────────────────────
+
+    async def _load_checks_from_db(self) -> list:
+        """SELECT * FROM background_check → список dict."""
+        from database import AsyncSessionLocal
+        from models import BackgroundCheck
+        from sqlalchemy import select
+
+        try:
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(select(BackgroundCheck).order_by(BackgroundCheck.initiated_at))
+                rows = result.scalars().all()
+                return [
+                    {
+                        "employee_email": r.employee_email,
+                        "employee_name": r.employee_name,
+                        "candidate_id": r.candidate_id,
+                        "report_id": r.report_id,
+                        "package": r.package,
+                        "status": r.status,
+                        "initiated_at": r.initiated_at.isoformat() if r.initiated_at else None,
+                        "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                        "result": r.result,
+                    }
+                    for r in rows
+                ]
+        except Exception as e:
+            log.warning(f"DB load_checks failed, falling back to JSON: {e}")
+            return self._load_checks_from_file()
+
+    async def _save_check_to_db(self, data: dict) -> None:
+        """Upsert записи background check по employee_email."""
+        from database import AsyncSessionLocal
+        from models import BackgroundCheck
+        from sqlalchemy import select
+        from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+
+        async with AsyncSessionLocal() as session:
+            # Проверяем существующую запись по employee_email
+            result = await session.execute(
+                select(BackgroundCheck).where(
+                    BackgroundCheck.employee_email == data["employee_email"]
+                )
+            )
+            existing = result.scalars().first()
+            if existing:
+                existing.employee_name = data.get("employee_name", existing.employee_name)
+                existing.candidate_id = data.get("candidate_id", existing.candidate_id)
+                existing.report_id = data.get("report_id", existing.report_id)
+                existing.package = data.get("package", existing.package)
+                existing.status = data.get("status", existing.status)
+                existing.initiated_at = _parse_dt(data.get("initiated_at"))
+                existing.completed_at = _parse_dt(data.get("completed_at"))
+                existing.result = data.get("result")
+            else:
+                session.add(BackgroundCheck(
+                    id=str(uuid.uuid4()),
+                    employee_email=data["employee_email"],
+                    employee_name=data.get("employee_name", ""),
+                    candidate_id=data.get("candidate_id", ""),
+                    report_id=data.get("report_id", ""),
+                    package=data.get("package", "tasker_standard"),
+                    status=data.get("status", "pending"),
+                    initiated_at=_parse_dt(data.get("initiated_at")),
+                    completed_at=_parse_dt(data.get("completed_at")),
+                    result=data.get("result"),
+                ))
+            await session.commit()
+
+    async def _load_active_employees_from_db(self) -> list:
+        """SELECT * FROM hr_employee WHERE status != 'terminated'."""
+        from database import AsyncSessionLocal
+        from models import HREmployee
+        from sqlalchemy import select
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(HREmployee).where(HREmployee.status != "terminated")
+            )
+            rows = result.scalars().all()
+            return [
+                {
+                    "email": r.email,
+                    "name": r.name,
+                    "role": r.role,
+                    "department": r.department,
+                    "employment_type": r.employment_type,
+                    "status": r.status,
+                    "hire_date": r.hire_date,
+                    "training_completed": r.training_completed,
+                }
+                for r in rows
+            ]
+
+    # ── JSON fallback helpers ─────────────────────────────────────────────────
+
+    def _load_checks_from_file(self) -> list:
+        """Загружает все проверки из JSON-файла (fallback)."""
         try:
             return json.loads(CHECKS_FILE.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, FileNotFoundError):
             return []
 
-    def _save_checks(self, checks: list):
-        """Сохраняет список проверок в JSON-файл."""
+    def _save_checks_to_file(self, checks: list):
+        """Сохраняет список проверок в JSON-файл (для обратной совместимости)."""
         CHECKS_FILE.write_text(json.dumps(checks, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # ── Public load/save (DB primary, JSON fallback) ──────────────────────────
+
+    def _load_checks(self) -> list:
+        """Загружает все проверки — сначала из DB, fallback на JSON."""
+        return _run_async(self._load_checks_from_db())
+
+    def _save_checks(self, checks: list):
+        """Сохраняет список проверок в JSON (legacy) + upsert в DB."""
+        self._save_checks_to_file(checks)
+        for record in checks:
+            try:
+                _run_async(self._save_check_to_db(record))
+            except Exception as e:
+                log.warning(f"DB save_check failed for {record.get('employee_email')}: {e}")
+
+    def _load_hr_roster(self) -> list:
+        """Загружает активных сотрудников из DB. Fallback на hr_roster.json если таблица пуста."""
+        try:
+            employees = _run_async(self._load_active_employees_from_db())
+            if employees:
+                return employees
+            log.info("hr_employee table empty, falling back to hr_roster.json")
+        except Exception as e:
+            log.warning(f"DB load_hr_roster failed: {e}")
+
+        # Fallback на JSON
+        if not Path(HR_ROSTER_FILE).exists():
+            return []
+        try:
+            with open(HR_ROSTER_FILE, encoding="utf-8") as f:
+                roster_data = json.load(f)
+            all_emps = roster_data.get("employees", [])
+            return [e for e in all_emps if e.get("status") != "terminated"]
+        except Exception as e:
+            log.error(f"Failed to load hr_roster.json: {e}")
+            return []
 
     def _checkr_request(self, method: str, endpoint: str, data: Optional[dict] = None) -> dict:
         """
@@ -194,23 +358,20 @@ class BackgroundCheckAgent:
     def run_for_new_employees(self, controls_map: Optional[dict] = None) -> dict:
         """
         Запускает background checks для всех активных сотрудников без существующей проверки.
-        Читает hr_roster.json, пропускает уже проверенных.
-        Сохраняет результат в background_checks.json.
+        Читает hr_employee из DB (fallback: hr_roster.json).
+        Сохраняет результат в DB + background_checks.json.
         Отправляет evidence для CC6.2.
         """
         if controls_map:
             self.controls_map = controls_map
 
-        # Загружаем реестр сотрудников
-        if not Path(HR_ROSTER_FILE).exists():
-            log.error(f"HR-реестр не найден: {HR_ROSTER_FILE}")
-            return {"initiated": 0, "already_checked": 0, "cleared": 0, "pending": 0, "error": "hr_roster.json not found"}
+        # Загружаем реестр сотрудников из DB (или JSON fallback)
+        roster = self._load_hr_roster()
+        if not roster:
+            log.error("HR-реестр пуст или недоступен")
+            return {"initiated": 0, "already_checked": 0, "cleared": 0, "pending": 0, "error": "hr roster not available"}
 
-        with open(HR_ROSTER_FILE, encoding="utf-8") as f:
-            roster_data = json.load(f)
-        roster = roster_data.get("employees", [])
-
-        # Загружаем существующие проверки
+        # Загружаем существующие проверки из DB
         existing_checks = self._load_checks()
         checked_emails = {c["employee_email"] for c in existing_checks}
 
@@ -222,10 +383,6 @@ class BackgroundCheckAgent:
         new_checks = []
 
         for emp in roster:
-            # Пропускаем уволенных
-            if emp.get("status") == "terminated":
-                continue
-
             email = emp["email"]
 
             if email in checked_emails:
@@ -238,11 +395,7 @@ class BackgroundCheckAgent:
             last_name = name_parts[1] if len(name_parts) > 1 else ""
 
             # Выбираем package по типу занятости
-            employment_type = emp.get("employment_type", "full_time")
-            if employment_type == "contractor":
-                package = "tasker_standard"
-            else:
-                package = "tasker_standard"
+            package = "tasker_standard"
 
             # Создаём кандидата и заказываем отчёт
             candidate = self.create_candidate(email, first_name, last_name)
@@ -283,9 +436,16 @@ class BackgroundCheckAgent:
 
             log.info(f"Background check инициирован: {email} → {status}")
 
-        # Сохраняем все проверки
+        # Сохраняем все проверки в DB + JSON
         all_checks = existing_checks + new_checks
-        self._save_checks(all_checks)
+        # Сохраняем JSON (legacy)
+        self._save_checks_to_file(all_checks)
+        # Сохраняем новые записи в DB
+        for record in new_checks:
+            try:
+                _run_async(self._save_check_to_db(record))
+            except Exception as e:
+                log.warning(f"DB save failed for {record.get('employee_email')}: {e}")
 
         # Считаем статистику по всем существующим
         for c in existing_checks:
@@ -334,7 +494,7 @@ class BackgroundCheckAgent:
             log.warning(f"Не удалось сохранить evidence CC6.2: {e}")
 
     def get_all_checks(self) -> list:
-        """Возвращает все background checks из файла."""
+        """Возвращает все background checks из DB (fallback: JSON)."""
         return self._load_checks()
 
     def get_check_by_email(self, email: str) -> Optional[dict]:
@@ -349,19 +509,29 @@ class BackgroundCheckAgent:
         """
         Запускает background check для конкретного сотрудника.
         Если проверка уже существует — обновляет её.
+        Читает HR-данные из DB (fallback: hr_roster.json).
         """
-        if not Path(HR_ROSTER_FILE).exists():
-            return {"error": "hr_roster.json not found"}
-
-        with open(HR_ROSTER_FILE, encoding="utf-8") as f:
-            roster_data = json.load(f)
-
-        # Находим сотрудника в реестре
+        # Пробуем найти сотрудника в DB
         employee = None
-        for emp in roster_data.get("employees", []):
-            if emp["email"] == email:
-                employee = emp
-                break
+        try:
+            employees = _run_async(self._load_active_employees_from_db())
+            for emp in employees:
+                if emp["email"] == email:
+                    employee = emp
+                    break
+        except Exception as e:
+            log.warning(f"DB lookup for {email} failed: {e}")
+
+        # Fallback на JSON если не найдено в DB
+        if not employee:
+            if not Path(HR_ROSTER_FILE).exists():
+                return {"error": "hr_roster.json not found and DB unavailable"}
+            with open(HR_ROSTER_FILE, encoding="utf-8") as f:
+                roster_data = json.load(f)
+            for emp in roster_data.get("employees", []):
+                if emp["email"] == email:
+                    employee = emp
+                    break
 
         if not employee:
             return {"error": f"Сотрудник {email} не найден в HR-реестре"}
@@ -397,8 +567,14 @@ class BackgroundCheckAgent:
             "result": result,
         }
 
-        # Обновляем или добавляем запись
-        checks = self._load_checks()
+        # Сохраняем в DB
+        try:
+            _run_async(self._save_check_to_db(record))
+        except Exception as e:
+            log.warning(f"DB save failed for {email}: {e}")
+
+        # Обновляем JSON (legacy)
+        checks = self._load_checks_from_file()
         updated = False
         for i, c in enumerate(checks):
             if c["employee_email"] == email:
@@ -407,10 +583,9 @@ class BackgroundCheckAgent:
                 break
         if not updated:
             checks.append(record)
+        self._save_checks_to_file(checks)
 
-        self._save_checks(checks)
         log.info(f"Background check для {email}: {status} (пакет: {package})")
-
         return record
 
     def get_compliance_summary(self) -> dict:
@@ -421,18 +596,10 @@ class BackgroundCheckAgent:
         """
         checks = self._load_checks()
 
-        # Загружаем активных сотрудников
-        total_active = 0
-        all_active_emails = []
-        if Path(HR_ROSTER_FILE).exists():
-            with open(HR_ROSTER_FILE, encoding="utf-8") as f:
-                roster_data = json.load(f)
-            active_employees = [
-                e for e in roster_data.get("employees", [])
-                if e.get("status") != "terminated"
-            ]
-            total_active = len(active_employees)
-            all_active_emails = [e["email"] for e in active_employees]
+        # Загружаем активных сотрудников из DB (fallback JSON)
+        active_employees = self._load_hr_roster()
+        total_active = len(active_employees)
+        all_active_emails = [e["email"] for e in active_employees]
 
         checked_emails = {c["employee_email"] for c in checks}
         unchecked = [e for e in all_active_emails if e not in checked_emails]

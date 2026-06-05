@@ -3,135 +3,218 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login — SOC 2 Compliance Sandbox</title>
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>tailwind.config = { theme: { extend: {} } }</script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:       #080d1a;
-    --s1:       #0d1426;
-    --s2:       #111b2e;
-    --s3:       #162035;
-    --border:   #1e2d4a;
-    --text:     #e2e8f0;
-    --muted:    #64748b;
-    --accent:   #3b82f6;
-    --accent2:  #60a5fa;
-    --fail:     #ef4444;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { 
-    background: var(--bg); 
-    color: var(--text); 
-    font-family: 'Inter', system-ui, sans-serif; 
-    display: flex; 
-    align-items: center; 
-    justify-content: center; 
-    height: 100vh;
-  }
-  .login-card {
-    background: var(--s1);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 40px;
-    width: 100%;
-    max-width: 400px;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-  }
-  .header { text-align: center; margin-bottom: 30px; }
-  .header .logo { font-size: 40px; margin-bottom: 10px; display: block; }
-  .header h1 { font-size: 20px; font-weight: 700; }
-  .header p { font-size: 14px; color: var(--muted); margin-top: 5px; }
+  body { font-family: 'Inter', sans-serif; }
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: #18181b; }
+  ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 3px; }
 
-  .form-group { margin-bottom: 20px; }
-  .label { display: block; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; margin-bottom: 8px; }
-  .input {
-    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 12px 16px; color: var(--text); font-size: 14px; outline: none; transition: border .15s;
+  @keyframes bgshift {
+    0%   { background-position: 0% 50%; }
+    50%  { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
   }
-  .input:focus { border-color: var(--accent); }
-
-  .btn {
-    width: 100%; background: var(--accent); color: #fff; border: none; border-radius: 8px;
-    padding: 12px; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .15s;
+  .animated-bg {
+    background: linear-gradient(135deg, #09090b 0%, #0f0f23 30%, #09090b 60%, #110a1f 100%);
+    background-size: 400% 400%;
+    animation: bgshift 12s ease infinite;
   }
-  .btn:hover { background: var(--accent2); }
-  
-  .error { color: var(--fail); font-size: 13px; margin-top: 15px; text-align: center; display: none; }
-
-  .demo-table {
-    margin-top: 40px;
-    width: 100%;
-    font-size: 11px;
-    border-collapse: collapse;
-    color: var(--muted);
+  .grid-pattern {
+    background-image:
+      linear-gradient(rgba(99,102,241,0.04) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,102,241,0.04) 1px, transparent 1px);
+    background-size: 48px 48px;
   }
-  .demo-table th { text-align: left; padding: 4px; border-bottom: 1px solid var(--border); }
-  .demo-table td { padding: 6px 4px; cursor: pointer; }
-  .demo-table tr:hover td { color: var(--text); }
+  @keyframes fadein {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-enter { animation: fadein 0.4s ease forwards; }
 </style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+html.light .animated-bg{background:linear-gradient(135deg,#f0f4ff 0%,#f8fafc 40%,#eef2ff 70%,#f0f4ff 100%)!important;animation:none}
+html.light .grid-pattern{background-image:linear-gradient(rgba(99,102,241,.06) 1px,transparent 1px),linear-gradient(90deg,rgba(99,102,241,.06) 1px,transparent 1px)!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
+<body class="animated-bg min-h-screen flex items-center justify-center p-4" x-data="loginApp()" x-init="">
+  <button onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()" class="fixed top-4 right-4 z-50 p-2 rounded-lg bg-zinc-800/70 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 border border-zinc-700/50 backdrop-blur transition-colors" title="Toggle theme">
+    <svg class="ith-sun w-4 h-4" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+    <svg class="ith-moon w-4 h-4" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+  </button>
 
-<div class="login-card">
-  <div class="header">
-    <span class="logo">🛡️</span>
-    <h1>Sign In</h1>
-    <p>Compliance Sandbox Auditor</p>
+  <!-- Background grid overlay -->
+  <div class="fixed inset-0 grid-pattern pointer-events-none"></div>
+
+  <!-- Glow blobs -->
+  <div class="fixed top-1/4 left-1/3 w-96 h-96 bg-indigo-600/5 rounded-full blur-3xl pointer-events-none"></div>
+  <div class="fixed bottom-1/4 right-1/3 w-80 h-80 bg-violet-600/5 rounded-full blur-3xl pointer-events-none"></div>
+
+  <!-- Card -->
+  <div class="relative z-10 w-full max-w-md card-enter">
+    <div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-8 shadow-2xl shadow-black/60">
+
+      <!-- Logo & heading -->
+      <div class="flex flex-col items-center mb-8">
+        <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center mb-4 shadow-lg shadow-indigo-600/30">
+          <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>
+          </svg>
+        </div>
+        <h1 class="text-xl font-semibold text-zinc-100">Sandbox Auditor</h1>
+        <p class="text-sm text-zinc-500 mt-1">SOC 2 Compliance Platform</p>
+      </div>
+
+      <!-- Form -->
+      <form @submit.prevent="login()" class="space-y-4">
+        <!-- Email -->
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Email</label>
+          <input
+            type="email"
+            x-model="email"
+            placeholder="admin@acme.com"
+            required
+            autocomplete="email"
+            class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors w-full"
+          >
+        </div>
+
+        <!-- Password -->
+        <div>
+          <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Password</label>
+          <input
+            type="password"
+            x-model="password"
+            placeholder="••••••••"
+            required
+            autocomplete="current-password"
+            class="bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2.5 text-sm text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors w-full"
+          >
+        </div>
+
+        <!-- Error -->
+        <div x-show="error" x-transition class="flex items-center gap-2 px-3 py-2.5 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <svg class="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <p class="text-sm text-red-400" x-text="error"></p>
+        </div>
+
+        <!-- Submit -->
+        <button
+          type="submit"
+          :disabled="loading"
+          class="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors mt-2"
+        >
+          <svg x-show="loading" class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+          </svg>
+          <span x-text="loading ? 'Signing in…' : 'Sign in'"></span>
+        </button>
+      </form>
+
+      <!-- Demo accounts -->
+      <div class="mt-6 pt-5 border-t border-zinc-800">
+        <p class="text-xs text-zinc-600 uppercase tracking-wider font-medium mb-3">Demo accounts — click to fill</p>
+        <div class="grid grid-cols-2 gap-2">
+          <template x-for="acct in demoAccounts" :key="acct.email">
+            <button
+              @click="email = acct.email; password = acct.password"
+              class="text-left px-3 py-2 bg-zinc-800/60 hover:bg-zinc-800 border border-zinc-700/50 hover:border-zinc-600 rounded-lg transition-colors group"
+            >
+              <p class="text-xs font-medium text-zinc-300 group-hover:text-zinc-100" x-text="acct.role"></p>
+              <p class="text-xs text-zinc-600 truncate" x-text="acct.email"></p>
+            </button>
+          </template>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <p class="text-center text-xs text-zinc-700 mt-4">SOC 2 Type II Compliance Automation</p>
   </div>
 
-  <form id="loginForm">
-    <div class="form-group">
-      <label class="label">Email</label>
-      <input type="email" name="email" class="input" placeholder="admin@acme.com" required>
-    </div>
-    <div class="form-group">
-      <label class="label">Password</label>
-      <input type="password" name="password" class="input" placeholder="••••••••" required>
-    </div>
-    <button type="submit" class="btn">Sign In</button>
-  </form>
-
-  <div id="errorMsg" class="error">Invalid credentials</div>
-
-  <table class="demo-table">
-    <thead>
-      <tr><th>Role</th><th>Email</th><th>Password</th></tr>
-    </thead>
-    <tbody>
-      <tr onclick="fill('admin@acme.com', 'admin123')"><td>Admin</td><td>admin@acme.com</td><td>admin123</td></tr>
-      <tr onclick="fill('auditor@acme.com', 'audit123')"><td>Auditor</td><td>auditor@acme.com</td><td>audit123</td></tr>
-      <tr onclick="fill('scanner@acme.com', 'scan123')"><td>Scanner</td><td>scanner@acme.com</td><td>scan123</td></tr>
-      <tr onclick="fill('viewer@acme.com', 'view123')"><td>Viewer</td><td>viewer@acme.com</td><td>view123</td></tr>
-    </tbody>
-  </table>
-</div>
-
+</body>
 <script>
-  const form = document.getElementById('loginForm');
-  const error = document.getElementById('errorMsg');
-
-  function fill(e, p) {
-    form.email.value = e;
-    form.password.value = p;
-  }
-
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    error.style.display = 'none';
-    
-    const body = new FormData(form);
-    try {
-      const r = await fetch('/api/auth/login', { method: 'POST', body });
-      if (r.ok) {
-        window.location.href = '/';
-      } else {
-        error.style.display = 'block';
+function loginApp() {
+  return {
+    email: '',
+    password: '',
+    error: '',
+    loading: false,
+    demoAccounts: [
+      { role: 'Admin',   email: 'admin@acme.com',   password: 'admin123' },
+      { role: 'Auditor', email: 'auditor@acme.com',  password: 'audit123' },
+      { role: 'Scanner', email: 'scanner@acme.com',  password: 'scan123'  },
+      { role: 'Viewer',  email: 'viewer@acme.com',   password: 'view123'  },
+    ],
+    async login() {
+      this.loading = true;
+      this.error = '';
+      try {
+        const r = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({ email: this.email, password: this.password })
+        });
+        if (r.ok) {
+          location.href = '/';
+        } else {
+          const d = await r.json().catch(() => ({}));
+          this.error = d.detail || 'Invalid credentials';
+        }
+      } catch {
+        this.error = 'Connection error — server may be unavailable';
       }
-    } catch (err) {
-      error.textContent = 'Server connection error';
-      error.style.display = 'block';
+      this.loading = false;
     }
   };
+}
 </script>
-
-</body>
 </html>

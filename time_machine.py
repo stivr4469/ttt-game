@@ -118,7 +118,7 @@ class TimeMachineEngine:
     """
 
     def __init__(self, evidence_client: EvidenceClient | None = None) -> None:
-        base_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+        base_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
         self._client = evidence_client or EvidenceClient(
             base_url=base_url,
             agent_name="time_machine",

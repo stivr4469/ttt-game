@@ -40,7 +40,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Constants
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 LOCALSTACK_ENDPOINT = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 OKTA_DOMAIN = os.getenv("OKTA_DOMAIN")
 OKTA_API_TOKEN = os.getenv("OKTA_API_TOKEN")

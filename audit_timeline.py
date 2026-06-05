@@ -308,12 +308,13 @@ async def _db_write_event(
 # ── Синхронные обёртки (для совместимости с sync-вызовами если нужно) ─────────
 
 def _run(coro):
-    """Запускает корутину: через текущий event loop или создаёт новый."""
+    """Запускает корутину из синхронного контекста."""
+    import concurrent.futures
     try:
         loop = asyncio.get_event_loop()
         if loop.is_running():
-            # Если уже в async-контексте — возвращаем корутину для await
-            return coro
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, coro).result()
         return loop.run_until_complete(coro)
     except RuntimeError:
         return asyncio.run(coro)
@@ -624,16 +625,16 @@ class AuditTimeline:
         scope: dict,
         created_by: str,
     ) -> dict:
-        return asyncio.run(self.create_timeline_async(audit_date, framework, scope, created_by))
+        return _run(self.create_timeline_async(audit_date, framework, scope, created_by))
 
     def get_active_timeline(self) -> Optional[dict]:
-        return asyncio.run(self.get_active_timeline_async())
+        return _run(self.get_active_timeline_async())
 
     def get_all_timelines(self) -> list[dict]:
-        return asyncio.run(self.get_all_timelines_async())
+        return _run(self.get_all_timelines_async())
 
     def get_timeline_by_id(self, timeline_id: str) -> Optional[dict]:
-        return asyncio.run(self.get_timeline_by_id_async(timeline_id))
+        return _run(self.get_timeline_by_id_async(timeline_id))
 
     def update_milestone_status(
         self,
@@ -643,12 +644,12 @@ class AuditTimeline:
         notes: str,
         updated_by: str = "system",
     ) -> dict:
-        return asyncio.run(
+        return _run(
             self.update_milestone_status_async(timeline_id, milestone_id, status, notes, updated_by)
         )
 
     def get_current_status(self) -> dict:
-        return asyncio.run(self.get_current_status_async())
+        return _run(self.get_current_status_async())
 
     def generate_checklist(self, timeline_id: str) -> list[dict]:
-        return asyncio.run(self.generate_checklist_async(timeline_id))
+        return _run(self.generate_checklist_async(timeline_id))

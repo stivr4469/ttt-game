@@ -27,7 +27,7 @@ def _run_async(coro):
     except RuntimeError:
         return asyncio.run(coro)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 TRAINING_COURSES = {
@@ -154,6 +154,49 @@ TRAINING_COURSES = {
 }
 
 HR_ROSTER_FILE = Path(__file__).parent / "hr_roster.json"
+
+
+async def _load_employees_from_db() -> list:
+    """SELECT active employees из hr_employee таблицы."""
+    from database import AsyncSessionLocal
+    from models import HREmployee
+    from sqlalchemy import select
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(
+            select(HREmployee).where(HREmployee.status == "active")
+        )
+        rows = result.scalars().all()
+        return [
+            {
+                "email": r.email,
+                "name": r.name,
+                "status": r.status,
+            }
+            for r in rows
+        ]
+
+
+def _load_employees() -> list:
+    """Загружает активных сотрудников из DB. Fallback на hr_roster.json если таблица пуста."""
+    try:
+        employees = _run_async(_load_employees_from_db())
+        if employees:
+            return employees
+        log.info("hr_employee table empty, falling back to hr_roster.json")
+    except Exception as e:
+        log.warning(f"DB _load_employees failed: {e}")
+
+    # Fallback на JSON
+    if not HR_ROSTER_FILE.exists():
+        return []
+    try:
+        roster = json.loads(HR_ROSTER_FILE.read_text(encoding="utf-8"))
+        return [e for e in roster.get("employees", []) if e.get("status") == "active"]
+    except Exception as e:
+        log.error(f"Failed to load hr_roster.json: {e}")
+        return []
+
 
 class TrainingAgent:
 
@@ -351,12 +394,11 @@ class TrainingAgent:
         }
 
     def get_compliance_report(self) -> dict:
-        """Читать hr_roster.json для списка сотрудников."""
-        if not HR_ROSTER_FILE.exists():
+        """Читает список сотрудников из DB (fallback: hr_roster.json)."""
+        employees = _load_employees()
+        if not employees:
             return {"error": "HR roster not found"}
 
-        roster = json.loads(HR_ROSTER_FILE.read_text(encoding="utf-8"))
-        employees = roster.get("employees", [])
         completions = _run_async(self._load_all_db())
 
         report_employees = []
@@ -365,9 +407,6 @@ class TrainingAgent:
         required_courses = [cid for cid, c in TRAINING_COURSES.items() if c["required"]]
 
         for emp in employees:
-            if emp["status"] != "active":
-                continue
-
             email = emp["email"]
             user_comp = completions.get(email, {})
 
@@ -447,6 +486,6 @@ class TrainingAgent:
             )
 
             status = "PASS" if report["compliance_pct"] >= 80 else "FAIL"
-            self._evidence_client.update_control_status(control_id, status)
+            self._evidence_client.submit_test_result(control_id, status, test_key="hr.user.training_completed", producer="training")
 
         return evidence_data

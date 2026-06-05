@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 from auth import require_auditor
@@ -15,7 +16,7 @@ from sqlalchemy import select, delete
 router = APIRouter(prefix="/api/access-review", tags=["access-review"])
 log = get_logger(__name__)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 _USERS = [
     {
@@ -249,14 +250,15 @@ async def submit_review(_: dict = Depends(require_auditor)):
             log.warning("control not found in controls_map", extra={"code": code})
             continue
         try:
-            ev = client.create_evidence(
+            ev = await asyncio.to_thread(
+                client.create_evidence,
                 control_id=ctrl_id,
                 title=f"Quarterly Access Review Q2 2026 — {code}",
                 content=content,
                 source="MANUAL",
             )
             evidence_ids.append(ev.get("id"))
-            client.update_control_status(ctrl_id, "PASS")
+            await asyncio.to_thread(client.submit_test_result, ctrl_id, "PASS", f"access_review.{code.lower().replace('.', '_')}.quarterly_review_completed")
             log.info("evidence created", extra={"control": code, "evidence_id": ev.get("id")})
         except Exception as exc:
             log.error("failed to create evidence", extra={"control": code, "error": str(exc)})

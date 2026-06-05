@@ -95,7 +95,7 @@ def _load_evidence_for_control(control_id: str) -> list[dict]:
     import os
     try:
         from evidence_client import EvidenceClient
-        url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+        url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
         client = EvidenceClient(url, agent_name="compliance_engine")
         return client.get_evidence(control_id=control_id, limit=50)
     except Exception as exc:
@@ -112,7 +112,7 @@ def _load_all_controls_evidence() -> dict[str, list[dict]]:
     from compliance_engine import _REQUIRED_EVIDENCE_TYPES
     try:
         from evidence_client import EvidenceClient
-        url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+        url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
         client = EvidenceClient(url, agent_name="compliance_engine")
         all_controls = client.get_controls()
     except Exception as exc:

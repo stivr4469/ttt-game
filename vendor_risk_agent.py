@@ -41,7 +41,7 @@ SOC2_VENDOR_CONTROL = "CC9.2"
 # ── Пути к файлам данных ──────────────────────────────────────────────────────
 _DATA_DIR = Path(__file__).parent / "data"
 _VENDORS_FILE = _DATA_DIR / "vendors.json"          # Legacy: vendors now stored in DB
-_ASSESSMENTS_FILE = _DATA_DIR / "vendor_assessments.json"  # TODO: migrate when VendorAssessment DB model is added
+_ASSESSMENTS_FILE = _DATA_DIR / "vendor_assessments.json"  # Legacy: assessments now stored in DB (fallback only)
 
 # ── LLM-настройки (тот же паттерн что в gap_analysis_agent.py) ───────────────
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
@@ -423,6 +423,20 @@ def _db_vendor_to_dict(row: _models.Vendor) -> dict:
     return d
 
 
+def _assessment_db_to_dict(row: "_models.VendorAssessment") -> dict:
+    return {
+        "id": row.id,
+        "vendor_id": row.vendor_id,
+        "assessment_date": row.assessment_date,
+        "risk_level": row.risk_level,
+        "recommendation": row.recommendation,
+        "summary": row.summary,
+        "raw_analysis": row.raw_analysis,
+        "exceptions_found": row.exceptions_found or [],
+        "uecc_items": row.uecc_items or [],
+    }
+
+
 def _run_async(coro):
     """Запускает async корутину из синхронного контекста."""
     try:
@@ -487,6 +501,43 @@ async def _db_vendor_count_async() -> int:
         return len(result.scalars().all())
 
 
+async def _db_load_assessments_async(vendor_id: str | None = None) -> list[dict]:
+    """Загружает assessments из БД (все или для конкретного vendor_id)."""
+    async with AsyncSessionLocal() as session:
+        stmt = select(_models.VendorAssessment)
+        if vendor_id:
+            stmt = stmt.where(_models.VendorAssessment.vendor_id == vendor_id)
+        rows = (await session.execute(stmt)).scalars().all()
+        return [_assessment_db_to_dict(r) for r in rows]
+
+
+async def _db_save_assessment_async(a: dict) -> None:
+    """Upsert одного assessment по id."""
+    async with AsyncSessionLocal() as session:
+        existing = await session.get(_models.VendorAssessment, a["id"])
+        if existing is None:
+            session.add(_models.VendorAssessment(
+                id=a["id"],
+                vendor_id=a["vendor_id"],
+                assessment_date=a.get("assessment_date", ""),
+                risk_level=a.get("risk_level"),
+                recommendation=a.get("recommendation"),
+                summary=a.get("summary"),
+                raw_analysis=a.get("raw_analysis"),
+                exceptions_found=a.get("exceptions_found"),
+                uecc_items=a.get("uecc_items"),
+            ))
+        else:
+            existing.assessment_date = a.get("assessment_date", existing.assessment_date)
+            existing.risk_level = a.get("risk_level", existing.risk_level)
+            existing.recommendation = a.get("recommendation", existing.recommendation)
+            existing.summary = a.get("summary", existing.summary)
+            existing.raw_analysis = a.get("raw_analysis", existing.raw_analysis)
+            existing.exceptions_found = a.get("exceptions_found", existing.exceptions_found)
+            existing.uecc_items = a.get("uecc_items", existing.uecc_items)
+        await session.commit()
+
+
 # ── Основной агент ────────────────────────────────────────────────────────────
 
 class VendorRiskAgent:
@@ -533,10 +584,17 @@ class VendorRiskAgent:
             _run_async(_db_save_vendor_async(vendor_dict))
 
     def _load_assessments(self) -> list[dict]:
-        return _load_json(_ASSESSMENTS_FILE, [])
+        try:
+            return _run_async(_db_load_assessments_async())
+        except Exception:
+            return _load_json(_ASSESSMENTS_FILE, [])   # fallback
 
     def _save_assessments(self, assessments: list[dict]) -> None:
-        _save_json(_ASSESSMENTS_FILE, assessments)
+        for a in assessments:
+            try:
+                _run_async(_db_save_assessment_async(a))
+            except Exception as exc:
+                log.warning("DB save assessment failed, skipping: %s", exc)
 
     def _next_vendor_id(self, vendors: list[dict]) -> str:
         max_num = 0

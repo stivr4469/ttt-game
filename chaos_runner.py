@@ -427,7 +427,7 @@ class ChaosRunner:
         """
         try:
             from evidence_client import EvidenceClient
-            evidence_tracker_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+            evidence_tracker_url = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
             client = EvidenceClient(evidence_tracker_url, agent_name="chaos_runner")
             controls = client.get_controls()
             return {c["code"]: c.get("status", "UNKNOWN") for c in controls if "code" in c}

@@ -6,7 +6,7 @@ from constants import CONTROLS_MAP_FILE
 
 load_dotenv()
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 FRAMEWORK_NAME = "SOC 2 Type II"
 
 CONTROLS_DATA = [

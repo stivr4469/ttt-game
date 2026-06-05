@@ -438,50 +438,51 @@ class EventBus:
 
     def _persist_to_db(self, event: ComplianceEvent) -> None:
         """
-        Записывает событие в AuditEventRepository и EventQueue (best-effort).
-
-        AuditEvent — immutable audit trail (существующая логика).
-        EventQueue  — durable очередь для cross-process доставки: агенты в
-                      subprocess/Celery пишут сюда, веб-процесс читает и
-                      вызывает in-memory handlers через polling-воркер.
+        Записывает событие в audit_event и event_queue через синхронный sqlite3.
+        Вызывается из ThreadPoolExecutor — использует sync sqlite3 чтобы избежать
+        asyncio/aiosqlite дедлоков в subprocess-контексте.
 
         Не поднимает исключений — только журналирует ошибки.
         """
         try:
             import json as _json
-            from database import AsyncSessionLocal
-            from db_repository import AuditEventRepository, EventQueueRepository
+            import sqlite3 as _sqlite3
+            import os as _os
+            import uuid as _uuid
 
-            async def _do_persist() -> None:
-                async with AsyncSessionLocal() as session:
-                    # 1. AuditEvent — immutable audit trail
-                    audit_repo = AuditEventRepository(session)
-                    await audit_repo.append(
-                        event_type=event.event_type.value,
-                        entity_type=event.entity_type,
-                        entity_id=event.entity_id,
-                        actor=event.actor,
-                        payload={
-                            **event.payload,
-                            "event_id": event.event_id,
-                            "severity": event.severity,
-                        },
-                    )
+            db_url = _os.getenv("DATABASE_URL", "")
+            if not db_url or "sqlite" not in db_url:
+                return  # PostgreSQL или DB недоступна — пропускаем
 
-                    # 2. EventQueue — durable cross-process delivery
-                    queue_repo = EventQueueRepository(session)
-                    full_payload = _json.dumps(event.to_dict(), ensure_ascii=False)
-                    await queue_repo.enqueue(
-                        event_id=event.event_id,
-                        event_type=event.event_type.value,
-                        entity_id=event.entity_id,
-                        payload=full_payload,
-                    )
+            db_path = db_url.split("///", 1)[-1]
+            now_iso = event.created_at.isoformat() if hasattr(event, "created_at") else __import__("datetime").datetime.utcnow().isoformat()
 
-                    await session.commit()
+            conn = _sqlite3.connect(db_path, timeout=5)
+            try:
+                payload_json = _json.dumps({
+                    **event.payload,
+                    "event_id": event.event_id,
+                    "severity": event.severity,
+                }, ensure_ascii=False)
 
-            # Запускаем в новом event loop (мы уже в thread pool)
-            asyncio.run(_do_persist())
+                # 1. AuditEvent
+                conn.execute(
+                    "INSERT INTO audit_event (event_type, entity_type, entity_id, actor, payload, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (event.event_type.value, event.entity_type, event.entity_id, event.actor, payload_json, now_iso),
+                )
+
+                # 2. EventQueue
+                full_payload = _json.dumps(event.to_dict(), ensure_ascii=False)
+                conn.execute(
+                    "INSERT OR IGNORE INTO event_queue (id, event_type, entity_id, payload, status, created_at) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (str(_uuid.uuid4()), event.event_type.value, event.entity_id, full_payload, "pending", now_iso),
+                )
+
+                conn.commit()
+            finally:
+                conn.close()
 
         except Exception as exc:
             # DB недоступна — это нормально для dev-режима

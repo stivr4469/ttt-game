@@ -17,12 +17,14 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from database import AsyncSessionLocal, init_db
 from models import (
     AccessReviewDecision,
+    BackgroundCheck,
     HREmployee,
     PentestReport,
     QuestionnaireResponse,
     RiskEntry,
     TrainingCompletionDetail,
     Vendor,
+    VendorAssessment,
 )
 
 ROOT = Path(__file__).parent
@@ -146,6 +148,45 @@ async def migrate_vendors(session) -> None:
                 dpa_signed=bool(row.get("dpa_signed", False)),
                 last_review_date=row.get("last_review_date"),
                 data=extra or None,
+            ).on_conflict_do_nothing(index_elements=["id"])
+            result = await session.execute(stmt)
+            if result.rowcount:
+                inserted += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"  ERROR row {row.get('id')}: {e}")
+            errors += 1
+
+    print(f"  inserted={inserted}, skipped(exist)={skipped}, errors={errors}")
+
+
+# ── Миграция vendor assessments ───────────────────────────────────────────────
+
+async def migrate_vendor_assessments(session) -> None:
+    print("\n[2b] Migrating vendor_assessments.json → VendorAssessment...")
+    data = _load("data/vendor_assessments.json")
+    if data is None:
+        return
+
+    rows: list[dict] = data if isinstance(data, list) else data.get("assessments", [])
+    if not rows:
+        print("  SKIP: no records found")
+        return
+
+    inserted = skipped = errors = 0
+    for row in rows:
+        try:
+            stmt = sqlite_insert(VendorAssessment).values(
+                id=row.get("id", _new_uuid()),
+                vendor_id=row["vendor_id"],
+                assessment_date=row.get("assessment_date", ""),
+                risk_level=row.get("risk_level"),
+                recommendation=row.get("recommendation"),
+                summary=row.get("summary"),
+                raw_analysis=row.get("raw_analysis"),
+                exceptions_found=row.get("exceptions_found"),
+                uecc_items=row.get("uecc_items"),
             ).on_conflict_do_nothing(index_elements=["id"])
             result = await session.execute(stmt)
             if result.rowcount:
@@ -328,7 +369,7 @@ async def migrate_questionnaires(session) -> None:
 # ── Миграция HR Roster ────────────────────────────────────────────────────────
 
 async def migrate_hr(session) -> None:
-    print("\n[7/7] Migrating hr_roster.json → HREmployee...")
+    print("\n[7/8] Migrating hr_roster.json → HREmployee...")
     data = _load("hr_roster.json")
     if data is None:
         return
@@ -377,6 +418,51 @@ async def migrate_hr(session) -> None:
     print(f"  inserted={inserted}, skipped(exist)={skipped}, errors={errors}")
 
 
+# ── Миграция background checks ────────────────────────────────────────────────
+
+async def migrate_background_checks(session) -> None:
+    print("\n[8/8] Migrating background_checks.json → BackgroundCheck...")
+    data = _load("background_checks.json")
+    if data is None:
+        return
+
+    rows: list[dict] = data if isinstance(data, list) else data.get("checks", [])
+    if not rows:
+        print("  SKIP: no records found")
+        return
+
+    inserted = skipped = errors = 0
+    for row in rows:
+        try:
+            emp_email = row.get("employee_email", "")
+            # Используем report_id как уникальный ключ если id отсутствует
+            rec_id = row.get("id") or _new_uuid()
+            stmt = sqlite_insert(BackgroundCheck).values(
+                id=rec_id,
+                employee_email=emp_email,
+                employee_name=row.get("employee_name", ""),
+                candidate_id=row.get("candidate_id", ""),
+                report_id=row.get("report_id", ""),
+                package=row.get("package", "tasker_standard"),
+                status=row.get("status", "pending"),
+                initiated_at=_parse_dt(row.get("initiated_at")),
+                completed_at=_parse_dt(row.get("completed_at")),
+                result=row.get("result"),
+                created_at=datetime.now(timezone.utc),
+                updated_at=datetime.now(timezone.utc),
+            ).on_conflict_do_nothing(index_elements=["id"])
+            result = await session.execute(stmt)
+            if result.rowcount:
+                inserted += 1
+            else:
+                skipped += 1
+        except Exception as e:
+            print(f"  ERROR email={row.get('employee_email')}: {e}")
+            errors += 1
+
+    print(f"  inserted={inserted}, skipped(exist)={skipped}, errors={errors}")
+
+
 # ── Точка входа ───────────────────────────────────────────────────────────────
 
 async def main() -> None:
@@ -398,6 +484,11 @@ async def main() -> None:
             await migrate_vendors(session)
         except Exception as e:
             print(f"  FATAL migrate_vendors: {e}")
+
+        try:
+            await migrate_vendor_assessments(session)
+        except Exception as e:
+            print(f"  FATAL migrate_vendor_assessments: {e}")
 
         try:
             await migrate_training(session)
@@ -423,6 +514,11 @@ async def main() -> None:
             await migrate_hr(session)
         except Exception as e:
             print(f"  FATAL migrate_hr: {e}")
+
+        try:
+            await migrate_background_checks(session)
+        except Exception as e:
+            print(f"  FATAL migrate_background_checks: {e}")
 
         await session.commit()
 

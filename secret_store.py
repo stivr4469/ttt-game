@@ -15,6 +15,7 @@ ephemeral key is used (secrets will not survive restarts).  In production mode
 import asyncio
 import logging
 import os
+from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy import select
@@ -26,18 +27,26 @@ log = logging.getLogger(__name__)
 
 _RAW_KEY = os.getenv("SECRET_ENCRYPTION_KEY", "")
 
+_DEV_KEY_FILE = Path(".dev_secret_key")
+
 if not _RAW_KEY:
     if os.getenv("ENVIRONMENT", "development") == "production":
         raise RuntimeError(
             "SECRET_ENCRYPTION_KEY must be set in production. "
-            "Run: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            "Generate: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
         )
-    _ephemeral_key = Fernet.generate_key()
+    # Dev: use a stable key stored in .dev_secret_key (generated once, survives restarts)
+    if _DEV_KEY_FILE.exists():
+        _dev_key = _DEV_KEY_FILE.read_bytes().strip()
+    else:
+        _dev_key = Fernet.generate_key()
+        _DEV_KEY_FILE.write_bytes(_dev_key)
+        log.warning("Generated dev encryption key → %s (add to .env as SECRET_ENCRYPTION_KEY)", _DEV_KEY_FILE)
     log.warning(
-        "SECRET_ENCRYPTION_KEY not set — using ephemeral key. "
-        "Secrets will not survive process restarts."
+        "SECRET_ENCRYPTION_KEY not set — using key from %s. "
+        "Set SECRET_ENCRYPTION_KEY in production.", _DEV_KEY_FILE
     )
-    _fernet = Fernet(_ephemeral_key)
+    _fernet = Fernet(_dev_key)
 else:
     _fernet = Fernet(_RAW_KEY.encode())
 

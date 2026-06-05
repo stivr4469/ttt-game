@@ -6,10 +6,24 @@ from pathlib import Path
 from typing import List, Dict, Optional
 from openai import OpenAI
 from dotenv import load_dotenv
+import asyncio
+import concurrent.futures
+
 from database import AsyncSessionLocal
 from models import QuestionnaireResponse as QuestionnaireResponseModel
 from sqlalchemy import select
-from evidence_client import _run_async
+
+
+def _run_async(coro):
+    """Run an async coroutine from a sync context."""
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            with concurrent.futures.ThreadPoolExecutor() as pool:
+                return pool.submit(asyncio.run, coro).result()
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        return asyncio.run(coro)
 
 load_dotenv()
 logger = logging.getLogger(__name__)

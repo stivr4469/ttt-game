@@ -77,7 +77,12 @@ async def scan_vulnerabilities(payload: dict = Depends(require_admin)):
             controls_map = json.load(f)
             
     agent = VulnAgent()
-    return agent.run(controls_map)
+    try:
+        result = agent.run(controls_map)
+        _save_vulns(result.get("vulnerabilities", []))
+        return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Scan failed: {exc}") from exc
 
 @router.patch("/{vuln_id}")
 async def update_vulnerability(vuln_id: str, data: dict, payload: dict = Depends(require_auth)):

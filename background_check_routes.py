@@ -4,6 +4,8 @@ background_check_routes.py — API эндпоинты для Background Checks.
 Покрывает: CC6.2 (User Registration/Screening).
 """
 
+from __future__ import annotations
+
 import json
 import os
 from pathlib import Path
@@ -12,6 +14,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Depends, Cookie
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from sqlalchemy import select
 
 from auth import decode_token, ROLES
 from background_check_agent import BackgroundCheckAgent
@@ -78,10 +81,38 @@ async def require_admin(payload: dict = Depends(require_auth)) -> dict:
 async def get_all_checks(payload: dict = Depends(require_admin_or_auditor)):
     """
     Возвращает все background checks.
+    Читает из DB напрямую; fallback через агент (JSON).
     Доступ: Admin, Auditor.
     """
     try:
-        checks = _get_agent().get_all_checks()
+        from database import AsyncSessionLocal
+        from models import BackgroundCheck
+
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(
+                select(BackgroundCheck).order_by(BackgroundCheck.initiated_at)
+            )
+            rows = result.scalars().all()
+
+        if rows:
+            checks = [
+                {
+                    "employee_email": r.employee_email,
+                    "employee_name": r.employee_name,
+                    "candidate_id": r.candidate_id,
+                    "report_id": r.report_id,
+                    "package": r.package,
+                    "status": r.status,
+                    "initiated_at": r.initiated_at.isoformat() if r.initiated_at else None,
+                    "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+                    "result": r.result,
+                }
+                for r in rows
+            ]
+        else:
+            # Fallback на агент (читает JSON)
+            checks = _get_agent().get_all_checks()
+
         return {"checks": checks, "total": len(checks)}
     except Exception as e:
         log.error(f"Ошибка получения списка проверок: {e}")

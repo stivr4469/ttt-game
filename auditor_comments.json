@@ -7,6 +7,14 @@
       "severity": "observation",
       "auditor_name": "John Auditor",
       "created_at": "2026-05-23T14:43:23.448389Z"
+    },
+    {
+      "id": "399d5982-4689-4fc0-82e8-8374bb042952",
+      "control_code": "CC1.1",
+      "comment": "Control CC1.1 verified \u2014 organizational chart and board charter reviewed. No exceptions noted.",
+      "severity": "observation",
+      "auditor_name": "Jane Smith",
+      "created_at": "2026-05-31T19:30:52.398325Z"
     }
   ]
 }

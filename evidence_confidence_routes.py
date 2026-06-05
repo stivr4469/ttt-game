@@ -29,7 +29,7 @@ router = APIRouter(prefix="/api/evidence-confidence", tags=["evidence-confidence
 
 # ── Зависимости ───────────────────────────────────────────────────────────────
 
-_EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+_EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 # Синглтон — EvidenceConfidenceScorer не хранит состояния, создавать один экземпляр на весь процесс
 _scorer = EvidenceConfidenceScorer()

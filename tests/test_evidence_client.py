@@ -74,14 +74,15 @@ class TestRetryLogic:
         assert mock_session.call_count == 1
 
     def test_retries_on_timeout(self, client, mock_session):
+        # _MAX_RETRIES = 2, поэтому успех наступает на второй попытке
         mock_session.side_effect = [
-            requests.exceptions.Timeout(),
             requests.exceptions.Timeout(),
             _ok_response({"id": "2"}),
         ]
-        result = client._request("GET", "/api/v1/controls/")
+        with patch("time.sleep"):
+            result = client._request("GET", "/api/v1/controls/")
         assert result == {"id": "2"}
-        assert mock_session.call_count == 3
+        assert mock_session.call_count == 2
 
     def test_retries_on_connection_error(self, client, mock_session):
         mock_session.side_effect = [

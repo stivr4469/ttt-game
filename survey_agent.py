@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 OPENROUTER_MODEL = os.getenv("OPENROUTER_MODEL", "anthropic/claude-3-haiku")
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 COMPANY_NAME = os.getenv("COMPANY_NAME", "Marineso")
 
@@ -145,12 +147,8 @@ DEMO_RESPONDENTS = [
 class SurveyAgent:
     def __init__(self):
         self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=OPENROUTER_API_KEY,
-            default_headers={
-                "HTTP-Referer": "compliance-sandbox",
-                "X-Title": "Compliance Sandbox Auditor",
-            },
+            base_url="https://api.groq.com/openai/v1",
+            api_key=GROQ_API_KEY,
         )
         self.evidence_client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="survey_agent")
         self.notifier = SlackNotifier(SLACK_WEBHOOK_URL) if SLACK_WEBHOOK_URL else None
@@ -183,7 +181,7 @@ Respond with JSON only:
 
         try:
             response = self.client.chat.completions.create(
-                model=OPENROUTER_MODEL,
+                model=GROQ_MODEL,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = response.choices[0].message.content.strip()
@@ -275,7 +273,7 @@ Respond with JSON only:
 
                 # Обновить статус контроля при первом FAIL
                 if verdict == "FAIL":
-                    self.evidence_client.update_control_status(control_id, "FAIL")
+                    self.evidence_client.submit_test_result(control_id, "FAIL", test_key=f"survey.{control_code.lower().replace('.', '_')}.knowledge_gap", producer="survey")
 
             print()
 
@@ -319,8 +317,8 @@ def main(controls_map: dict | None = None):
             print(f"  Q: {info['question']}")
         return
 
-    if not OPENROUTER_API_KEY:
-        print("[ERROR] OPENROUTER_API_KEY не задан в .env")
+    if not GROQ_API_KEY:
+        print("[ERROR] GROQ_API_KEY не задан в .env")
         return
 
     # Load controls_map.json if not provided

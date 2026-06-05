@@ -33,13 +33,10 @@ def reset_db():
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
-    with patch("auditor_routes._evidence_client") as mock_ec:
-        mock_ec.get_controls.return_value = []
-        mock_ec.get_evidence.return_value = []
-        app = FastAPI()
-        app.include_router(router)
-        app.dependency_overrides[require_auditor] = lambda: _FAKE_AUDITOR
-        yield TestClient(app)
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[require_auditor] = lambda: _FAKE_AUDITOR
+    yield TestClient(app)
 
 
 # ══════════════════════════════════════════════════════════════════════════════

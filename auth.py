@@ -32,10 +32,10 @@ ROLES = {
 
 # Pre-computed bcrypt hashes used as non-production fallbacks.
 # In production, all four *_PASSWORD_HASH env vars MUST be set.
-_FALLBACK_ADMIN_HASH   = "$2b$12$KIX/SITtJFel7F0GtxMlVOQkfTNQMb.1YR3M1rGxL3u4PzZ5a7hXS"
-_FALLBACK_AUDITOR_HASH = "$2b$12$Y9dGH.wQkLp7R2xNmP6OtOZb3vXsDtQnuZ0YJqK4mF5e8cWjA1yPa"
-_FALLBACK_SCANNER_HASH = "$2b$12$3nWqA8FkLpR1Nm7GtxMlVOcQkfTNQMb.2ZS4N2sHyM5f9dXkB2zQt"
-_FALLBACK_VIEWER_HASH  = "$2b$12$8pXqC9GlMqS2On8HuyNmWPda4wYtEuRov1ZT5O3tIn6g0eYlC3aRb"
+_FALLBACK_ADMIN_HASH   = "$2b$12$HPqlvz.0CaLygb1pZ9DdUehsXkVWot42lyncsmXprNX0jpWl0tVIC"
+_FALLBACK_AUDITOR_HASH = "$2b$12$bRRzpad2QYJzp6sinH7M3u/HKl1CY3dNmqNq/URGA0stGf6Ja12O."
+_FALLBACK_SCANNER_HASH = "$2b$12$SDQVig5mfSB7QArhBwbkL.3X9Rn8v0mKtQAfqgPUrqdVHan0Pawh6"
+_FALLBACK_VIEWER_HASH  = "$2b$12$58YIOmyaeEHznLv8cl3vXuMVHRYC0ABzUIM.4Ey/ntH5KoLdT1aQ2"
 
 _is_prod = os.getenv("ENVIRONMENT") == "production"
 
@@ -105,7 +105,7 @@ def decode_token(token: str) -> Optional[dict]:
 
 # FastAPI Depends-хелперы для использования в роутерах
 try:
-    from fastapi import Depends, HTTPException, Cookie
+    from fastapi import Depends, HTTPException, Cookie, Request
 
     def require_auth(access_token: Optional[str] = Cookie(default=None)) -> dict:
         """Любой авторизованный пользователь."""
@@ -115,6 +115,18 @@ try:
         if not payload:
             raise HTTPException(status_code=401, detail="Invalid or expired token")
         return payload
+
+    def require_agent_or_auth(
+        request: Request,
+        access_token: Optional[str] = Cookie(default=None),
+    ) -> dict:
+        """Cookie-сессия ИЛИ X-API-Key (для агентов-субпроцессов)."""
+        import os
+        api_key = request.headers.get("X-API-Key", "")
+        evidence_key = os.getenv("UI_API_KEY") or os.getenv("EVIDENCE_API_KEY", "")
+        if api_key and evidence_key and api_key == evidence_key:
+            return {"sub": "agent", "role": "scanner", "name": "agent"}
+        return require_auth(access_token)
 
     def require_admin(user: dict = Depends(require_auth)) -> dict:
         """Только роль admin."""

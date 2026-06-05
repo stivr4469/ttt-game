@@ -1,5 +1,5 @@
 """
-compliance_engine.py — Детерминированный движок соответствия SOC 2.
+compliance_engine.py — Детерминированный движок соответствия.
 
 Единственный авторитет в определении статуса контролей.
 НЕ использует AI внутри себя — только детерминированная логика на основе evidence.
@@ -9,6 +9,11 @@ compliance_engine.py — Детерминированный движок соо�
   AIAdvisor         ← рекомендации (advisory, отдельный модуль)
 
 Разделение строгое: deterministic path и advisory path полностью независимы.
+
+Поддерживаемые фреймворки:
+  - SOC 2: жёстко заданные _REQUIRED_EVIDENCE_TYPES (33 контрола)
+  - Остальные (GDPR, NIST CSF, ISO 27001 и др.): загружаются через FrameworkLibrary;
+    evaluate_control возвращает PASS при наличии любого PASS evidence, иначе NEEDS_REVIEW.
 """
 
 from __future__ import annotations
@@ -140,17 +145,21 @@ class ComplianceEngine:
         self,
         control_id: str,
         evidence_list: list[dict],
+        framework_id: str = "soc2",
     ) -> ControlVerdict:
         """
         Детерминированная оценка контроля на основе списка evidence.
 
         Args:
-            control_id:    код контроля ("CC6.1", "CC7.4" ...)
+            control_id:    код контроля ("CC6.1", "CC7.4", "ID.AM-1" ...)
             evidence_list: список dict с ключами:
                              - status: "PASS" | "FAIL" | "PENDING" (обязательно)
                              - evidence_type: тип evidence (опционально)
                              - title: заголовок (опционально)
                              - source: источник (опционально)
+            framework_id:  идентификатор фреймворка (default "soc2").
+                           Для не-SOC2 фреймворков required_evidence_types не определены,
+                           поэтому оценка использует упрощённую логику (есть PASS → PASS).
 
         Returns:
             ControlVerdict с детерминированным статусом.
@@ -269,6 +278,50 @@ class ComplianceEngine:
                 missing_evidence=missing,
             )
 
+    def evaluate_framework(
+        self,
+        framework_id: str,
+        evidence_dict: dict[str, list[dict]],
+    ) -> list[ControlVerdict]:
+        """
+        Оценивает все assessable контроли указанного фреймворка.
+
+        Загружает список контролей через FrameworkLibrary, затем вызывает
+        evaluate_control для каждого контроля с соответствующим evidence.
+
+        Args:
+            framework_id:  идентификатор фреймворка из FRAMEWORK_CATALOG
+                           ("nist-csf-2.0", "gdpr", "iso27001-2022" ...)
+            evidence_dict: словарь {ref_id: [evidence_list]}.
+                           Контроли без evidence получают пустой список.
+
+        Returns:
+            Список ControlVerdict по всем assessable контролям фреймворка.
+
+        Raises:
+            ValueError: если framework_id не найден в FrameworkLibrary.
+        """
+        from framework_library import get_library
+
+        library  = get_library()
+        controls = library.get_controls(framework_id, assessable_only=True)
+
+        verdicts: list[ControlVerdict] = []
+        for ctrl in controls:
+            ev_list = evidence_dict.get(ctrl.ref_id, [])
+            verdict = self.evaluate_control(ctrl.ref_id, ev_list, framework_id=framework_id)
+            verdicts.append(verdict)
+
+        log.info(
+            "evaluate_framework %s: %d controls — PASS=%d FAIL=%d NEEDS_REVIEW=%d",
+            framework_id,
+            len(verdicts),
+            sum(1 for v in verdicts if v.status == VerdictStatus.PASS),
+            sum(1 for v in verdicts if v.status == VerdictStatus.FAIL),
+            sum(1 for v in verdicts if v.status == VerdictStatus.NEEDS_REVIEW),
+        )
+        return verdicts
+
     def get_required_evidence_types(self, control_id: str) -> list[str]:
         """
         Возвращает список required evidence types для контроля.
@@ -277,7 +330,8 @@ class ComplianceEngine:
             control_id: код контроля ("CC6.1")
 
         Returns:
-            Список строк — типы evidence. Пустой список если контроль неизвестен.
+            Список строк — типы evidence. Пустой список если контроль неизвестен
+            или относится к не-SOC2 фреймворку.
         """
         return list(_REQUIRED_EVIDENCE_TYPES.get(control_id, []))
 

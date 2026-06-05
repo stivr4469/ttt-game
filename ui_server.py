@@ -16,8 +16,10 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from fastapi.responses import StreamingResponse, HTMLResponse, FileResponse, RedirectResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from dotenv import dotenv_values, set_key
+from fastapi.middleware.gzip import GZipMiddleware
+from pydantic import BaseModel, Field
+from dotenv import dotenv_values, set_key, load_dotenv
+load_dotenv(Path(__file__).parent / ".env", override=False)
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import text
@@ -47,7 +49,9 @@ def _task_done_callback(task: asyncio.Task) -> None:
 
 # Constants
 EVIDENCE_TRACKER = os.getenv("EVIDENCE_TRACKER_URL", _settings.evidence_tracker_url)
-EVIDENCE_API_KEY = os.getenv("UI_API_KEY") or os.getenv("EVIDENCE_API_KEY", "")
+EVIDENCE_API_KEY = os.getenv("UI_API_KEY") or os.getenv("EVIDENCE_API_KEY", "sandbox-agent-key-dev")
+# Propagate so subprocesses (agents) can authenticate back to this server
+os.environ.setdefault("EVIDENCE_API_KEY", EVIDENCE_API_KEY)
 ENV_FILE = Path(__file__).parent / ".env"
 ROOT = Path(__file__).parent
 _tracker_headers = {"X-API-Key": EVIDENCE_API_KEY}
@@ -77,12 +81,15 @@ AGENTS = {
     "hr":      {"label": "HR Agent",         "cmd": ["python3", "hr_agent.py"],                     "desc": "Okta + HR roster: offboarding, training",    "icon": "👥"},
     "survey":  {"label": "Survey Agent",     "cmd": ["python3", "survey_agent.py"],                 "desc": "Опрос сотрудников по знанию политик",         "icon": "📋"},
     "github":  {"label": "GitHub Agent",     "cmd": ["python3", "github_agent.py"],                 "desc": "CI/CD, Secrets Scanning, Issues",            "icon": "🐙"},
-    "policy":  {"label": "Policy Generator", "cmd": ["python3", "policy_agent.py", "--governance"], "desc": "AI-черновики для 9 governance контролей",    "icon": "📄"},
+    "policy":  {"label": "Policy Generator", "cmd": ["python3", "policy_agent.py", "--governance", "--ollama"], "desc": "AI-черновики для 9 governance контролей",    "icon": "📄"},
 }
 
 SENSITIVE_KEYS = {"TOKEN", "KEY", "SECRET", "PASSWORD", "WEBHOOK", "API"}
 
 # ── Pydantic request models ────────────────────────────────────────────────────
+class RunAgentBody(BaseModel):
+    env: dict = Field(default_factory=dict)
+
 class PolicyDraftRequest(BaseModel):
     title: str = ""
     content: str = ""
@@ -98,6 +105,8 @@ class RejectRequest(BaseModel):
 
 # ── Scheduler ─────────────────────────────────────────────────────────────────
 scheduler = AsyncIOScheduler()
+# Per-agent scheduler — initialised in lifespan, exposed for scheduler_routes.py
+_agent_scheduler: AsyncIOScheduler | None = None
 
 async def run_daily_scan():
     """Запускает полный pipeline всех агентов раз в сутки."""
@@ -140,8 +149,24 @@ async def lifespan(app: FastAPI):
     )
     scheduler.start()
     log.info("Scheduler started: daily scan at 03:00 UTC")
+
+    # ── Per-agent continuous monitoring scheduler ──────────────────────────
+    from scheduler import create_scheduler, reload_schedules as _reload_schedules
+    global _agent_scheduler
+    _agent_scheduler = create_scheduler()
+    _agent_scheduler.start()
+    await _reload_schedules(_agent_scheduler)
+    log.info("Agent scheduler started")
+
+    # Pre-warm framework metadata cache in background so /api/frameworks/all is fast
+    from framework_library import get_library as _get_lib
+    import asyncio as _asyncio
+    loop = _asyncio.get_event_loop()
+    loop.run_in_executor(None, _get_lib().prewarm_meta_cache)
+
     yield
     scheduler.shutdown()
+    _agent_scheduler.shutdown()
     # Cancel remaining background tasks
     for task in list(_background_tasks):
         task.cancel()
@@ -152,6 +177,7 @@ async def lifespan(app: FastAPI):
 
 # ── Application Initialization ────────────────────────────────────────────────
 app = FastAPI(title="SOC 2 Dashboard", lifespan=lifespan)
+app.add_middleware(GZipMiddleware, minimum_size=1024)
 _limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = _limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -274,6 +300,13 @@ from findings_routes import router as findings_router
 from sse_routes import router as sse_router
 from tenant_routes import router as tenant_router
 from llm_routes import router as llm_router
+from framework_library_routes import router as framework_library_router
+from crq_routes import router as crq_router
+from metrology_routes import router as metrology_router
+from bia_routes import router as bia_router
+from integration_routes import router as integration_router
+from person_asset_routes import router as person_asset_router
+from scheduler_routes import router as scheduler_router
 
 app.include_router(audit_package_router)
 app.include_router(access_review_router)
@@ -312,7 +345,14 @@ app.include_router(audit_log_router)
 app.include_router(findings_router)
 app.include_router(sse_router)
 app.include_router(tenant_router)
+app.include_router(framework_library_router)
 app.include_router(llm_router)
+app.include_router(crq_router)
+app.include_router(metrology_router)
+app.include_router(bia_router)
+app.include_router(integration_router)
+app.include_router(person_asset_router)
+app.include_router(scheduler_router)
 
 # ── Auth dependencies ──────────────────────────────────────────────────────────
 # require_auth, require_admin, require_auditor imported from auth.py (source of truth)
@@ -433,6 +473,38 @@ async def onboarding_page():
 async def ai_decisions_page():
     return (ROOT / "ui" / "ai_decisions.html").read_text(encoding="utf-8")
 
+@app.get("/frameworks", response_class=HTMLResponse)
+async def frameworks_page():
+    return (ROOT / "ui" / "frameworks.html").read_text(encoding="utf-8")
+
+@app.get("/metrology", response_class=HTMLResponse)
+async def metrology_page():
+    return (ROOT / "ui" / "metrology.html").read_text(encoding="utf-8")
+
+@app.get("/bia", response_class=HTMLResponse)
+async def bia_page():
+    return (ROOT / "ui" / "bia.html").read_text(encoding="utf-8")
+
+@app.get("/findings", response_class=HTMLResponse)
+async def findings_page():
+    return (ROOT / "ui" / "findings.html").read_text(encoding="utf-8")
+
+@app.get("/scans", response_class=HTMLResponse)
+async def scans_page():
+    return (ROOT / "ui" / "scans.html").read_text(encoding="utf-8")
+
+@app.get("/schedules", response_class=HTMLResponse)
+async def schedules_page(_: dict = Depends(require_auth)):
+    return (ROOT / "ui" / "schedules.html").read_text(encoding="utf-8")
+
+@app.get("/settings", response_class=HTMLResponse)
+async def settings_page():
+    return (ROOT / "ui" / "settings.html").read_text(encoding="utf-8")
+
+@app.get("/assets", response_class=HTMLResponse)
+async def assets_page():
+    return (ROOT / "ui" / "assets.html").read_text(encoding="utf-8")
+
 # ── Auth API ───────────────────────────────────────────────────────────────────
 @app.post("/api/auth/login")
 @_limiter.limit("5/minute")
@@ -480,33 +552,9 @@ async def get_controls(_: dict = Depends(require_auth)):
     from database import AsyncSessionLocal
     from control_mapping import CONTROL_MAPPINGS
 
-    controls: list = []
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{EVIDENCE_TRACKER}/api/v1/controls/?limit=100", headers=_tracker_headers)
-        data = r.json()
-        if isinstance(data, list):
-            controls = data
-        elif isinstance(data, dict):
-            controls = data.get("items", data.get("controls", []))
-    except Exception:
-        pass
-
-    if not controls:
-        controls = [
-            {
-                "id": m.soc2,
-                "code": m.soc2,
-                "title": m.description,
-                "description": m.description,
-                "framework": "SOC2",
-                "category": m.category,
-                "status": "UNKNOWN",
-            }
-            for m in CONTROL_MAPPINGS
-        ]
-
-    # Статусы из SQLite — агенты пишут сюда по SOC2-коду
+    # Читаем статусы напрямую из SQLite — источник истины (агенты пишут сюда).
+    # HTTP вызов к EVIDENCE_TRACKER убран: он указывал на localhost:8080 (себя),
+    # создавая deadlock на 30+ секунд.
     db_statuses: dict = {}
     try:
         async with AsyncSessionLocal() as session:
@@ -516,36 +564,159 @@ async def get_controls(_: dict = Depends(require_auth)):
     except Exception:
         pass
 
-    soc2_index: set = {m.soc2 for m in CONTROL_MAPPINGS}
-    soc2_by_description: dict = {m.description: m.soc2 for m in CONTROL_MAPPINGS}
+    return [
+        {
+            "id": m.soc2,
+            "code": m.soc2,
+            "title": m.description,
+            "description": m.description,
+            "framework": "SOC2",
+            "category": m.category,
+            "status": db_statuses.get(m.soc2, "UNKNOWN"),
+        }
+        for m in CONTROL_MAPPINGS
+    ]
 
-    for ctrl in controls:
-        code = ctrl.get("code") or ctrl.get("id", "")
-        if code not in soc2_index:
-            title = ctrl.get("title", "") or ctrl.get("description", "")
-            normalized = soc2_by_description.get(title, code)
-            if normalized in soc2_index:
-                ctrl["code"] = normalized
-                code = normalized
-        if code in db_statuses:
-            ctrl["status"] = db_statuses[code]
 
-    return controls
+async def _require_agent_or_user(
+    request: Request,
+    access_token: Optional[str] = Cookie(default=None),
+) -> dict:
+    """Принимает cookie-сессию ИЛИ X-API-Key заголовок (для агентов)."""
+    api_key = request.headers.get("X-API-Key", "")
+    if api_key and api_key == EVIDENCE_API_KEY:
+        return {"sub": "agent", "role": "scanner"}
+    # Fallback на стандартную cookie-аутентификацию
+    return require_auth(access_token)
+
+
+@app.get("/api/v1/controls/")
+async def get_controls_v1(_: dict = Depends(_require_agent_or_user)):
+    """Возвращает список контролей с текущими статусами из SQLite — используется агентами."""
+    from db_repository import ControlRepository
+    from database import AsyncSessionLocal
+    from control_mapping import CONTROL_MAPPINGS
+
+    async with AsyncSessionLocal() as session:
+        repo = ControlRepository(session)
+        statuses = await repo.list_all()
+
+    status_by_code = {s.control_id: s.status for s in statuses}
+
+    return [
+        {
+            "id": m.soc2,
+            "code": m.soc2,
+            "title": m.description,
+            "framework": "SOC2",
+            "category": m.category,
+            "status": status_by_code.get(m.soc2, "UNKNOWN"),
+        }
+        for m in CONTROL_MAPPINGS
+    ]
+
+
+@app.patch("/api/v1/controls/{control_id}/status")
+async def patch_control_status(
+    control_id: str, body: dict, _: dict = Depends(_require_agent_or_user)
+):
+    """Принимает UUID или SOC2-код контрола, обновляет статус в SQLite."""
+    from db_repository import ControlRepository
+    from database import AsyncSessionLocal
+
+    status = body.get("status", "UNKNOWN")
+
+    # Загружаем маппинг UUID → SOC2-код
+    _cmap_path = os.path.join(os.path.dirname(__file__), "controls_map.json")
+    _cmap: dict = {}
+    if os.path.exists(_cmap_path):
+        with open(_cmap_path) as _f:
+            _cmap = json.load(_f)
+    uuid_to_soc2: dict = {v: k for k, v in _cmap.items()}
+    soc2_code = uuid_to_soc2.get(control_id, control_id)  # fallback: используем as-is
+
+    async with AsyncSessionLocal() as session:
+        repo = ControlRepository(session)
+        await repo.update_status(soc2_code, status, updated_by="agent")
+        await session.commit()
+
+    return {"control_id": soc2_code, "status": status, "ok": True}
+
+
+@app.post("/api/v1/evidence/")
+async def post_evidence(body: dict, _: dict = Depends(_require_agent_or_user)):
+    """Принимает evidence от агентов (scanner, hr_agent, etc.) и сохраняет в SQLite."""
+    from db_repository import EvidenceRepository
+    from database import AsyncSessionLocal
+
+    control_id = body.get("control_id", "")
+    title = body.get("title", "")[:490]
+    content = body.get("content", "")[:99_000]
+    source = body.get("source", "MANUAL")
+
+    # Resolve UUID → SOC2 code so evidence matches controls in the dashboard
+    _cmap_path = os.path.join(os.path.dirname(__file__), "controls_map.json")
+    if os.path.exists(_cmap_path):
+        with open(_cmap_path) as _f:
+            _cmap = json.load(_f)
+        uuid_to_soc2 = {v: k for k, v in _cmap.items()}
+        control_id = uuid_to_soc2.get(control_id, control_id)
+
+    async with AsyncSessionLocal() as session:
+        repo = EvidenceRepository(session)
+        ev = await repo.create(
+            control_id=control_id,
+            title=title,
+            content=content,
+            source=source,
+        )
+        await session.commit()
+        await session.refresh(ev)
+
+    return {
+        "id": ev.id,
+        "control_id": ev.control_id,
+        "title": ev.title,
+        "source": ev.source,
+        "created_at": ev.created_at.isoformat() if ev.created_at else None,
+        "ok": True,
+    }
+
+
+@app.get("/api/v1/evidence/")
+async def get_evidence_v1(
+    control_id: str = "",
+    limit: int = 100,
+    _: dict = Depends(_require_agent_or_user),
+):
+    """List evidence — called by agents or the UI."""
+    from db_repository import EvidenceRepository
+    from database import AsyncSessionLocal
+
+    async with AsyncSessionLocal() as session:
+        repo = EvidenceRepository(session)
+        if control_id:
+            items = await repo.list_by_control(control_id, limit=limit)
+        else:
+            items = await repo.list_all(limit=limit)
+    return [
+        {
+            "id": ev.id,
+            "control_id": ev.control_id,
+            "title": ev.title,
+            "source": ev.source,
+            "content": ev.content,
+            "confidence_score": ev.confidence_score,
+            "created_at": ev.created_at.isoformat() if ev.created_at else None,
+        }
+        for ev in items
+    ]
+
 
 @app.get("/api/evidence")
 async def get_evidence(control_id: str = "", limit: int = 100, _: dict = Depends(require_auth)):
-    try:
-        url = f"{EVIDENCE_TRACKER}/api/v1/evidence/?limit={limit}"
-        if control_id:
-            url += f"&control_id={control_id}"
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(url, headers=_tracker_headers)
-            data = r.json()
-            if isinstance(data, list):
-                return data
-    except Exception:
-        pass
-    # Fallback: read from local SQLite DB
+    # Читаем напрямую из SQLite — HTTP вызов к EVIDENCE_TRACKER убран
+    # (он указывал на localhost:8080, создавая лишний round-trip к себе).
     from db_repository import EvidenceRepository
     from database import AsyncSessionLocal
     async with AsyncSessionLocal() as session:
@@ -560,6 +731,7 @@ async def get_evidence(control_id: str = "", limit: int = 100, _: dict = Depends
                 "control_id": ev.control_id,
                 "title": ev.title,
                 "source": ev.source,
+                "content": ev.content,
                 "confidence_score": ev.confidence_score,
                 "created_at": ev.created_at.isoformat() if ev.created_at else None,
             }
@@ -633,7 +805,7 @@ async def run_agent(agent_name: str, payload: dict = Depends(require_scanner)):
     async def stream():
         yield f"data: {json.dumps({'type': 'start', 'agent': agent['label']})}\n\n"
         try:
-            agent_env = {**os.environ, "DATABASE_URL": os.environ.get("DATABASE_URL", f"sqlite+aiosqlite:///{ROOT}/compliance.db")}
+            agent_env = {**os.environ, "DATABASE_URL": os.environ.get("DATABASE_URL", f"sqlite+aiosqlite:///{ROOT}/compliance.db"), "PYTHONUNBUFFERED": "1"}
             proc = await asyncio.create_subprocess_exec(*agent["cmd"], stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=str(ROOT), env=agent_env)
             async for raw in proc.stdout:
                 text = raw.decode("utf-8", errors="replace").rstrip()
@@ -646,6 +818,41 @@ async def run_agent(agent_name: str, payload: dict = Depends(require_scanner)):
         except Exception as ex:
             yield f"data: {json.dumps({'type': 'error', 'text': str(ex)})}\n\n"
     return StreamingResponse(stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+_RUN_ENV_ALLOWLIST = {
+    "AWS_ENDPOINT_URL", "AWS_REGION", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY",
+    "OKTA_DOMAIN", "OKTA_API_TOKEN", "GITHUB_TOKEN", "GITHUB_REPO", "GITHUB_ORG",
+    "OLLAMA_BASE_URL", "OLLAMA_MODEL",
+}
+
+@app.post("/api/run/{agent_name}")
+async def run_agent_post(agent_name: str, body: RunAgentBody, payload: dict = Depends(require_scanner)):
+    if agent_name not in AGENTS:
+        raise HTTPException(404, f"Agent '{agent_name}' not found")
+    agent = AGENTS[agent_name]
+    extra_env = {k: v for k, v in body.env.items() if k in _RUN_ENV_ALLOWLIST and v}
+    async def stream():
+        yield f"data: {json.dumps({'type': 'start', 'agent': agent['label']})}\n\n"
+        try:
+            agent_env = {**os.environ,
+                         "DATABASE_URL": os.environ.get("DATABASE_URL", f"sqlite+aiosqlite:///{ROOT}/compliance.db"),
+                         "PYTHONUNBUFFERED": "1",
+                         **extra_env}
+            proc = await asyncio.create_subprocess_exec(
+                *agent["cmd"],
+                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+                cwd=str(ROOT), env=agent_env
+            )
+            async for raw in proc.stdout:
+                text = raw.decode("utf-8", errors="replace").rstrip()
+                if text:
+                    yield f"data: {json.dumps({'type': 'line', 'text': text})}\n\n"
+            await proc.wait()
+            yield f"data: {json.dumps({'type': 'done', 'code': proc.returncode})}\n\n"
+        except Exception as ex:
+            yield f"data: {json.dumps({'type': 'error', 'text': str(ex)})}\n\n"
+    return StreamingResponse(stream(), media_type="text/event-stream",
+                             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 # ── SSE Endpoints ──────────────────────────────────────────────────────────────
 @app.get("/api/events/stream")

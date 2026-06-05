@@ -17,7 +17,7 @@ AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY", "test")
 AWS_DEFAULT_REGION    = os.getenv("AWS_DEFAULT_REGION", "us-east-1")
 LOCALSTACK_ENDPOINT   = os.getenv("LOCALSTACK_ENDPOINT", "http://localhost:4566")
 AWS_USE_LOCALSTACK    = os.getenv("AWS_USE_LOCALSTACK", "true").lower() == "true"
-EVIDENCE_TRACKER_URL  = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL  = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 def get_boto3_client(service):
     kwargs = {
@@ -86,7 +86,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="OKTA"
                     )
-                    evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.okta_user_mfa", producer="scanner")
                     print(f"[FAIL] CC6.1 — Okta user '{login}' has no active MFA factors")
                 else:
                     print(f"[PASS] CC6.1 — Okta user '{login}' has MFA ({len(active_factors)} factor(s))")
@@ -119,7 +119,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="OKTA"
                     )
-                    evidence_client.update_control_status(controls_map["CC6.3"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.3"], "FAIL", test_key="scanner.cc6_3.okta_privileged_role", producer="scanner")
                     print(f"[FAIL] CC6.3 — Okta user '{login}' has privileged role: {[r.get('type') for r in privileged]}")
 
             print("Scanning Okta inactive users (CC6.2)...")
@@ -143,7 +143,7 @@ def main(controls_map: dict | None = None):
                     content=content,
                     source="OKTA"
                 )
-                evidence_client.update_control_status(controls_map["CC6.2"], "FAIL")
+                evidence_client.submit_test_result(controls_map["CC6.2"], "FAIL", test_key="scanner.cc6_2.okta_staged_user", producer="scanner")
                 print(f"[FAIL] CC6.2 — Okta user '{login}' is STAGED (not authorized)")
         # Okta password policy (Vanta check — CC6.1)
         print("Scanning Okta password policy (CC6.1)...")
@@ -177,7 +177,7 @@ def main(controls_map: dict | None = None):
                         content=json.dumps({"finding": f"Okta password policy weak: {issues}", "control": "CC6.1", "severity": "HIGH"}),
                         source="OKTA",
                     )
-                    evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.okta_password_policy", producer="scanner")
                     print(f"[FAIL] CC6.1 — Okta password policy: {issues}")
                 else:
                     print(f"[PASS] CC6.1 — Okta password policy OK (minLen={min_len})")
@@ -217,7 +217,7 @@ def main(controls_map: dict | None = None):
                     content=content,
                     source="AWS_CLI"
                 )
-                evidence_client.update_control_status(controls_map[code], "FAIL")
+                evidence_client.submit_test_result(controls_map[code], "FAIL", test_key=f"scanner.{code.lower().replace('.', '_')}.s3_public_bucket", producer="scanner")
             print(f"[FAIL] S3 bucket '{bucket_name}' is PUBLIC (CC6.1, CC6.3, CC6.7)")
         else:
             print(f"[PASS] S3 bucket '{bucket_name}' is private")
@@ -230,7 +230,7 @@ def main(controls_map: dict | None = None):
             content=json.dumps({"finding": "No public S3 buckets found", "control": "CC6.7"}),
             source="AWS_CLI",
         )
-        evidence_client.update_control_status(controls_map["CC6.7"], "PASS")
+        evidence_client.submit_test_result(controls_map["CC6.7"], "PASS", test_key="scanner.cc6_7.s3_no_public_buckets", producer="scanner")
         results["CC6.7"] = "PASS"
         print("[PASS] CC6.7 — No public S3 buckets")
 
@@ -269,7 +269,7 @@ def main(controls_map: dict | None = None):
                 content=content,
                 source="AWS_CLI"
             )
-            evidence_client.update_control_status(controls_map["CC6.7"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.7"], "FAIL", test_key="scanner.cc6_7.dynamodb_encryption_disabled", producer="scanner")
             print(f"[FAIL] CC6.7 — DynamoDB table '{table_name}': SSE={sse_status} (no encryption)")
         else:
             sse_type = sse.get("SSEType", "?")
@@ -286,7 +286,7 @@ def main(controls_map: dict | None = None):
             results["CC6.1"] = "FAIL"
             content = json.dumps({"user": user_name, "finding": "MFA not enabled", "control": "CC6.1", "severity": "HIGH"})
             evidence_client.create_evidence(control_id=controls_map["CC6.1"], title=f"No MFA: {user_name}", content=content, source="AWS_CLI")
-            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.iam_user_no_mfa", producer="scanner")
             print(f"[FAIL] CC6.1 — IAM user '{user_name}' has no MFA")
 
         policies = iam.list_attached_user_policies(UserName=user_name).get("AttachedPolicies", [])
@@ -296,7 +296,7 @@ def main(controls_map: dict | None = None):
                 results["CC6.3"] = "FAIL"
                 content = json.dumps({"user": user_name, "policy": policy["PolicyName"], "finding": "AdministratorAccess", "control": "CC6.3", "severity": "HIGH"})
                 evidence_client.create_evidence(control_id=controls_map["CC6.3"], title=f"Overprivileged IAM: {user_name}", content=content, source="AWS_CLI")
-                evidence_client.update_control_status(controls_map["CC6.3"], "FAIL")
+                evidence_client.submit_test_result(controls_map["CC6.3"], "FAIL", test_key="scanner.cc6_3.iam_user_admin_access", producer="scanner")
                 print(f"[FAIL] CC6.3 — IAM user '{user_name}' has AdministratorAccess")
 
         tags = iam.get_user(UserName=user_name).get("User", {}).get("Tags", [])
@@ -306,7 +306,7 @@ def main(controls_map: dict | None = None):
             results["CC6.2"] = "FAIL"
             content = json.dumps({"user": user_name, "finding": "Missing approved=true tag", "control": "CC6.2", "severity": "MEDIUM"})
             evidence_client.create_evidence(control_id=controls_map["CC6.2"], title=f"Unapproved IAM user: {user_name}", content=content, source="AWS_CLI")
-            evidence_client.update_control_status(controls_map["CC6.2"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.2"], "FAIL", test_key="scanner.cc6_2.iam_user_no_approved_tag", producer="scanner")
             print(f"[FAIL] CC6.2 — IAM user '{user_name}' has no approved tag")
 
     # Step 4b: Vanta-style дополнительные IAM-чеки (CC6.1)
@@ -324,7 +324,7 @@ def main(controls_map: dict | None = None):
                 content=json.dumps({"finding": "AWS root account has no MFA device", "control": "CC6.1", "severity": "CRITICAL"}),
                 source="AWS_CLI",
             )
-            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.iam_root_mfa_disabled", producer="scanner")
             print("[FAIL] CC6.1 — Root account MFA disabled (CRITICAL)")
         else:
             print("[PASS] CC6.1 — Root account MFA enabled")
@@ -354,7 +354,7 @@ def main(controls_map: dict | None = None):
                 content=json.dumps({"finding": f"Password policy issues: {issues}", "policy": pwd, "control": "CC6.1", "severity": "HIGH"}),
                 source="AWS_CLI",
             )
-            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.iam_password_policy_weak", producer="scanner")
             print(f"[FAIL] CC6.1 — IAM password policy weak: {issues}")
         else:
             print(f"[PASS] CC6.1 — IAM password policy meets requirements")
@@ -368,7 +368,7 @@ def main(controls_map: dict | None = None):
                 content=json.dumps({"finding": "No IAM password policy configured", "control": "CC6.1", "severity": "HIGH"}),
                 source="AWS_CLI",
             )
-            evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.iam_no_password_policy", producer="scanner")
             print("[FAIL] CC6.1 — No IAM password policy configured")
         else:
             log.warning("Password policy check skipped", extra={"error": str(e)})
@@ -393,7 +393,7 @@ def main(controls_map: dict | None = None):
                 content=json.dumps({"bucket": bname, "finding": "S3 bucket has no default encryption", "control": "CC6.7", "severity": "HIGH"}),
                 source="AWS_CLI",
             )
-            evidence_client.update_control_status(controls_map["CC6.7"], "FAIL")
+            evidence_client.submit_test_result(controls_map["CC6.7"], "FAIL", test_key="scanner.cc6_7.s3_no_server_side_encryption", producer="scanner")
             print(f"[FAIL] CC6.7 — S3 '{bname}' has no server-side encryption")
 
     # Step 5: CloudTrail (CC7.1, CC7.2)
@@ -416,13 +416,13 @@ def main(controls_map: dict | None = None):
         for code in ["CC7.1", "CC7.2"]:
             content = json.dumps({"finding": "No CloudTrail trails configured", "control": code, "severity": "HIGH"})
             evidence_client.create_evidence(control_id=controls_map[code], title=f"CloudTrail not configured ({code})", content=content, source="AWS_CLI")
-            evidence_client.update_control_status(controls_map[code], "FAIL")
+            evidence_client.submit_test_result(controls_map[code], "FAIL", test_key=f"scanner.{code.lower().replace('.', '_')}.cloudtrail_not_configured", producer="scanner")
         print("[FAIL] CC7.1/CC7.2 — No CloudTrail trails found")
     else:
         for code in ["CC7.1", "CC7.2"]:
             content = json.dumps({"finding": "CloudTrail logging active", "control": code, "trails": len(trails)})
             evidence_client.create_evidence(control_id=controls_map[code], title=f"CloudTrail configured ({code})", content=content, source="AWS_CLI")
-            evidence_client.update_control_status(controls_map[code], "PASS")
+            evidence_client.submit_test_result(controls_map[code], "PASS", test_key=f"scanner.{code.lower().replace('.', '_')}.cloudtrail_configured", producer="scanner")
         print(f"[PASS] CC7.1/CC7.2 — CloudTrail trails found: {len(trails)}")
 
     # Step 6a: EC2 Security Groups (CC6.6)
@@ -474,7 +474,7 @@ def main(controls_map: dict | None = None):
                     content=content,
                     source="AWS_CLI"
                 )
-                evidence_client.update_control_status(controls_map["CC6.6"], "FAIL")
+                evidence_client.submit_test_result(controls_map["CC6.6"], "FAIL", test_key="scanner.cc6_6.sg_all_traffic_open", producer="scanner")
                 print(f"[FAIL] CC6.6 — SG '{sg_name}': ALL traffic open to 0.0.0.0/0 (CRITICAL)")
                 continue
             
@@ -500,7 +500,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="AWS_CLI"
                     )
-                    evidence_client.update_control_status(controls_map["CC6.6"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.6"], "FAIL", test_key="scanner.cc6_6.sg_dangerous_port_open", producer="scanner")
                     print(f"[FAIL] CC6.6 — SG '{sg_name}': port {port}/{info['service']} open to 0.0.0.0/0 ({info['severity']})")
 
     if results.get("CC6.6") == "PASS":
@@ -542,7 +542,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="AWS_CLI"
                     )
-                    evidence_client.update_control_status(controls_map["CC6.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.1"], "FAIL", test_key="scanner.cc6_1.lambda_overprivileged_role", producer="scanner")
                     print(f"[FAIL] CC6.1 — Lambda '{name}': Role '{role_name}' has {policy['PolicyName']}")
         except botocore.exceptions.ClientError as e:
             log.warning("Could not audit Lambda role", extra={"lambda": name, "role": role_name, "error": str(e)})
@@ -571,7 +571,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="AWS_CLI"
                     )
-                    evidence_client.update_control_status(controls_map["CC6.7"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC6.7"], "FAIL", test_key="scanner.cc6_7.lambda_secret_in_env_var", producer="scanner")
                     print(f"[FAIL] CC6.7 — Lambda '{name}': Secret exposed in EnvVar '{key}'")
 
     # Step 7: GitHub (CC8.1, CC3.4)
@@ -600,7 +600,7 @@ def main(controls_map: dict | None = None):
                     content=content,
                     source="GITHUB"
                 )
-                evidence_client.update_control_status(controls_map["CC8.1"], "FAIL")
+                evidence_client.submit_test_result(controls_map["CC8.1"], "FAIL", test_key="scanner.cc8_1.github_no_branch_protection", producer="scanner")
                 print(f"[FAIL] CC8.1 — Branch 'main' has no protection rules")
             else:
                 # Check required reviews
@@ -621,7 +621,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="GITHUB"
                     )
-                    evidence_client.update_control_status(controls_map["CC8.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC8.1"], "FAIL", test_key="scanner.cc8_1.github_no_pr_reviews_required", producer="scanner")
                     print(f"[FAIL] CC8.1 — Branch 'main' does not require pull request reviews")
                 elif required_reviews.get("required_approving_review_count", 0) < 1:
                     findings_count += 1
@@ -639,7 +639,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="GITHUB"
                     )
-                    evidence_client.update_control_status(controls_map["CC8.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC8.1"], "FAIL", test_key="scanner.cc8_1.github_insufficient_approvals", producer="scanner")
                     print(f"[FAIL] CC8.1 — Branch 'main' requires 0 approvals")
 
                 # Check force push
@@ -659,7 +659,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="GITHUB"
                     )
-                    evidence_client.update_control_status(controls_map["CC8.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC8.1"], "FAIL", test_key="scanner.cc8_1.github_force_push_allowed", producer="scanner")
                     print(f"[FAIL] CC8.1 — Branch 'main' allows force pushes")
 
                 # Check enforce_admins
@@ -680,7 +680,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="GITHUB"
                     )
-                    evidence_client.update_control_status(controls_map["CC8.1"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC8.1"], "FAIL", test_key="scanner.cc8_1.github_no_enforce_admins", producer="scanner")
                     print(f"[FAIL] CC8.1 — Protection rules not enforced for admins")
 
             # Если ни одна проверка CC8.1 не дала FAIL — пишем PASS
@@ -696,7 +696,7 @@ def main(controls_map: dict | None = None):
                     }),
                     source="GITHUB",
                 )
-                evidence_client.update_control_status(controls_map["CC8.1"], "PASS")
+                evidence_client.submit_test_result(controls_map["CC8.1"], "PASS", test_key="scanner.cc8_1.github_branch_protection_ok", producer="scanner")
                 results["CC8.1"] = "PASS"
                 print(f"[PASS] CC8.1 — Branch protection configured correctly")
 
@@ -739,7 +739,7 @@ def main(controls_map: dict | None = None):
                         content=content,
                         source="GITHUB"
                     )
-                    evidence_client.update_control_status(controls_map["CC3.4"], "FAIL")
+                    evidence_client.submit_test_result(controls_map["CC3.4"], "FAIL", test_key="scanner.cc3_4.github_direct_commit_to_main", producer="scanner")
                     print(f"[FAIL] CC3.4 — Direct commit to main: {sha[:8]} by '{author}'")
             
             print(f"[INFO] GitHub: {GITHUB_REPO} scanned")

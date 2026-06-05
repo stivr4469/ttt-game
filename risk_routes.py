@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/risks", tags=["risk-register"])
 router_alias = APIRouter(prefix="/api/risk-register", tags=["risk-register"])
 _register = RiskRegister()
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 @router.get("")
 async def get_risks(

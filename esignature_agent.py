@@ -14,7 +14,7 @@ from constants import CONTROLS_MAP_FILE
 load_dotenv()
 log = get_logger(__name__)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 SIGNATURES_FILE = "policy_signatures.json"
 
 SIGNATURE_REQUIRED_CONTROLS = {
@@ -153,7 +153,7 @@ class ESignatureAgent:
                     source="MANUAL",
                 )
                 evidence_id = ev.get("id")
-                self._client.update_control_status(control_id, "PASS")
+                self._client.submit_test_result(control_id, "PASS", test_key=f"esignature.{control_code.lower().replace('.', '_')}.policy_signed", producer="esignature")
                 log.info(
                     "Signed policy evidence created",
                     extra={"envelope_id": envelope_id, "control": control_code, "evidence_id": evidence_id},

@@ -29,7 +29,7 @@ def _run_async(coro):
 
 log = get_logger(__name__)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 JIRA_PROJECT_KEY     = os.getenv("JIRA_PROJECT_KEY", "SEC")
 
 # When set (non-empty), load/save remediations from this JSON file instead of DB.

@@ -9,7 +9,7 @@ from log_config import get_logger
 
 log = get_logger(__name__)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 
 class SlackNotifier(BaseHTTPClient):

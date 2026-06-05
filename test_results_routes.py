@@ -14,13 +14,13 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from asserters import ASSERTERS
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
-from auth import require_auth, require_auditor
+from auth import require_agent_or_auth, require_auth, require_auditor
 from database import AsyncSessionLocal
 from db_repository import (
     ControlRepository,
@@ -104,7 +104,7 @@ async def _rollup_control(control_id: str, session) -> None:
 # ── POST /api/v1/test-results/batch ──────────────────────────────────────────
 
 @router.post("/test-results/batch")
-async def batch_submit(body: BatchRequest, payload: dict = Depends(require_auth)) -> dict:
+async def batch_submit(request: Request, body: BatchRequest, payload: dict = Depends(require_agent_or_auth)) -> dict:
     async with AsyncSessionLocal() as session:
         run_repo = TestRunRepository(session)
         tr_repo = TestResultRepository(session)
@@ -142,9 +142,31 @@ async def batch_submit(body: BatchRequest, payload: dict = Depends(require_auth)
         for item in body.results:
             td = td_map.get(item.test_key)
             if td is None:
-                log.warning("test_key not found in catalog: %s — skipping", item.test_key)
-                skipped += 1
-                continue
+                # Auto-register unknown test_key instead of skipping
+                td = TestDefinition(
+                    id=str(uuid.uuid4()),
+                    key=item.test_key,
+                    title=item.test_key,
+                    description=f"Auto-registered by {body.producer}",
+                    producer=body.producer,
+                    severity="MEDIUM",
+                    assertion_type="auto",
+                    enabled=True,
+                    frequency_minutes=1440,
+                )
+                session.add(td)
+                await session.flush()  # obtain td.id before referencing it
+                if "control_id" in item.details:
+                    session.add(TestControlMapping(
+                        id=str(uuid.uuid4()),
+                        test_id=td.id,
+                        control_id=item.details["control_id"],
+                    ))
+                    await session.flush()
+                # Eagerly load mappings to avoid lazy-load in async context
+                await session.refresh(td, attribute_names=["mappings"])
+                td_map[item.test_key] = td
+                log.info("Auto-registered test_key '%s' for producer '%s'", item.test_key, body.producer)
 
             try:
                 result = await tr_repo.insert_if_not_exists(
@@ -204,6 +226,59 @@ async def batch_submit(body: BatchRequest, payload: dict = Depends(require_auth)
             except Exception as e:
                 log.warning("Rollup failed for control %s: %s", ctrl_id, e)
 
+        # Cross-walk: evidence-reuse — link passing tests to equivalent controls,
+        # then derive their status via rollup (not direct PASS write).
+        # This way an equivalent control stays FAIL if it has its own failing tests.
+        from control_mapping import get_engine as _get_mapping_engine
+        _cm_engine = _get_mapping_engine()
+        propagated: set[str] = set()
+
+        for ctrl_id in affected_controls:
+            cs_row = (await session.execute(
+                select(ControlStatus).where(ControlStatus.control_id == ctrl_id)
+            )).scalar_one_or_none()
+            if cs_row is None or cs_row.status != "PASS":
+                continue
+            mapping = _cm_engine.get_mappings_for_control(ctrl_id)
+            if mapping is None:
+                continue
+            # Tests linked to this control — they are the evidence we reuse
+            tcm_rows = (await session.execute(
+                select(TestControlMapping).where(TestControlMapping.control_id == ctrl_id)
+            )).scalars().all()
+            test_ids = [t.test_id for t in tcm_rows]
+            if not test_ids:
+                continue
+            # Collect all equivalent control IDs across all mapped frameworks
+            equiv_ids: list[str] = []
+            for framework_ids in (
+                mapping.iso27001, mapping.nist_800_53, mapping.cis_v8,
+                mapping.gdpr, mapping.hipaa, mapping.pci_dss_v4,
+            ):
+                equiv_ids.extend(framework_ids)
+            for equiv_id in equiv_ids:
+                if equiv_id in affected_controls:
+                    continue  # already rolled up directly
+                try:
+                    # Reuse evidence: link each test to the equivalent control (idempotent)
+                    for test_id in test_ids:
+                        already = (await session.execute(
+                            select(TestControlMapping).where(
+                                TestControlMapping.test_id == test_id,
+                                TestControlMapping.control_id == equiv_id,
+                            )
+                        )).scalar_one_or_none()
+                        if already is None:
+                            session.add(TestControlMapping(
+                                test_id=test_id, control_id=equiv_id
+                            ))
+                    await session.flush()
+                    # Derive status from real test results — audit-defensible
+                    await _rollup_control(equiv_id, session)
+                    propagated.add(equiv_id)
+                except Exception as e:
+                    log.warning("Cross-walk evidence-reuse failed %s → %s: %s", ctrl_id, equiv_id, e)
+
         await session.commit()
 
     # Fire SSE + outgoing webhooks after commit (non-blocking)
@@ -236,6 +311,7 @@ async def batch_submit(body: BatchRequest, payload: dict = Depends(require_auth)
         "inserted": inserted,
         "skipped": skipped,
         "affected_controls": len(affected_controls),
+        "propagated_crosswalk": len(propagated),
     }
 
 

@@ -2,9 +2,10 @@
 LLM Router — выбирает провайдера по конфигурации.
 
 Порядок приоритета:
-1. ANTHROPIC_API_KEY → Claude (Anthropic)
-2. OPENAI_API_KEY → GPT (OpenAI) или OpenRouter-compatible
-3. OLLAMA_BASE_URL → Ollama (локальная LLM, self-hosted)
+1. GROQ_API_KEY → Groq (llama-3.1-8b-instant по умолчанию)
+2. ANTHROPIC_API_KEY → Claude (Anthropic)
+3. OPENAI_API_KEY → GPT (OpenAI) или OpenRouter-compatible
+4. OLLAMA_BASE_URL → Ollama (локальная LLM, self-hosted)
 """
 import os
 import logging
@@ -25,12 +26,35 @@ async def llm_chat(messages: list[dict], system: str = "", model: Optional[str] 
         if len(str(msg.get("content", ""))) > MAX_CONTENT_LEN:
             raise ValueError(f"Message content exceeds maximum length of {MAX_CONTENT_LEN} chars")
 
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if os.getenv("GROQ_API_KEY"):
+        return await _groq_chat(messages, system, model)
+    elif os.getenv("ANTHROPIC_API_KEY"):
         return await _anthropic_chat(messages, system, model)
     elif os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY"):
         return await _openai_chat(messages, system, model)
     else:
         return await _ollama_chat(messages, system, model)
+
+
+async def _groq_chat(messages: list[dict], system: str, model: Optional[str] = None) -> str:
+    try:
+        import openai
+        client = openai.AsyncOpenAI(
+            api_key=os.getenv("GROQ_API_KEY"),
+            base_url="https://api.groq.com/openai/v1",
+            timeout=30.0,
+        )
+        full_messages = ([{"role": "system", "content": system}] if system else []) + messages
+        resp = await client.chat.completions.create(
+            model=model or os.getenv("GROQ_MODEL", "llama-3.1-8b-instant"),
+            messages=full_messages,
+            max_tokens=1024,
+            temperature=0.3,
+        )
+        return resp.choices[0].message.content or ""
+    except Exception as exc:
+        log.error("Groq error: %s", exc, exc_info=True)
+        raise
 
 
 async def _anthropic_chat(messages: list[dict], system: str, model: Optional[str] = None) -> str:
@@ -88,7 +112,9 @@ async def _ollama_chat(messages: list[dict], system: str, model: Optional[str] =
 
 def get_active_provider() -> str:
     """Вернуть имя активного LLM-провайдера."""
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if os.getenv("GROQ_API_KEY"):
+        return "groq"
+    elif os.getenv("ANTHROPIC_API_KEY"):
         return "anthropic"
     elif os.getenv("OPENAI_API_KEY") or os.getenv("OPENROUTER_API_KEY"):
         return "openai"

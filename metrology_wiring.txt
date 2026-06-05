@@ -1,0 +1,8 @@
+Already wired into ui_server.py:
+
+    from metrology_routes import router as metrology_router
+    app.include_router(metrology_router)
+
+    @app.get("/metrology", response_class=HTMLResponse)
+    async def metrology_page():
+        return (ROOT / "ui" / "metrology.html").read_text(encoding="utf-8")

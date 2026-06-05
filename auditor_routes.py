@@ -2,27 +2,20 @@ import uuid
 import json
 import os
 from datetime import datetime, timezone
-from typing import Optional, List, Dict
+from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from auth import require_auditor
 from pydantic import BaseModel
 from log_config import get_logger
-from evidence_client import EvidenceClient
 from constants import CONTROLS_MAP_FILE
 from database import AsyncSessionLocal
 from models import AuditorComment as AuditorCommentModel
 from sqlalchemy import select
 
-# Re-use evidence tracker URL from environment
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
-
 log = get_logger(__name__)
 router = APIRouter(prefix="/api/auditor", tags=["auditor"])
 
 VALID_SEVERITIES = {"observation", "finding", "exception"}
-
-# Единственный экземпляр клиента для всего модуля
-_evidence_client = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="auditor")
 
 class AuditorComment(BaseModel):
     control_code: str      # "CC6.1"
@@ -44,70 +37,64 @@ def _comment_to_dict(c: AuditorCommentModel) -> dict:
 @router.get("/controls")
 async def get_auditor_controls():
     """Возвращает список контролей со статусом, кол-вом evidence и комментариев."""
-    # 1. Загрузить карту контролей
-    if not os.path.exists(CONTROLS_MAP_FILE):
-        raise HTTPException(status_code=500, detail="controls_map.json not found")
+    from control_mapping import CONTROL_MAPPINGS
+    from db_repository import ControlRepository, EvidenceRepository
 
-    with open(CONTROLS_MAP_FILE, "r") as f:
-        controls_map = json.load(f)
-
-    # 2. Получить текущие данные из Evidence Tracker
-    try:
-        et_controls = _evidence_client.get_controls()
-        et_evidence = _evidence_client.get_evidence(limit=1000)
-    except Exception as e:
-        log.warning("Auditor Portal: Evidence Tracker unavailable", extra={"error": str(e)})
-        et_controls = []
-        et_evidence = []
-
-    # Подсчитать evidence на контроль
-    ev_counts = {}
-    for ev in et_evidence:
-        cid = str(ev.get("control_id"))
-        ev_counts[cid] = ev_counts.get(cid, 0) + 1
-
-    # Мапа статусов
-    statuses = {str(c["id"]): c["status"] for c in et_controls}
-
-    # 3. Загрузить комментарии
-    comment_counts = {}
+    # Читаем напрямую из SQLite — убраны HTTP вызовы к EvidenceClient(localhost:8080).
     async with AsyncSessionLocal() as session:
+        ctrl_repo = ControlRepository(session)
+        ev_repo = EvidenceRepository(session)
+
+        all_statuses = await ctrl_repo.list_all()
+        statuses_by_code = {cs.control_id: cs.status for cs in all_statuses}
+
+        all_evidence = await ev_repo.list_all(limit=5000)
+        ev_counts: dict[str, int] = {}
+        for ev in all_evidence:
+            cid = ev.control_id or ""
+            ev_counts[cid] = ev_counts.get(cid, 0) + 1
+
+        comment_counts: dict[str, int] = {}
         result = await session.execute(select(AuditorCommentModel))
-        db_comments = result.scalars().all()
-    for c in db_comments:
-        comment_counts[c.control_code] = comment_counts.get(c.control_code, 0) + 1
+        for c in result.scalars().all():
+            comment_counts[c.control_code] = comment_counts.get(c.control_code, 0) + 1
 
-    # 4. Сформировать итоговый список
-    results = []
-    for code, cid in controls_map.items():
-        results.append({
-            "control_code": code,
-            "status": statuses.get(cid, "UNKNOWN"),
-            "evidence_count": ev_counts.get(cid, 0),
-            "comment_count": comment_counts.get(code, 0)
-        })
-
+    results = [
+        {
+            "control_code": m.soc2,
+            "status": statuses_by_code.get(m.soc2, "UNKNOWN"),
+            "evidence_count": ev_counts.get(m.soc2, 0),
+            "comment_count": comment_counts.get(m.soc2, 0),
+        }
+        for m in CONTROL_MAPPINGS
+    ]
     return sorted(results, key=lambda x: x["control_code"])
 
 @router.get("/controls/{control_code}/evidence")
 async def get_control_evidence(control_code: str):
     """Возвращает список evidence для конкретного контроля."""
-    if not os.path.exists(CONTROLS_MAP_FILE):
-        return {"evidence": [], "error": "Internal configuration error"}
-
-    with open(CONTROLS_MAP_FILE, "r") as f:
-        controls_map = json.load(f)
-
-    cid = controls_map.get(control_code)
-    if not cid:
-        raise HTTPException(status_code=404, detail="Control code unknown")
+    from db_repository import EvidenceRepository
 
     try:
-        evidence = _evidence_client.get_evidence(control_id=cid, limit=100)
+        async with AsyncSessionLocal() as session:
+            repo = EvidenceRepository(session)
+            items = await repo.list_by_control(control_code, limit=100)
+        evidence = [
+            {
+                "id": ev.id,
+                "control_id": ev.control_id,
+                "title": ev.title,
+                "source": ev.source,
+                "content": ev.content,
+                "confidence_score": ev.confidence_score,
+                "created_at": ev.created_at.isoformat() if ev.created_at else None,
+            }
+            for ev in items
+        ]
         return {"evidence": evidence}
     except Exception as e:
         log.error("Auditor Portal: Failed to fetch evidence", extra={"control_code": control_code, "error": str(e)})
-        return {"evidence": [], "error": "Evidence Tracker unavailable"}
+        return {"evidence": [], "error": "Database error"}
 
 @router.post("/comments")
 async def add_comment(comment: AuditorComment, _: dict = Depends(require_auditor)):

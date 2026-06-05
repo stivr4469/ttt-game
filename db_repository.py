@@ -856,7 +856,7 @@ class TestResultRepository:
             evaluated_at=now,
             evidence_id=evidence_id,
             details=details or {},
-        ).on_conflict_do_nothing(constraint="uq_result_run")
+        ).on_conflict_do_nothing()
         await self._session.execute(stmt)
         result = await self._session.execute(
             select(TestResult).where(

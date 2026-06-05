@@ -1,851 +1,456 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Audit Timeline — Compliance Sandbox</title>
-<style>
-  :root {
-    --bg:       #080d1a;
-    --s1:       #0d1426;
-    --s2:       #111b2e;
-    --s3:       #162035;
-    --border:   #1e2d4a;
-    --text:     #e2e8f0;
-    --muted:    #64748b;
-    --accent:   #3b82f6;
-    --accent2:  #60a5fa;
-    --pass:     #22c55e;
-    --fail:     #ef4444;
-    --warn:     #f59e0b;
-    --teal:     #00d4aa;
-    --header-h: 56px;
-  }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: var(--bg); color: var(--text); font-family: 'Inter', system-ui, sans-serif; font-size: 14px; min-height: 100vh; }
-
-  /* ── Шапка ── */
-  header {
-    height: var(--header-h); display: flex; align-items: center; gap: 12px;
-    padding: 0 20px; background: var(--s1); border-bottom: 1px solid var(--border);
-    position: sticky; top: 0; z-index: 100;
-  }
-  header h1 { font-size: 15px; font-weight: 700; flex: 1; display: flex; align-items: center; gap: 10px; }
-  .btn-back { color: var(--muted); text-decoration: none; font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; }
-  .btn-back:hover { background: var(--s2); color: var(--text); }
-  .user-info { font-size: 12px; color: var(--muted); background: var(--s2); padding: 4px 12px; border-radius: 20px; }
-
-  /* ── Горизонтальная навигация ── */
-  .top-nav {
-    display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
-    scrollbar-width: none; margin-left: 12px;
-  }
-  .top-nav::-webkit-scrollbar { display: none; }
-  .top-nav a {
-    display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
-    color: var(--muted); text-decoration: none; border-radius: 6px;
-    font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
-  }
-  .top-nav a:hover { background: var(--s2); color: var(--text); }
-  .top-nav a.active { background: rgba(0,212,170,.12); color: var(--teal); }
-  .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
-
-  main { max-width: 900px; margin: 0 auto; padding: 30px 20px; }
-
-  /* ── Wizard ── */
-  #wizard { display: none; }
-  #wizard.visible { display: block; }
-
-  .wizard-card {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 16px;
-    padding: 36px 40px; max-width: 640px; margin: 0 auto;
-  }
-  .wizard-title { font-size: 22px; font-weight: 700; margin-bottom: 8px; }
-  .wizard-subtitle { color: var(--muted); font-size: 13px; margin-bottom: 32px; }
-
-  /* Шаги прогресса */
-  .wizard-steps { display: flex; align-items: center; gap: 0; margin-bottom: 36px; }
-  .wstep {
-    display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted);
-    flex: 1;
-  }
-  .wstep .num {
-    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--border);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 11px; font-weight: 700; flex-shrink: 0; transition: all .2s;
-  }
-  .wstep.active .num { border-color: var(--teal); color: var(--teal); background: rgba(0,212,170,.1); }
-  .wstep.done .num { border-color: var(--pass); background: var(--pass); color: #000; }
-  .wstep-line { flex: 1; height: 1px; background: var(--border); margin: 0 4px; }
-
-  /* Содержимое шагов */
-  .wstep-content { display: none; }
-  .wstep-content.active { display: block; }
-
-  .field-label { font-size: 18px; font-weight: 600; margin-bottom: 20px; }
-  .field-hint { font-size: 12px; color: var(--muted); margin-top: 6px; }
-
-  .date-input {
-    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 10px;
-    padding: 12px 16px; color: var(--text); font-size: 15px; outline: none;
-    transition: border-color .15s;
-  }
-  .date-input:focus { border-color: var(--teal); }
-
-  /* Выбор фреймворка */
-  .framework-options { display: flex; flex-direction: column; gap: 12px; }
-  .fw-option {
-    background: var(--s2); border: 2px solid var(--border); border-radius: 12px;
-    padding: 18px 20px; cursor: pointer; transition: all .15s;
-  }
-  .fw-option:hover { border-color: var(--accent); }
-  .fw-option.selected { border-color: var(--teal); background: rgba(0,212,170,.05); }
-  .fw-option .fw-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-  .fw-option .fw-desc { font-size: 12px; color: var(--muted); }
-
-  /* Выбор систем */
-  .systems-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .sys-option {
-    background: var(--s2); border: 2px solid var(--border); border-radius: 10px;
-    padding: 14px 16px; cursor: pointer; transition: all .15s;
-  }
-  .sys-option:hover { border-color: var(--accent); }
-  .sys-option.selected { border-color: var(--teal); background: rgba(0,212,170,.05); }
-  .sys-option .sys-name { font-size: 13px; font-weight: 600; margin-bottom: 3px; }
-  .sys-option .sys-desc { font-size: 11px; color: var(--muted); }
-  .sys-check { float: right; color: var(--teal); display: none; }
-  .sys-option.selected .sys-check { display: block; }
-
-  /* Подтверждение */
-  .confirm-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-  .confirm-row:last-child { border-bottom: none; }
-  .confirm-val { color: var(--teal); font-weight: 600; }
-
-  /* Кнопки wizard */
-  .wizard-actions { display: flex; gap: 12px; margin-top: 28px; justify-content: flex-end; }
-  .btn {
-    padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer;
-    border: none; transition: all .15s;
-  }
-  .btn-primary { background: var(--teal); color: #000; }
-  .btn-primary:hover { background: #00bfa0; }
-  .btn-primary:disabled { background: var(--muted); color: var(--s1); cursor: not-allowed; }
-  .btn-secondary { background: var(--s2); color: var(--text); border: 1px solid var(--border); }
-  .btn-secondary:hover { border-color: var(--accent); }
-
-  /* ── Dashboard ── */
-  #dashboard { display: none; }
-  #dashboard.visible { display: block; }
-
-  /* Счётчик дней */
-  .countdown-banner {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 16px;
-    padding: 24px 28px; margin-bottom: 24px;
-    display: flex; align-items: center; gap: 24px; flex-wrap: wrap;
-  }
-  .countdown-days { font-size: 52px; font-weight: 800; line-height: 1; color: var(--teal); }
-  .countdown-label { font-size: 13px; color: var(--muted); margin-top: 4px; }
-  .countdown-info { flex: 1; min-width: 180px; }
-  .countdown-date { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
-
-  /* Risk badge */
-  .risk-badge {
-    padding: 8px 18px; border-radius: 20px; font-size: 13px; font-weight: 700;
-    display: inline-flex; align-items: center; gap: 8px;
-  }
-  .risk-badge.green { background: rgba(34,197,94,.15); color: var(--pass); border: 1px solid rgba(34,197,94,.3); }
-  .risk-badge.yellow { background: rgba(245,158,11,.15); color: var(--warn); border: 1px solid rgba(245,158,11,.3); }
-  .risk-badge.red { background: rgba(239,68,68,.15); color: var(--fail); border: 1px solid rgba(239,68,68,.3); }
-
-  /* Прогресс */
-  .progress-section { margin-top: 16px; width: 100%; }
-  .progress-header { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-  .progress-bar-wrap { background: var(--s3); border-radius: 6px; height: 8px; overflow: hidden; }
-  .progress-bar-fill { height: 100%; background: var(--teal); border-radius: 6px; transition: width .5s; }
-
-  /* Кнопка создать новый */
-  .new-btn {
-    margin-left: auto; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 7px 14px; color: var(--muted); font-size: 12px; cursor: pointer;
-  }
-  .new-btn:hover { border-color: var(--teal); color: var(--teal); }
-
-  /* ── Вертикальный Timeline ── */
-  .timeline-section { margin-top: 28px; }
-  .timeline-section h2 { font-size: 14px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .8px; margin-bottom: 20px; }
-
-  .timeline-list { position: relative; padding-left: 32px; }
-  .timeline-list::before {
-    content: ''; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px;
-    background: var(--border);
-  }
-
-  .ms-item {
-    position: relative; margin-bottom: 16px;
-  }
-  .ms-item::before {
-    content: ''; position: absolute; left: -28px; top: 18px;
-    width: 14px; height: 14px; border-radius: 50%;
-    background: var(--s3); border: 2px solid var(--border);
-    transition: all .2s;
-  }
-  .ms-item.completed::before { background: var(--pass); border-color: var(--pass); }
-  .ms-item.in_progress::before { background: var(--teal); border-color: var(--teal); box-shadow: 0 0 8px var(--teal); }
-  .ms-item.blocked::before { background: var(--fail); border-color: var(--fail); }
-  .ms-item.overdue::before { background: var(--warn); border-color: var(--warn); }
-
-  .ms-card {
-    background: var(--s1); border: 1px solid var(--border); border-radius: 12px;
-    padding: 16px 18px; transition: border-color .15s;
-  }
-  .ms-item.in_progress .ms-card { border-color: var(--teal); background: rgba(0,212,170,.03); }
-  .ms-item.completed .ms-card { opacity: 0.7; }
-
-  .ms-top { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
-  .ms-name { font-size: 14px; font-weight: 600; flex: 1; }
-  .ms-date { font-size: 11px; color: var(--muted); flex-shrink: 0; margin-top: 2px; }
-
-  .ms-meta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .ms-owner { font-size: 11px; color: var(--muted); background: var(--s3); border-radius: 4px; padding: 2px 8px; }
-  .ms-desc { font-size: 12px; color: var(--muted); }
-
-  .ms-status-badge {
-    font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px;
-    text-transform: uppercase; letter-spacing: .5px;
-  }
-  .ms-status-badge.not_started { background: rgba(100,116,139,.15); color: var(--muted); }
-  .ms-status-badge.in_progress  { background: rgba(0,212,170,.15); color: var(--teal); }
-  .ms-status-badge.completed    { background: rgba(34,197,94,.15); color: var(--pass); }
-  .ms-status-badge.blocked      { background: rgba(239,68,68,.15); color: var(--fail); }
-
-  /* Детальная панель milestone */
-  .ms-detail { display: none; margin-top: 12px; border-top: 1px solid var(--border); padding-top: 12px; }
-  .ms-detail.open { display: block; }
-
-  .ms-notes-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; }
-  .ms-notes-input {
-    width: 100%; background: var(--s2); border: 1px solid var(--border); border-radius: 8px;
-    padding: 8px 12px; color: var(--text); font-size: 12px; resize: vertical;
-    min-height: 60px; outline: none; font-family: inherit;
-  }
-  .ms-notes-input:focus { border-color: var(--teal); }
-
-  .ms-actions { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
-  .ms-btn {
-    padding: 5px 14px; border-radius: 6px; font-size: 11px; font-weight: 600; cursor: pointer;
-    border: 1px solid var(--border); background: var(--s2); color: var(--muted);
-    transition: all .15s;
-  }
-  .ms-btn:hover { background: var(--s3); }
-  .ms-btn.complete { border-color: var(--pass); color: var(--pass); }
-  .ms-btn.complete:hover { background: rgba(34,197,94,.1); }
-  .ms-btn.block { border-color: var(--fail); color: var(--fail); }
-  .ms-btn.block:hover { background: rgba(239,68,68,.1); }
-  .ms-btn.progress { border-color: var(--teal); color: var(--teal); }
-  .ms-btn.progress:hover { background: rgba(0,212,170,.1); }
-  .ms-btn.reset { border-color: var(--muted); }
-  .ms-btn.save { border-color: var(--accent); color: var(--accent2); }
-  .ms-btn.save:hover { background: rgba(59,130,246,.1); }
-
-  /* Кнопка раскрытия */
-  .ms-expand-btn { cursor: pointer; margin-left: auto; color: var(--muted); font-size: 13px; padding: 2px 6px; }
-  .ms-expand-btn:hover { color: var(--text); }
-
-  /* Overdue alert */
-  .overdue-alert {
-    background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: 10px;
-    padding: 12px 16px; margin-bottom: 20px; font-size: 13px; color: var(--fail);
-  }
-
-  /* Loader и ошибки */
-  #loader { text-align: center; padding: 60px 20px; color: var(--muted); }
-  #error-msg { background: rgba(239,68,68,.1); border: 1px solid rgba(239,68,68,.3); border-radius: 10px; padding: 16px; margin: 20px 0; color: var(--fail); display: none; }
-
-  /* Toast */
-  #toast {
-    position: fixed; bottom: 24px; right: 24px; background: var(--s1);
-    border: 1px solid var(--border); border-radius: 10px; padding: 12px 20px;
-    font-size: 13px; z-index: 999; opacity: 0; transition: opacity .3s;
-    pointer-events: none; max-width: 300px;
-  }
-  #toast.show { opacity: 1; }
-  #toast.ok { border-color: var(--pass); color: var(--pass); }
-  #toast.err { border-color: var(--fail); color: var(--fail); }
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
 </style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
-
-<header>
-  <h1>📅 Audit Timeline &amp; Readiness</h1>
-  <!-- Горизонтальная навигация по разделам платформы -->
-  <nav class="top-nav" id="topNav">
-    <a href="/">📊 Dashboard</a>
-    <span class="nav-sep"></span>
-    <a href="/training">🎓 Training</a>
-    <a href="/background-checks">👤 BG Checks</a>
-    <span class="nav-sep"></span>
-    <a href="/vulnerabilities">🔒 Vulns</a>
-    <a href="/pentests">🔍 Pen Tests</a>
-    <a href="/risk-register">⚠️ Risk</a>
-    <span class="nav-sep"></span>
-    <a href="/audit-timeline" class="active">📅 Timeline</a>
-    <a href="/questionnaires">📋 Questionnaires</a>
-    <span class="nav-sep"></span>
-    <a href="/access-review">👥 Access Review</a>
-    <a href="/auditor-portal">🔎 Auditor</a>
-    <span class="nav-sep"></span>
-    <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
+<aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+  <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+    </div>
+</div>
+  <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>Dashboard</a>
+    <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>Frameworks</a>
+    <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Risk Register</a>
+    <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>Vulnerabilities</a>
+    <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Pentests</a>
+    <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Access Review</a>
+    <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>BG Checks</a>
+    <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>Training</a>
+    <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Questionnaires</a>
+    <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>Tests</a>
+    <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Audit Timeline</a>
+    <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Time Machine</a>
+    <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>Onboarding</a>
+    <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>AI Decisions</a>
+    <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Trust Center</a>
+    <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>Auditor Portal</a>
+    <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
   </nav>
-  <span class="user-info" id="user-badge">—</span>
-</header>
-
-<main>
-  <div id="loader">Загружаем данные...</div>
-  <div id="error-msg"></div>
-
-  <!-- ══════════════ WIZARD ══════════════ -->
-  <div id="wizard">
-    <div class="wizard-card">
-      <div class="wizard-title">Настройка Audit Timeline</div>
-      <div class="wizard-subtitle">Заполните 4 шага чтобы создать временную шкалу подготовки к аудиту</div>
-
-      <!-- Индикатор шагов -->
-      <div class="wizard-steps">
-        <div class="wstep active" id="ws1">
-          <div class="num">1</div>
-          <span>Дата</span>
-        </div>
-        <div class="wstep-line"></div>
-        <div class="wstep" id="ws2">
-          <div class="num">2</div>
-          <span>Фреймворк</span>
-        </div>
-        <div class="wstep-line"></div>
-        <div class="wstep" id="ws3">
-          <div class="num">3</div>
-          <span>Системы</span>
-        </div>
-        <div class="wstep-line"></div>
-        <div class="wstep" id="ws4">
-          <div class="num">4</div>
-          <span>Подтверждение</span>
-        </div>
-      </div>
-
-      <!-- Шаг 1: Дата аудита -->
-      <div class="wstep-content active" id="step1">
-        <div class="field-label">Когда запланирован аудит?</div>
-        <input type="date" class="date-input" id="auditDateInput">
-        <div class="field-hint">Укажите дату начала работы внешних аудиторов</div>
-        <div class="wizard-actions">
-          <button class="btn btn-primary" id="step1Next">Далее →</button>
-        </div>
-      </div>
-
-      <!-- Шаг 2: Фреймворк -->
-      <div class="wstep-content" id="step2">
-        <div class="field-label">Выберите тип аудита</div>
-        <div class="framework-options">
-          <div class="fw-option selected" data-fw="soc2_type2">
-            <div class="fw-name">SOC2 Type II</div>
-            <div class="fw-desc">Оценка эффективности контролей за период (обычно 6-12 месяцев). Требует ~16 недель подготовки.</div>
-          </div>
-          <div class="fw-option" data-fw="soc2_type1">
-            <div class="fw-name">SOC2 Type I</div>
-            <div class="fw-desc">Оценка наличия и дизайна контролей на конкретную дату. Требует ~8 недель подготовки.</div>
-          </div>
-        </div>
-        <div class="wizard-actions">
-          <button class="btn btn-secondary" id="step2Back">← Назад</button>
-          <button class="btn btn-primary" id="step2Next">Далее →</button>
-        </div>
-      </div>
-
-      <!-- Шаг 3: Системы в области -->
-      <div class="wstep-content" id="step3">
-        <div class="field-label">Выберите системы в области аудита</div>
-        <div class="systems-grid" id="systemsGrid">
-          <!-- Заполняется из API /api/audit-timeline/wizard/systems -->
-        </div>
-        <div class="field-hint" style="margin-top: 12px;">Выбрано систем: <span id="selectedCount">0</span></div>
-        <div class="wizard-actions">
-          <button class="btn btn-secondary" id="step3Back">← Назад</button>
-          <button class="btn btn-primary" id="step3Next">Далее →</button>
-        </div>
-      </div>
-
-      <!-- Шаг 4: Подтверждение -->
-      <div class="wstep-content" id="step4">
-        <div class="field-label">Подтвердите настройки</div>
-        <div id="confirmDetails">
-          <div class="confirm-row"><span>Дата аудита</span><span class="confirm-val" id="cDate">—</span></div>
-          <div class="confirm-row"><span>Фреймворк</span><span class="confirm-val" id="cFramework">—</span></div>
-          <div class="confirm-row"><span>Систем в области</span><span class="confirm-val" id="cSystems">—</span></div>
-          <div class="confirm-row"><span>Контролей в области</span><span class="confirm-val" id="cControls">—</span></div>
-          <div class="confirm-row"><span>Milestone-ов</span><span class="confirm-val" id="cMilestones">—</span></div>
-        </div>
-        <div class="wizard-actions">
-          <button class="btn btn-secondary" id="step4Back">← Назад</button>
-          <button class="btn btn-primary" id="createBtn">Создать Timeline</button>
-        </div>
-      </div>
+  <div class="p-3 border-t border-zinc-800 shrink-0">
+    <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+      <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+      <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+      <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
     </div>
   </div>
+</aside>
 
-  <!-- ══════════════ DASHBOARD ══════════════ -->
-  <div id="dashboard">
-
-    <!-- Счётчик дней и риск -->
-    <div class="countdown-banner">
-      <div>
-        <div class="countdown-days" id="daysCount">—</div>
-        <div class="countdown-label">дней до аудита</div>
+<div class="ml-60 flex flex-col min-h-screen">
+  <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+    <div><h1 class="text-sm font-semibold text-zinc-100">Audit Timeline</h1><p class="text-xs text-zinc-500">Readiness milestones &amp; audit preparation</p></div>
+    <div class="flex items-center gap-3">
+      <template x-if="isAdmin && dashboardVisible">
+        <button @click="showWizard()" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 inline-flex items-center gap-2 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/></svg>New Timeline
+        </button>
+      </template>
+          <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
       </div>
-      <div class="countdown-info">
-        <div class="countdown-date" id="auditDateDisp">—</div>
-        <div style="margin-top: 8px;" id="riskBadgeWrap"></div>
-        <div class="progress-section">
-          <div class="progress-header">
-            <span>Общая готовность</span>
-            <span id="progressPct">0%</span>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+  </header>
+
+  <main class="flex-1 p-6">
+    <!-- Error -->
+    <div x-show="error" class="mb-6 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400" x-text="error"></div>
+
+    <!-- Loading -->
+    <div x-show="loading" class="space-y-4">
+      <div class="animate-pulse bg-zinc-900 border border-zinc-800 rounded-xl h-32"></div>
+      <div class="animate-pulse bg-zinc-900 border border-zinc-800 rounded-xl h-64"></div>
+    </div>
+
+    <!-- Wizard -->
+    <div x-show="!loading && wizardVisible" class="max-w-xl mx-auto">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl">
+        <div class="px-5 py-4 border-b border-zinc-800">
+          <h2 class="text-sm font-semibold text-zinc-100">Configure Audit Timeline</h2>
+          <p class="text-xs text-zinc-500 mt-0.5">Complete 4 steps to create your audit preparation timeline.</p>
+        </div>
+        <!-- Wizard steps indicator -->
+        <div class="px-5 pt-4 flex items-center gap-2">
+          <template x-for="(label, i) in ['Date', 'Framework', 'Systems', 'Confirm']" :key="i">
+            <div class="flex items-center" :class="i < 3 ? 'flex-1' : ''">
+              <div class="flex flex-col items-center">
+                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold border transition-all" :class="(i+1) < wizardStep ? 'bg-indigo-600 border-indigo-600 text-white' : (i+1) === wizardStep ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400' : 'border-zinc-700 bg-zinc-800 text-zinc-500'" x-text="(i+1) < wizardStep ? '✓' : (i+1)"></div>
+                <span class="text-xs mt-1 transition-colors" :class="(i+1) === wizardStep ? 'text-indigo-400' : 'text-zinc-600'" x-text="label"></span>
+              </div>
+              <template x-if="i < 3"><div class="flex-1 h-0.5 mx-1 mb-4" :class="(i+1) < wizardStep ? 'bg-indigo-600' : 'bg-zinc-800'"></div></template>
+            </div>
+          </template>
+        </div>
+        <div class="p-5">
+          <!-- Step 1: Date -->
+          <div x-show="wizardStep === 1">
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2">When is the audit scheduled?</label>
+            <input type="date" x-model="wAuditDate" :min="minDate" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500">
+            <p class="text-xs text-zinc-600 mt-1">Specify the date when external auditors start work.</p>
+            <div class="flex justify-end mt-4">
+              <button @click="wizardStep=2" :disabled="!wAuditDate" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50">Next</button>
+            </div>
           </div>
-          <div class="progress-bar-wrap">
-            <div class="progress-bar-fill" id="progressFill" style="width:0%"></div>
+          <!-- Step 2: Framework -->
+          <div x-show="wizardStep === 2">
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Select audit type</label>
+            <div class="space-y-3">
+              <div @click="wFramework='soc2_type2'" class="border rounded-xl p-4 cursor-pointer transition-all" :class="wFramework==='soc2_type2' ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'">
+                <p class="text-sm font-semibold text-zinc-100">SOC 2 Type II</p>
+                <p class="text-xs text-zinc-500 mt-1">Effectiveness of controls over a period (6-12 months). Requires ~16 weeks preparation.</p>
+              </div>
+              <div @click="wFramework='soc2_type1'" class="border rounded-xl p-4 cursor-pointer transition-all" :class="wFramework==='soc2_type1' ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'">
+                <p class="text-sm font-semibold text-zinc-100">SOC 2 Type I</p>
+                <p class="text-xs text-zinc-500 mt-1">Design and presence of controls at a point in time. Requires ~8 weeks preparation.</p>
+              </div>
+            </div>
+            <div class="flex justify-between mt-4">
+              <button @click="wizardStep=1" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 transition-colors">Back</button>
+              <button @click="loadSystems()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">Next</button>
+            </div>
+          </div>
+          <!-- Step 3: Systems -->
+          <div x-show="wizardStep === 3">
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Select in-scope systems</label>
+            <div x-show="loadingSystems" class="py-6 text-center text-zinc-500 text-sm animate-pulse">Loading systems…</div>
+            <div x-show="!loadingSystems" class="grid grid-cols-2 gap-2 mb-3 max-h-60 overflow-y-auto">
+              <template x-for="sys in systems" :key="sys.id">
+                <div @click="toggleSystem(sys.id)" class="border rounded-lg p-3 cursor-pointer transition-all" :class="selectedSystems.has(sys.id) ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="text-xs font-semibold text-zinc-200" x-text="sys.name"></p>
+                      <p class="text-xs text-zinc-500 mt-0.5" x-text="sys.description"></p>
+                    </div>
+                    <div x-show="selectedSystems.has(sys.id)" class="text-indigo-400 shrink-0">
+                      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/></svg>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+            <p class="text-xs text-zinc-500" x-text="selectedSystems.size + ' system(s) selected'"></p>
+            <div class="flex justify-between mt-4">
+              <button @click="wizardStep=2" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 transition-colors">Back</button>
+              <button @click="fillConfirmation()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors">Next</button>
+            </div>
+          </div>
+          <!-- Step 4: Confirm -->
+          <div x-show="wizardStep === 4">
+            <label class="block text-xs font-medium text-zinc-500 uppercase tracking-wider mb-3">Confirm settings</label>
+            <div class="space-y-2 bg-zinc-950 border border-zinc-800 rounded-xl p-4">
+              <div class="flex justify-between text-sm"><span class="text-zinc-400">Audit Date</span><span class="text-indigo-400 font-medium" x-text="wAuditDate"></span></div>
+              <div class="flex justify-between text-sm border-t border-zinc-800 pt-2"><span class="text-zinc-400">Framework</span><span class="text-indigo-400 font-medium" x-text="wFramework === 'soc2_type2' ? 'SOC 2 Type II' : 'SOC 2 Type I'"></span></div>
+              <div class="flex justify-between text-sm border-t border-zinc-800 pt-2"><span class="text-zinc-400">Systems in scope</span><span class="text-indigo-400 font-medium" x-text="selectedSystems.size"></span></div>
+              <div class="flex justify-between text-sm border-t border-zinc-800 pt-2"><span class="text-zinc-400">Milestones</span><span class="text-indigo-400 font-medium" x-text="wFramework === 'soc2_type2' ? '10' : '6'"></span></div>
+            </div>
+            <div class="flex justify-between mt-4">
+              <button @click="wizardStep=3" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 transition-colors">Back</button>
+              <button @click="createTimeline()" :disabled="creating" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50" x-text="creating ? 'Creating…' : 'Create Timeline'"></button>
+            </div>
           </div>
         </div>
       </div>
-      <button class="new-btn" id="newTimelineBtn">+ Новый timeline</button>
     </div>
 
-    <!-- Предупреждение о просроченных -->
-    <div class="overdue-alert" id="overdueAlert" style="display:none"></div>
+    <!-- Dashboard -->
+    <div x-show="!loading && dashboardVisible">
+      <!-- Countdown banner -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5 mb-6">
+        <div class="flex flex-wrap items-center gap-6">
+          <div>
+            <div class="text-5xl font-black" :class="status.risk_level === 'red' ? 'text-red-400' : status.risk_level === 'yellow' ? 'text-amber-400' : 'text-indigo-400'" x-text="Math.max(0, status.days_to_audit ?? 0)"></div>
+            <div class="text-xs text-zinc-500 mt-1">days to audit</div>
+          </div>
+          <div class="flex-1 min-w-48">
+            <p class="text-sm font-medium text-zinc-200" x-text="fmtDate(status.audit_date) + ' · ' + (status.framework === 'soc2_type2' ? 'SOC 2 Type II' : 'SOC 2 Type I')"></p>
+            <div class="mt-2">
+              <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border" :class="status.risk_level === 'red' ? 'bg-red-500/10 text-red-400 border-red-500/30' : status.risk_level === 'yellow' ? 'bg-amber-500/10 text-amber-400 border-amber-500/30' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'" x-text="status.risk_level === 'red' ? 'Critical' : status.risk_level === 'yellow' ? 'At Risk' : 'On Track'"></span>
+            </div>
+            <div class="mt-3">
+              <div class="flex justify-between text-xs text-zinc-500 mb-1.5">
+                <span>Overall Readiness</span>
+                <span x-text="(status.overall_progress_pct ?? 0) + '%'"></span>
+              </div>
+              <div class="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div class="h-full bg-indigo-500 rounded-full transition-all" :style="'width:' + (status.overall_progress_pct ?? 0) + '%'"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-    <!-- Вертикальная временная шкала -->
-    <div class="timeline-section">
-      <h2>Milestones</h2>
-      <div class="timeline-list" id="timelineList"></div>
+      <!-- Overdue alert -->
+      <div x-show="status.overdue_milestones && status.overdue_milestones.length > 0" class="mb-4 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400">
+        Overdue: <span x-text="(status.overdue_milestones||[]).map(m=>m.name).join(', ')"></span>
+      </div>
+
+      <!-- Milestones timeline -->
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl">
+        <div class="px-5 py-4 border-b border-zinc-800">
+          <h2 class="text-sm font-semibold text-zinc-100">Milestones</h2>
+        </div>
+        <div class="p-5">
+          <div x-show="loadingMilestones" class="space-y-3">
+            <template x-for="i in 4"><div class="animate-pulse bg-zinc-800 rounded-xl h-20"></div></template>
+          </div>
+          <div x-show="!loadingMilestones && milestones.length === 0" class="py-10 text-center text-zinc-500 text-sm">No milestones found.</div>
+          <div x-show="!loadingMilestones && milestones.length > 0" class="relative pl-8">
+            <div class="absolute left-3 top-0 bottom-0 w-0.5 bg-zinc-800"></div>
+            <template x-for="ms in milestones" :key="ms.id">
+              <div class="relative mb-4 last:mb-0">
+                <div class="absolute -left-5 top-5 w-3 h-3 rounded-full border-2 transition-all" :class="ms.status === 'completed' ? 'bg-emerald-400 border-emerald-400' : ms.status === 'in_progress' ? 'bg-indigo-400 border-indigo-400 shadow-[0_0_8px_rgba(99,102,241,0.6)]' : ms.status === 'blocked' ? 'bg-red-400 border-red-400' : 'bg-zinc-700 border-zinc-600'"></div>
+                <div class="border rounded-xl p-4 transition-all" :class="ms.status === 'in_progress' ? 'border-indigo-500/40 bg-indigo-500/5' : 'border-zinc-800 bg-zinc-950/50'">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="flex-1">
+                      <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium text-zinc-100" x-text="ms.name"></span>
+                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border" :class="msBadge(ms.status)" x-text="msLabel(ms.status)"></span>
+                      </div>
+                      <p class="text-xs text-zinc-500 mt-1" x-text="ms.description"></p>
+                      <div class="flex items-center gap-3 mt-2">
+                        <span class="text-xs text-zinc-600" x-text="fmtDate(ms.date)"></span>
+                        <span class="text-xs text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded" x-text="ms.owner"></span>
+                      </div>
+                    </div>
+                    <template x-if="isAdmin">
+                      <button @click="ms._open = !ms._open" class="text-zinc-500 hover:text-zinc-300 shrink-0 transition-colors">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" :class="ms._open ? 'rotate-180' : ''"><path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7"/></svg>
+                      </button>
+                    </template>
+                  </div>
+                  <template x-if="isAdmin && ms._open">
+                    <div class="mt-3 pt-3 border-t border-zinc-800">
+                      <label class="block text-xs text-zinc-500 mb-1.5">Notes</label>
+                      <textarea x-model="ms._notes" :placeholder="ms.notes || 'Add notes…'" rows="2" class="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 resize-none"></textarea>
+                      <div class="flex flex-wrap gap-2 mt-2">
+                        <button @click="updateMilestone(ms.id, 'in_progress', ms._notes||ms.notes)" class="px-2.5 py-1 text-xs font-medium text-indigo-400 border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 rounded-lg transition-colors">In Progress</button>
+                        <button @click="updateMilestone(ms.id, 'completed', ms._notes||ms.notes)" class="px-2.5 py-1 text-xs font-medium text-emerald-400 border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 rounded-lg transition-colors">Complete</button>
+                        <button @click="updateMilestone(ms.id, 'blocked', ms._notes||ms.notes)" class="px-2.5 py-1 text-xs font-medium text-red-400 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors">Blocked</button>
+                        <button @click="updateMilestone(ms.id, 'not_started', ms._notes||ms.notes)" class="px-2.5 py-1 text-xs font-medium text-zinc-400 border border-zinc-600 bg-zinc-800 hover:bg-zinc-700 rounded-lg transition-colors">Reset</button>
+                        <button @click="updateMilestone(ms.id, ms.status, ms._notes||ms.notes)" class="px-2.5 py-1 text-xs font-medium text-sky-400 border border-sky-500/30 bg-sky-500/10 hover:bg-sky-500/20 rounded-lg transition-colors">Save Notes</button>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
     </div>
 
-  </div>
-</main>
+    <!-- No timeline (non-admin) -->
+    <div x-show="!loading && noTimeline && !isAdmin" class="text-center py-16">
+      <svg class="w-12 h-12 text-zinc-700 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+      <p class="text-sm text-zinc-500">No audit timeline configured yet. Contact your administrator.</p>
+    </div>
+  </main>
+</div>
 
-<div id="toast"></div>
+<!-- Toast -->
+<div x-show="toast.show" x-transition class="fixed bottom-5 right-5 px-4 py-3 rounded-lg text-sm font-medium border z-50" :class="toast.type === 'success' ? 'bg-emerald-900/80 border-emerald-500/50 text-emerald-300' : 'bg-red-900/80 border-red-500/50 text-red-300'" x-text="toast.msg"></div>
 
 <script>
-// ── Состояние ──────────────────────────────────────────────────────────────
-const state = {
-  token: null,
-  role: null,
-  userName: null,
-  timelineId: null,
-  selectedFramework: 'soc2_type2',
-  selectedSystems: new Set(),
-  systemsData: [],
-  step: 1,
-};
+function app() {
+  return {
+    user: null, loading: true, error: null,
+    wizardVisible: false, dashboardVisible: false, noTimeline: false,
+    wizardStep: 1, wAuditDate: '', wFramework: 'soc2_type2',
+    systems: [], selectedSystems: new Set(), loadingSystems: false, creating: false,
+    status: {}, timelineId: null, milestones: [], loadingMilestones: false,
+    toast: { show: false, msg: '', type: 'success' },
+    get isAdmin() { return this.user?.role === 'admin' || this.user?.role === 'auditor'; },
+    get minDate() { const d = new Date(); d.setDate(d.getDate()+28); return d.toISOString().slice(0,10); },
 
-// ── Вспомогательные ──────────────────────────────────────────────────────────
-async function apiFetch(path, opts = {}) {
-  const resp = await fetch(path, {
-    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
-    credentials: 'same-origin',
-    ...opts,
-  });
-  if (resp.status === 401) {
-    window.location.href = '/login';
-    throw new Error('Unauthorized');
-  }
-  if (!resp.ok) {
-    const body = await resp.json().catch(() => ({}));
-    throw new Error(body.detail || `HTTP ${resp.status}`);
-  }
-  return resp.json();
-}
-
-function showToast(msg, type = 'ok') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `show ${type}`;
-  setTimeout(() => { t.className = ''; }, 3000);
-}
-
-function showError(msg) {
-  const el = document.getElementById('error-msg');
-  el.textContent = msg;
-  el.style.display = 'block';
-}
-
-function hideError() {
-  document.getElementById('error-msg').style.display = 'none';
-}
-
-function fmtDate(iso) {
-  if (!iso) return '—';
-  const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));
-  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: 'numeric' });
-}
-
-function riskLabel(level) {
-  const map = { green: '🟢 On Track', yellow: '🟡 At Risk', red: '🔴 Critical' };
-  return map[level] || '—';
-}
-
-// ── Auth: читаем данные пользователя через cookie-based API ──
-async function loadAuth() {
-  try {
-    const resp = await fetch('/api/auth/me', { credentials: 'same-origin' });
-    if (resp.status === 401) return false;
-    const user = await resp.json();
-    state.role = user.role || 'viewer';
-    state.userName = user.name || user.email || 'User';
-    const badge = document.getElementById('user-badge');
-    if (badge) badge.textContent = `${state.userName} (${state.role})`;
-    return true;
-  } catch { return false; }
-}
-
-// ── Wizard: управление шагами ───────────────────────────────────────────────
-function goStep(n) {
-  // Скрываем текущий шаг
-  document.querySelectorAll('.wstep-content').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.wstep').forEach((el, i) => {
-    el.classList.remove('active', 'done');
-    if (i + 1 < n) el.classList.add('done');
-    if (i + 1 === n) el.classList.add('active');
-  });
-  document.getElementById(`step${n}`).classList.add('active');
-  state.step = n;
-}
-
-// Шаг 1 → 2
-document.getElementById('step1Next').addEventListener('click', () => {
-  const d = document.getElementById('auditDateInput').value;
-  if (!d) { showToast('Укажите дату аудита', 'err'); return; }
-  goStep(2);
-});
-
-// Шаг 2 кнопки
-document.getElementById('step2Back').addEventListener('click', () => goStep(1));
-document.getElementById('step2Next').addEventListener('click', () => {
-  loadSystems();
-  goStep(3);
-});
-
-// Клик по фреймворку
-document.querySelectorAll('.fw-option').forEach(el => {
-  el.addEventListener('click', () => {
-    document.querySelectorAll('.fw-option').forEach(e => e.classList.remove('selected'));
-    el.classList.add('selected');
-    state.selectedFramework = el.dataset.fw;
-  });
-});
-
-// Шаг 3 кнопки
-document.getElementById('step3Back').addEventListener('click', () => goStep(2));
-document.getElementById('step3Next').addEventListener('click', () => {
-  fillConfirmation();
-  goStep(4);
-});
-
-// Шаг 4 кнопки
-document.getElementById('step4Back').addEventListener('click', () => goStep(3));
-document.getElementById('createBtn').addEventListener('click', createTimeline);
-
-// Загрузка систем из API
-async function loadSystems() {
-  const grid = document.getElementById('systemsGrid');
-  grid.innerHTML = '<div style="color:var(--muted);font-size:12px">Загружаем системы...</div>';
-  try {
-    const systems = await apiFetch('/api/audit-timeline/wizard/systems');
-    state.systemsData = systems;
-    grid.innerHTML = '';
-    systems.forEach(sys => {
-      const div = document.createElement('div');
-      div.className = 'sys-option' + (state.selectedSystems.has(sys.id) ? ' selected' : '');
-      div.innerHTML = `
-        <span class="sys-check">✓</span>
-        <div class="sys-name">${sys.name}</div>
-        <div class="sys-desc">${sys.description}</div>
-      `;
-      div.addEventListener('click', () => {
-        if (state.selectedSystems.has(sys.id)) {
-          state.selectedSystems.delete(sys.id);
-          div.classList.remove('selected');
-        } else {
-          state.selectedSystems.add(sys.id);
-          div.classList.add('selected');
-        }
-        document.getElementById('selectedCount').textContent = state.selectedSystems.size;
-      });
-      grid.appendChild(div);
-    });
-  } catch (e) {
-    // Если нет прав (не admin) — показываем стандартный набор
-    grid.innerHTML = `<div style="color:var(--muted);font-size:12px;grid-column:1/-1">
-      Не удалось загрузить список систем. Используем стандартный набор.
-    </div>`;
-    ['AWS Infrastructure', 'Okta', 'GitHub', 'PostgreSQL'].forEach(name => {
-      state.selectedSystems.add(name.toLowerCase().replace(' ', '_'));
-    });
-  }
-}
-
-// Заполнение страницы подтверждения
-function fillConfirmation() {
-  const d = document.getElementById('auditDateInput').value;
-  const fwLabels = { soc2_type2: 'SOC2 Type II', soc2_type1: 'SOC2 Type I' };
-  const msCounts = { soc2_type2: 10, soc2_type1: 6 };
-
-  // Собираем контроли из выбранных систем
-  const controls = new Set();
-  state.systemsData.filter(s => state.selectedSystems.has(s.id)).forEach(s => {
-    (s.controls || []).forEach(c => controls.add(c));
-  });
-
-  document.getElementById('cDate').textContent = fmtDate(d);
-  document.getElementById('cFramework').textContent = fwLabels[state.selectedFramework] || state.selectedFramework;
-  document.getElementById('cSystems').textContent = state.selectedSystems.size;
-  document.getElementById('cControls').textContent = controls.size || '33 (все)';
-  document.getElementById('cMilestones').textContent = msCounts[state.selectedFramework] || '?';
-}
-
-// Создание timeline
-async function createTimeline() {
-  const btn = document.getElementById('createBtn');
-  btn.disabled = true;
-  btn.textContent = 'Создаём...';
-
-  const d = document.getElementById('auditDateInput').value;
-
-  // Собираем контроли из выбранных систем
-  const controls = new Set();
-  state.systemsData.filter(s => state.selectedSystems.has(s.id)).forEach(s => {
-    (s.controls || []).forEach(c => controls.add(c));
-  });
-
-  const body = {
-    audit_date: d,
-    framework: state.selectedFramework,
-    scope: {
-      systems: Array.from(state.selectedSystems),
-      in_scope_controls: Array.from(controls),
-      excluded: [],
+    async init() {
+      try { const r = await fetch('/api/auth/me'); if (!r.ok) { location.href='/login'; return; } this.user = await r.json(); } catch { location.href='/login'; return; }
+      await this.loadDashboard();
     },
-  };
+    async logout() { await fetch('/api/auth/logout', { method:'POST' }); location.href='/login'; },
 
-  try {
-    await apiFetch('/api/audit-timeline', { method: 'POST', body: JSON.stringify(body) });
-    showToast('Timeline создан успешно!', 'ok');
-    setTimeout(() => loadDashboard(), 500);
-  } catch (e) {
-    showToast(`Ошибка: ${e.message}`, 'err');
-    btn.disabled = false;
-    btn.textContent = 'Создать Timeline';
-  }
-}
+    async loadDashboard() {
+      this.loading = true; this.dashboardVisible = false; this.wizardVisible = false; this.noTimeline = false;
+      try {
+        const r = await fetch('/api/audit-timeline');
+        if (r.status === 401) { location.href='/login'; return; }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const data = await r.json();
+        if (!data.active) {
+          if (this.isAdmin) { this.wizardVisible = true; } else { this.noTimeline = true; }
+        } else {
+          this.status = data; this.timelineId = data.timeline_id;
+          this.dashboardVisible = true;
+          await this.loadMilestones();
+        }
+      } catch (e) { this.error = 'Failed to load timeline: ' + e.message; }
+      this.loading = false;
+    },
 
-// ── Dashboard ─────────────────────────────────────────────────────────────
-async function loadDashboard() {
-  document.getElementById('loader').style.display = 'block';
-  document.getElementById('wizard').classList.remove('visible');
-  document.getElementById('dashboard').classList.remove('visible');
-  hideError();
+    showWizard() {
+      this.dashboardVisible = false; this.wizardVisible = true; this.wizardStep = 1;
+    },
 
-  try {
-    const status = await apiFetch('/api/audit-timeline');
-
-    if (!status.active) {
-      // Нет активного timeline — показываем wizard
-      document.getElementById('loader').style.display = 'none';
-      // Wizard доступен только admin
-      if (state.role === 'admin') {
-        document.getElementById('wizard').classList.add('visible');
-      } else {
-        showError('Audit Timeline ещё не создан. Обратитесь к администратору.');
+    async loadSystems() {
+      this.wizardStep = 3; this.loadingSystems = true; this.systems = [];
+      try {
+        const r = await fetch('/api/audit-timeline/wizard/systems');
+        if (r.ok) { this.systems = await r.json(); }
+        else { this.systems = [{id:'aws',name:'AWS Infrastructure',description:'Cloud resources',controls:[]},{id:'okta',name:'Okta',description:'Identity provider',controls:[]},{id:'github',name:'GitHub',description:'Code repository',controls:[]},{id:'postgres',name:'PostgreSQL',description:'Database',controls:[]}]; }
+      } catch {
+        this.systems = [{id:'aws',name:'AWS Infrastructure',description:'Cloud resources',controls:[]},{id:'okta',name:'Okta',description:'Identity provider',controls:[]},{id:'github',name:'GitHub',description:'Code repository',controls:[]},{id:'postgres',name:'PostgreSQL',description:'Database',controls:[]}];
       }
-      return;
-    }
+      this.loadingSystems = false;
+    },
 
-    renderDashboard(status);
-  } catch (e) {
-    document.getElementById('loader').style.display = 'none';
-    showError(`Ошибка загрузки данных: ${e.message}`);
-  }
-}
+    toggleSystem(id) {
+      const s = new Set(this.selectedSystems);
+      if (s.has(id)) s.delete(id); else s.add(id);
+      this.selectedSystems = s;
+    },
 
-function renderDashboard(status) {
-  document.getElementById('loader').style.display = 'none';
-  document.getElementById('dashboard').classList.add('visible');
-  state.timelineId = status.timeline_id;
+    fillConfirmation() { this.wizardStep = 4; },
 
-  // Счётчик дней
-  document.getElementById('daysCount').textContent = Math.max(0, status.days_to_audit);
-  document.getElementById('auditDateDisp').textContent =
-    `Аудит: ${fmtDate(status.audit_date)} · ${status.framework === 'soc2_type2' ? 'SOC2 Type II' : 'SOC2 Type I'}`;
+    async createTimeline() {
+      this.creating = true;
+      const controls = new Set();
+      this.systems.filter(s => this.selectedSystems.has(s.id)).forEach(s => (s.controls||[]).forEach(c => controls.add(c)));
+      const body = { audit_date: this.wAuditDate, framework: this.wFramework, scope: { systems: Array.from(this.selectedSystems), in_scope_controls: Array.from(controls), excluded: [] } };
+      try {
+        const r = await fetch('/api/audit-timeline', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+        if (r.status === 401) { location.href='/login'; return; }
+        if (!r.ok) { const e = await r.json().catch(()=>({})); throw new Error(e.detail||'HTTP '+r.status); }
+        this.showToast('Timeline created successfully!', 'success');
+        setTimeout(() => this.loadDashboard(), 500);
+      } catch (e) { this.showToast('Error: ' + e.message, 'error'); }
+      this.creating = false;
+    },
 
-  // Risk badge
-  const riskWrap = document.getElementById('riskBadgeWrap');
-  riskWrap.innerHTML = `<span class="risk-badge ${status.risk_level}">${riskLabel(status.risk_level)}</span>`;
+    async loadMilestones() {
+      if (!this.timelineId) return;
+      this.loadingMilestones = true;
+      try {
+        const r = await fetch('/api/audit-timeline/' + this.timelineId);
+        if (r.ok) {
+          const data = await r.json();
+          this.milestones = (data.milestones || []).map(m => ({ ...m, _open: false, _notes: m.notes || '' }));
+        }
+      } catch {}
+      this.loadingMilestones = false;
+    },
 
-  // Прогресс
-  const pct = status.overall_progress_pct || 0;
-  document.getElementById('progressPct').textContent = `${pct}%`;
-  document.getElementById('progressFill').style.width = `${pct}%`;
+    async updateMilestone(msId, status, notes) {
+      if (!this.timelineId) return;
+      try {
+        const r = await fetch('/api/audit-timeline/' + this.timelineId + '/milestones/' + msId, { method:'PATCH', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status, notes }) });
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        this.showToast('Milestone updated', 'success');
+        await this.loadDashboard();
+      } catch (e) { this.showToast('Error: ' + e.message, 'error'); }
+    },
 
-  // Overdue предупреждение
-  const overdueEl = document.getElementById('overdueAlert');
-  if (status.overdue_milestones && status.overdue_milestones.length > 0) {
-    const names = status.overdue_milestones.map(m => m.name).join(', ');
-    overdueEl.textContent = `⚠️ Просрочены: ${names}`;
-    overdueEl.style.display = 'block';
-  } else {
-    overdueEl.style.display = 'none';
-  }
-
-  // Кнопка новый timeline (только admin)
-  const newBtn = document.getElementById('newTimelineBtn');
-  if (state.role !== 'admin') newBtn.style.display = 'none';
-  newBtn.onclick = () => {
-    document.getElementById('dashboard').classList.remove('visible');
-    document.getElementById('wizard').classList.add('visible');
-    goStep(1);
+    msBadge(s) {
+      const m = { not_started:'bg-zinc-700/40 text-zinc-400 border-zinc-700', in_progress:'bg-indigo-500/10 text-indigo-400 border-indigo-500/30', completed:'bg-emerald-500/10 text-emerald-400 border-emerald-500/30', blocked:'bg-red-500/10 text-red-400 border-red-500/30' };
+      return m[s] || m.not_started;
+    },
+    msLabel(s) { const m = { not_started:'Not Started', in_progress:'In Progress', completed:'Completed', blocked:'Blocked' }; return m[s] || s; },
+    fmtDate(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso + (iso.length === 10 ? 'T00:00:00' : ''));
+      return d.toLocaleDateString('en-US', { day:'numeric', month:'short', year:'numeric' });
+    },
+    showToast(msg, type='success') { this.toast = { show:true, msg, type }; setTimeout(()=>{ this.toast.show=false; }, 3500); }
   };
-
-  // Загружаем полный timeline с milestones
-  loadMilestones();
 }
-
-async function loadMilestones() {
-  if (!state.timelineId) return;
-  try {
-    const tl = await apiFetch(`/api/audit-timeline/${state.timelineId}`);
-    renderTimeline(tl.milestones || []);
-  } catch (e) {
-    showError(`Ошибка загрузки milestones: ${e.message}`);
-  }
-}
-
-function renderTimeline(milestones) {
-  const list = document.getElementById('timelineList');
-  const today = new Date().toISOString().slice(0, 10);
-  list.innerHTML = '';
-
-  milestones.forEach(ms => {
-    const isOverdue = ms.date < today && ms.status !== 'completed';
-    const statusClass = isOverdue ? 'overdue' : ms.status;
-
-    const item = document.createElement('div');
-    item.className = `ms-item ${statusClass}`;
-    item.dataset.id = ms.id;
-
-    // Только admin и auditor могут менять статусы
-    const canEdit = (state.role === 'admin' || state.role === 'auditor');
-
-    item.innerHTML = `
-      <div class="ms-card">
-        <div class="ms-top">
-          <div class="ms-name">${ms.name}</div>
-          <div class="ms-date">${fmtDate(ms.date)}</div>
-          ${canEdit ? `<span class="ms-expand-btn" title="Раскрыть">▾</span>` : ''}
-        </div>
-        <div class="ms-meta">
-          <span class="ms-status-badge ${ms.status}">${statusLabel(ms.status)}</span>
-          <span class="ms-owner">👤 ${ms.owner}</span>
-          <span class="ms-desc">${ms.description}</span>
-        </div>
-        ${canEdit ? `
-        <div class="ms-detail" id="detail-${ms.id}">
-          <div class="ms-notes-label">Заметки</div>
-          <textarea class="ms-notes-input" id="notes-${ms.id}" placeholder="Добавьте заметки...">${ms.notes || ''}</textarea>
-          <div class="ms-actions">
-            <button class="ms-btn progress" data-ms="${ms.id}" data-status="in_progress">▶ В работе</button>
-            <button class="ms-btn complete" data-ms="${ms.id}" data-status="completed">✓ Завершён</button>
-            <button class="ms-btn block" data-ms="${ms.id}" data-status="blocked">⛔ Заблокирован</button>
-            <button class="ms-btn reset" data-ms="${ms.id}" data-status="not_started">↺ Сбросить</button>
-            <button class="ms-btn save" data-save="${ms.id}">💾 Сохранить заметки</button>
-          </div>
-        </div>
-        ` : ''}
-      </div>
-    `;
-    list.appendChild(item);
-  });
-
-  // Обработчики раскрытия
-  list.querySelectorAll('.ms-expand-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const item = e.target.closest('.ms-item');
-      const msId = item.dataset.id;
-      const detail = document.getElementById(`detail-${msId}`);
-      const isOpen = detail.classList.contains('open');
-      detail.classList.toggle('open', !isOpen);
-      btn.textContent = isOpen ? '▾' : '▴';
-    });
-  });
-
-  // Обработчики смены статуса
-  list.querySelectorAll('.ms-btn[data-status]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const msId = btn.dataset.ms;
-      const newStatus = btn.dataset.status;
-      const notes = document.getElementById(`notes-${msId}`).value;
-      await updateMilestone(msId, newStatus, notes);
-    });
-  });
-
-  // Обработчики сохранения заметок
-  list.querySelectorAll('.ms-btn[data-save]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const msId = btn.dataset.save;
-      const notes = document.getElementById(`notes-${msId}`).value;
-      // Получаем текущий статус из UI
-      const item = list.querySelector(`[data-id="${msId}"]`);
-      const currentBadge = item.querySelector('.ms-status-badge');
-      const currentStatus = [...currentBadge.classList].find(c => c !== 'ms-status-badge') || 'not_started';
-      await updateMilestone(msId, currentStatus, notes);
-    });
-  });
-}
-
-function statusLabel(s) {
-  const map = {
-    not_started: '⏳ Не начат',
-    in_progress:  '🔄 В работе',
-    completed:    '✅ Завершён',
-    blocked:      '⛔ Заблокирован',
-  };
-  return map[s] || s;
-}
-
-async function updateMilestone(milestoneId, status, notes) {
-  if (!state.timelineId) return;
-  try {
-    await apiFetch(
-      `/api/audit-timeline/${state.timelineId}/milestones/${milestoneId}`,
-      { method: 'PATCH', body: JSON.stringify({ status, notes }) }
-    );
-    showToast('Milestone обновлён', 'ok');
-    loadDashboard();  // обновляем весь dashboard
-  } catch (e) {
-    showToast(`Ошибка: ${e.message}`, 'err');
-  }
-}
-
-// ── Инициализация ──────────────────────────────────────────────────────────
-(async function init() {
-  // Устанавливаем минимальную дату: сегодня + 4 недели
-  const minDate = new Date();
-  minDate.setDate(minDate.getDate() + 28);
-  document.getElementById('auditDateInput').min = minDate.toISOString().slice(0, 10);
-
-  const ok = await loadAuth();
-  if (!ok) {
-    document.getElementById('loader').style.display = 'none';
-    showError('Требуется авторизация. <a href="/login" style="color:var(--accent2)">Войдите</a> и попробуйте снова.');
-    return;
-  }
-  loadDashboard();
-})();
 </script>
 </body>
 </html>

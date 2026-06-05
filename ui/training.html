@@ -1,395 +1,429 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Training LMS — Marineso</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        :root {
-            --bg: #0f1117;
-            --card: #1a1d27;
-            --accent: #00d4aa;
-            --text: #e2e8f0;
-            --muted: #94a3b8;
-            --border: #2d313e;
-            --fail: #ef4444;
-            --pass: #10b981;
-        }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-            background-color: var(--bg);
-            color: var(--text);
-            font-family: 'Inter', sans-serif;
-            line-height: 1.6;
-            overflow-x: hidden;
-        }
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 40px 20px;
-        }
-        header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 40px;
-        }
-        header h1 { font-size: 24px; font-weight: 700; color: #fff; }
-        .back-link { color: var(--accent); text-decoration: none; font-size: 14px; font-weight: 600; }
-
-        /* Course Cards */
-        .course-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 40px;
-        }
-        .card {
-            background: var(--card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 24px;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-        .card h3 { font-size: 18px; margin-bottom: 8px; color: #fff; }
-        .card p { font-size: 14px; color: var(--muted); margin-bottom: 20px; flex: 1; }
-        .card-footer { display: flex; justify-content: space-between; align-items: center; }
-        .status-badge { font-size: 12px; font-weight: 700; text-transform: uppercase; padding: 4px 10px; border-radius: 6px; }
-        .status-passed { background: rgba(16, 185, 129, 0.15); color: var(--pass); }
-        .status-not_started { background: rgba(148, 163, 184, 0.15); color: var(--muted); }
-        .status-failed { background: rgba(239, 68, 68, 0.15); color: var(--fail); }
-
-        .btn {
-            background: var(--accent);
-            color: var(--bg);
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-        .btn:hover { opacity: 0.9; }
-        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-        /* Quiz View */
-        #quiz-view { display: none; background: var(--card); padding: 40px; border-radius: 12px; border: 1px solid var(--border); }
-        .q-header { margin-bottom: 30px; border-bottom: 1px solid var(--border); padding-bottom: 20px; }
-        .q-title { font-size: 20px; color: #fff; margin-bottom: 5px; }
-        .q-desc { font-size: 14px; color: var(--muted); }
-        .question { margin-bottom: 30px; }
-        .q-text { font-size: 16px; margin-bottom: 15px; font-weight: 500; }
-        .options { display: flex; flex-direction: column; gap: 10px; }
-        .option {
-            background: var(--bg);
-            border: 1px solid var(--border);
-            padding: 15px;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            transition: border-color 0.2s;
-        }
-        .option:hover { border-color: var(--accent); }
-        .option.selected { border-color: var(--accent); background: rgba(0, 212, 170, 0.05); }
-        .option input { display: none; }
-        .radio-dot { width: 16px; height: 16px; border: 2px solid var(--border); border-radius: 50%; display: inline-block; }
-        .option.selected .radio-dot { border-color: var(--accent); border-width: 5px; }
-
-        /* Admin Report */
-        #admin-view { margin-top: 60px; display: none; }
-        .table-wrap { background: var(--card); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; }
-        th { background: var(--bg); text-align: left; padding: 12px 16px; color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; }
-        td { padding: 12px 16px; border-top: 1px solid var(--border); }
-        .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
-        .dot.passed { background: var(--pass); }
-        .dot.not_started { background: var(--muted); }
-        .dot.failed { background: var(--fail); }
-
-        .toast {
-            position: fixed; bottom: 20px; right: 20px; background: var(--card);
-            border: 1px solid var(--border); padding: 16px 24px; border-radius: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5); z-index: 1000; display: none;
-            animation: slideIn 0.3s ease-out;
-        }
-        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* ── Горизонтальная навигация ── */
-        .top-nav {
-            display: flex; align-items: center; gap: 4px; flex: 1; overflow-x: auto;
-            scrollbar-width: none; margin-left: 12px;
-        }
-        .top-nav::-webkit-scrollbar { display: none; }
-        .top-nav a {
-            display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px;
-            color: var(--muted); text-decoration: none; border-radius: 6px;
-            font-size: 12px; font-weight: 500; white-space: nowrap; transition: all .15s;
-        }
-        .top-nav a:hover { background: rgba(255,255,255,0.05); color: var(--text); }
-        .top-nav a.active { background: rgba(0,212,170,.15); color: var(--accent); }
-        .top-nav .nav-sep { width: 1px; height: 16px; background: var(--border); margin: 0 4px; flex-shrink: 0; }
-    </style>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sandbox Auditor</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>body{font-family:'Inter',sans-serif}::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#18181b}::-webkit-scrollbar-thumb{background:#3f3f46;border-radius:3px}</style>
+<style id="lm">
+/* ── LIGHT MODE ── toggle via <html class="light"> */
+html.light{color-scheme:light}
+html.light body{background-color:#f8fafc}
+html.light .bg-zinc-950{background-color:#f8fafc!important}
+html.light .bg-zinc-900{background-color:#ffffff!important}
+html.light .bg-zinc-800{background-color:#f1f5f9!important}
+html.light .bg-zinc-700{background-color:#e2e8f0!important}
+html.light .border-zinc-800{border-color:#e2e8f0!important}
+html.light .border-zinc-700{border-color:#cbd5e1!important}
+html.light .text-zinc-100{color:#0f172a!important}
+html.light .text-zinc-200{color:#1e293b!important}
+html.light .text-zinc-300{color:#334155!important}
+html.light .text-zinc-400{color:#475569!important}
+html.light .text-zinc-500{color:#64748b!important}
+html.light .text-zinc-600{color:#94a3b8!important}
+html.light .text-zinc-700{color:#cbd5e1!important}
+html.light ::-webkit-scrollbar-track{background:#f1f5f9}
+html.light ::-webkit-scrollbar-thumb{background:#cbd5e1}
+html.light .hover\:bg-zinc-800\/60:hover{background-color:rgba(226,232,240,.7)!important}
+html.light .hover\:bg-zinc-800:hover{background-color:#f1f5f9!important}
+html.light .hover\:bg-zinc-700:hover{background-color:#e2e8f0!important}
+html.light .hover\:text-zinc-200:hover{color:#1e293b!important}
+html.light .hover\:text-zinc-300:hover{color:#334155!important}
+html.light .bg-zinc-800\/40{background-color:rgba(241,245,249,.8)!important}
+html.light .bg-zinc-800\/60{background-color:rgba(226,232,240,.7)!important}
+html.light .bg-zinc-950\/50{background-color:rgba(248,250,252,.5)!important}
+html.light .bg-zinc-900\/80{background-color:rgba(255,255,255,.9)!important}
+html.light input,html.light textarea,html.light select{background-color:#f8fafc!important;color:#0f172a!important;border-color:#cbd5e1!important}
+html.light .placeholder-zinc-600::placeholder{color:#94a3b8!important}
+html.light .terminal-body{background:#1e293b!important}
+html.light .skeleton{background:linear-gradient(90deg,#e2e8f0 25%,#f1f5f9 50%,#e2e8f0 75%)!important}
+html.light .ring-track{stroke:#e2e8f0!important}
+html.light .divide-zinc-800>*+*{border-color:#e2e8f0!important}
+/* icon visibility */
+html:not(.light) .ith-moon{display:none!important}
+html.light .ith-sun{display:none!important}
+[x-cloak]{display:none!important}
+</style>
+<script>(function(){if(localStorage.getItem('theme')==='light')document.documentElement.classList.add('light')})();</script>
 </head>
-<body>
-    <div class="container">
-        <header>
-            <div>
-                <h1>🎓 Security Training LMS</h1>
-                <p style="color: var(--muted); font-size: 14px;">Marineso Inc. Employee Compliance Portal</p>
-            </div>
-            <!-- Горизонтальная навигация по разделам платформы -->
-            <nav class="top-nav" id="topNav">
-                <a href="/">📊 Dashboard</a>
-                <span class="nav-sep"></span>
-                <a href="/training" class="active">🎓 Training</a>
-                <a href="/background-checks">👤 BG Checks</a>
-                <span class="nav-sep"></span>
-                <a href="/vulnerabilities">🔒 Vulns</a>
-                <a href="/pentests">🔍 Pen Tests</a>
-                <a href="/risk-register">⚠️ Risk Register</a>
-                <span class="nav-sep"></span>
-                <a href="/audit-timeline">📅 Timeline</a>
-                <a href="/questionnaires">📋 Questionnaires</a>
-                <span class="nav-sep"></span>
-                <a href="/access-review">👥 Access Review</a>
-                <a href="/auditor-portal">🔎 Auditor</a>
-                <span class="nav-sep"></span>
-                <a href="/trust" target="_blank" rel="noopener">🛡️ Trust ↗</a>
-            </nav>
-        </header>
+<body class="bg-zinc-950 text-zinc-100 min-h-screen" x-data="app()" x-init="init()">
+<aside class="fixed inset-y-0 left-0 w-60 bg-zinc-900 border-r border-zinc-800 flex flex-col z-30">
+  <div class="h-14 flex items-center px-5 border-b border-zinc-800 shrink-0">
+    <div class="flex items-center gap-2.5">
+      <div class="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center shrink-0">
+        <svg class="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+      </div>
+      <span class="text-sm font-semibold text-zinc-100">Sandbox Auditor</span>
+    </div>
+</div>
+  <nav class="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
+    <a href="/" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>Dashboard</a>
+    <a href="/frameworks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>Frameworks</a>
+    <a href="/risk-register" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>Risk Register</a>
+    <a href="/vulnerabilities" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v4m0 4h.01"/></svg>Vulnerabilities</a>
+    <a href="/pentests" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Pentests</a>
+    <a href="/access-review" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Access Review</a>
+    <a href="/background-checks" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2"/></svg>BG Checks</a>
+    <a href="/training" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium bg-indigo-600/20 text-indigo-400 border border-indigo-500/20"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>Training</a>
+    <a href="/questionnaires" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>Questionnaires</a>
+    <a href="/tests-catalog" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>Tests</a>
+    <a href="/audit-timeline" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>Audit Timeline</a>
+    <a href="/time-machine" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>Time Machine</a>
+    <a href="/onboarding" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9"/></svg>Onboarding</a>
+    <a href="/ai-decisions" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>AI Decisions</a>
+    <a href="/trust" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>Trust Center</a>
+    <a href="/auditor-portal" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>Auditor Portal</a>
+    <a href="/metrology" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+      Metrology
+    </a>
+    <a href="/bia" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2m-2-4h.01M17 16h.01"/></svg>
+      BIA
+    </a>
+      <a href="/findings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Findings
+      </a>
+      <a href="/assets" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        Asset Inventory
+      </a>
+      <a href="/scans" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/></svg>
+        Scans
+      </a>
+      <a href="/schedules" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors">
+        <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        Schedules
+      </a>
+      <a href="/settings" class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200 transition-colors"><svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>Settings</a>
+  </nav>
+  <div class="p-3 border-t border-zinc-800 shrink-0">
+    <div class="flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-zinc-800/60 cursor-pointer" @click="logout()">
+      <div class="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center text-xs font-semibold text-white" x-text="(user?.name?.[0]??'A').toUpperCase()"></div>
+      <div class="min-w-0 flex-1"><p class="text-xs font-medium text-zinc-200 truncate" x-text="user?.name??'Admin'"></p><p class="text-xs text-zinc-500 truncate" x-text="user?.email??''"></p></div>
+      <svg class="w-4 h-4 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+    </div>
+  </div>
+</aside>
 
-        <div id="course-list-view">
-            <div class="course-grid" id="courseList">
-                <!-- Loaded via JS -->
-            </div>
-        </div>
+<div class="ml-60 flex flex-col min-h-screen">
+  <header class="sticky top-0 z-20 h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-6 shrink-0">
+    <div><h1 class="text-sm font-semibold text-zinc-100">Security Training</h1><p class="text-xs text-zinc-500">Employee compliance &amp; certification portal</p></div>
+    <div class="flex items-center gap-3">
+      <template x-if="isAdmin && !quizView">
+        <button @click="sendReminders()" :disabled="remindersLoading" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 disabled:opacity-50">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
+          <span x-text="remindersLoading ? 'Sending…' : 'Send Reminders'"></span>
+        </button>
+      </template>
+          <div class="flex items-center gap-2 pl-2 border-l border-zinc-700/60 ml-1" x-show="user" x-cloak>
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-bold uppercase tracking-wide"
+          :class="{
+            'bg-indigo-500/20 text-indigo-400 ring-1 ring-inset ring-indigo-500/30': user.role==='admin',
+            'bg-amber-500/20 text-amber-400 ring-1 ring-inset ring-amber-500/30': user.role==='auditor',
+            'bg-sky-500/20 text-sky-400 ring-1 ring-inset ring-sky-500/30': user.role==='scanner',
+            'bg-zinc-700/50 text-zinc-400 ring-1 ring-inset ring-zinc-600/50': !['admin','auditor','scanner'].includes(user.role)
+          }"
+          x-text="user.role"></span>
+        <span class="text-sm text-zinc-300 truncate max-w-[140px]" x-text="user.name || user.email"></span>
+      </div>
+      <button
+        onclick="(function(){var l=document.documentElement.classList.toggle('light');localStorage.setItem('theme',l?'light':'dark')})()"
+        class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700/50 transition-colors border border-zinc-700/50 text-xs font-medium shrink-0"
+        title="Toggle day/night mode">
+        <svg class="ith-sun w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+        <svg class="ith-moon w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
+        <span class="ith-sun">Day</span>
+        <span class="ith-moon">Night</span>
+      </button>
+      </div>
+  </header>
 
-        <div id="quiz-view">
-            <div class="q-header">
-                <div class="q-title" id="quizTitle">Course Title</div>
-                <div class="q-desc" id="quizDesc">Description goes here</div>
-            </div>
-            <div id="questionsContainer">
-                <!-- Loaded via JS -->
-            </div>
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 40px;">
-                <button class="btn" style="background: var(--muted);" onclick="cancelQuiz()">Cancel</button>
-                <button class="btn" id="submitBtn" onclick="submitQuiz()">Submit Answers</button>
-            </div>
-        </div>
-
-        <div id="admin-view">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <h2>📊 Team Compliance Report</h2>
-                <button class="btn" onclick="sendReminders()">🔔 Send Reminders</button>
-            </div>
-            <div class="table-wrap">
-                <table id="reportTable">
-                    <thead>
-                        <tr>
-                            <th>Employee</th>
-                            <th>AUP</th>
-                            <th>MFA</th>
-                            <th>Phish</th>
-                            <th>GDPR</th>
-                            <th>IR</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reportContent">
-                        <!-- Loaded via JS -->
-                    </tbody>
-                </table>
-            </div>
-            <div style="margin-top: 15px; color: var(--muted); font-size: 12px; text-align: right;" id="overallStats">
-                Loading stats...
-            </div>
-        </div>
+  <main class="flex-1 p-6" x-show="!quizView">
+    <!-- Error banner -->
+    <div x-show="error" class="mb-6 px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-lg text-sm text-red-400 flex items-center gap-2">
+      <svg class="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      <span x-text="error"></span>
     </div>
 
-    <div class="toast" id="toast"></div>
+    <!-- Stats row -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Total Employees</p>
+        <template x-if="loading"><div class="animate-pulse bg-zinc-800 rounded h-8 w-16 mt-2"></div></template>
+        <p x-show="!loading" class="text-3xl font-bold text-zinc-100 mt-2" x-text="stats.total_employees ?? '—'"></p>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Completion Rate</p>
+        <template x-if="loading"><div class="animate-pulse bg-zinc-800 rounded h-8 w-20 mt-2"></div></template>
+        <p x-show="!loading" class="text-3xl font-bold mt-2" :class="getCompletionColor(stats.compliance_pct)" x-text="stats.compliance_pct != null ? stats.compliance_pct + '%' : '—'"></p>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Fully Compliant</p>
+        <template x-if="loading"><div class="animate-pulse bg-zinc-800 rounded h-8 w-16 mt-2"></div></template>
+        <p x-show="!loading" class="text-3xl font-bold text-emerald-400 mt-2" x-text="stats.fully_compliant ?? '—'"></p>
+      </div>
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl p-5">
+        <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider">Have Gaps</p>
+        <template x-if="loading"><div class="animate-pulse bg-zinc-800 rounded h-8 w-16 mt-2"></div></template>
+        <p x-show="!loading" class="text-3xl font-bold text-red-400 mt-2" x-text="(stats.total_employees != null && stats.fully_compliant != null) ? (stats.total_employees - stats.fully_compliant) : '—'"></p>
+      </div>
+    </div>
 
-    <script>
-        function escHtml(str) {
-            return String(str ?? '')
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/"/g, '&quot;')
-                .replace(/'/g, '&#39;');
-        }
+    <!-- My Courses -->
+    <div class="bg-zinc-900 border border-zinc-800 rounded-xl mb-6">
+      <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+        <h2 class="text-sm font-semibold text-zinc-100">My Training Courses</h2>
+        <span class="text-xs text-zinc-500" x-text="courses.length + ' courses'"></span>
+      </div>
+      <div class="p-5">
+        <template x-if="loading">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <template x-for="i in 3">
+              <div class="animate-pulse bg-zinc-800 rounded-xl h-40"></div>
+            </template>
+          </div>
+        </template>
+        <template x-if="!loading && courses.length === 0">
+          <div class="text-center py-12">
+            <svg class="w-10 h-10 text-zinc-600 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0112 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/></svg>
+            <p class="text-sm text-zinc-500">No courses assigned</p>
+          </div>
+        </template>
+        <div x-show="!loading && courses.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <template x-for="course in courses" :key="course.course_id">
+            <div class="bg-zinc-950 border border-zinc-800 rounded-xl p-5 flex flex-col justify-between">
+              <div>
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium mb-3" :class="getStatusBadge(course.status)" x-text="course.status.replace('_',' ').toUpperCase()"></span>
+                <h3 class="text-sm font-semibold text-zinc-100 mb-1" x-text="course.course_title"></h3>
+                <p class="text-xs text-zinc-500 mb-4" x-text="getCourseDesc(course.course_id)"></p>
+                <template x-if="course.status === 'passed'">
+                  <div class="text-xs text-zinc-400 mb-3">
+                    Score: <span class="text-emerald-400 font-semibold" x-text="course.score + '%'"></span>
+                    <span class="ml-2 text-indigo-400 font-mono text-xs" x-text="course.certificate_id"></span>
+                  </div>
+                </template>
+                <template x-if="course.status !== 'passed'">
+                  <p class="text-xs text-zinc-500 mb-3">Required passing score: 80%</p>
+                </template>
+              </div>
+              <button @click="startCourse(course.course_id)" class="w-full px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 transition-colors" x-text="course.status === 'passed' ? 'Retake Course' : 'Start Course'"></button>
+            </div>
+          </template>
+        </div>
+      </div>
+    </div>
 
-        let currentUser = null;
-        let currentCourseId = null;
-        let selectedAnswers = {};
-
-        async function init() {
-            try {
-                const r = await fetch('/api/auth/me');
-                if (r.status === 401) { window.location.href = '/login'; return; }
-                currentUser = await r.json();
-                
-                await loadMyProgress();
-                if (currentUser.role === 'admin' || currentUser.role === 'auditor') {
-                    await loadComplianceReport();
-                    document.getElementById('admin-view').style.display = 'block';
-                }
-            } catch (e) {
-                console.error("Init failed", e);
-            }
-        }
-
-        async function loadMyProgress() {
-            const r = await fetch('/api/training/my-progress');
-            const data = await r.json();
-            const list = document.getElementById('courseList');
-            list.innerHTML = data.map(c => `
-                <div class="card">
-                    <div>
-                        <span class="status-badge status-${escHtml(c.status)}">${escHtml(c.status).replace('_', ' ')}</span>
-                        <h3 style="margin-top:12px;">${escHtml(c.course_title)}</h3>
-                        <p>${TRAINING_DESCRIPTIONS[c.course_id] || ''}</p>
-                    </div>
-                    <div class="card-footer">
-                        <div style="font-size: 12px; color: var(--muted);">
-                            ${c.status === 'passed' ? `Score: ${escHtml(String(c.score))}%<br><span style="color:var(--accent)">${escHtml(c.certificate_id)}</span>` : 'Required: 80%'}
-                        </div>
-                        <button class="btn" data-course-id="${escHtml(c.course_id)}" onclick="startCourse(this.dataset.courseId)">
-                            ${c.status === 'passed' ? 'Retake' : 'Start Course'}
-                        </button>
-                    </div>
-                </div>
-            `).join('');
-        }
-
-        const TRAINING_DESCRIPTIONS = {
-            "aup": "Proper use of company devices and IT resources.",
-            "password_policy": "Password strength, MFA, and secure login habits.",
-            "phishing": "Identifying email scams and social engineering.",
-            "gdpr_basics": "EU data protection rules and handling personal data.",
-            "incident_response": "How to report and handle security incidents."
-        };
-
-        async function startCourse(courseId) {
-            currentCourseId = courseId;
-            selectedAnswers = {};
-            const r = await fetch(`/api/training/course/${courseId}`);
-            const course = await r.json();
-            
-            document.getElementById('quizTitle').innerText = course.title;
-            document.getElementById('quizDesc').innerText = course.description;
-            
-            const container = document.getElementById('questionsContainer');
-            container.innerHTML = course.questions.map(q => `
-                <div class="question" id="q-${q.id}">
-                    <div class="q-text">${q.id}. ${q.text}</div>
-                    <div class="options">
-                        ${q.options.map((opt, i) => `
-                            <div class="option" onclick="selectOption(${q.id}, ${i})">
-                                <span class="radio-dot"></span>
-                                <span>${opt}</span>
-                            </div>
-                        `).join('')}
-                    </div>
-                </div>
-            `).join('');
-            
-            document.getElementById('course-list-view').style.display = 'none';
-            document.getElementById('admin-view').style.display = 'none';
-            document.getElementById('quiz-view').style.display = 'block';
-            window.scrollTo(0,0);
-        }
-
-        function selectOption(qId, optIdx) {
-            selectedAnswers[qId] = optIdx;
-            const qDiv = document.getElementById(`q-${qId}`);
-            qDiv.querySelectorAll('.option').forEach((opt, i) => {
-                if (i === optIdx) opt.classList.add('selected');
-                else opt.classList.remove('selected');
-            });
-        }
-
-        async function submitQuiz() {
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
-            try {
-                const r = await fetch(`/api/training/course/${currentCourseId}/submit`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(selectedAnswers)
-                });
-                const res = await r.json();
-                
-                if (res.passed) {
-                    showToast(`Congratulations! You passed with ${res.score}%!`, "passed");
-                } else {
-                    showToast(`Failed. Your score: ${res.score}%. Required: 80%.`, "failed");
-                }
-                
-                setTimeout(() => {
-                    location.reload();
-                }, 2000);
-            } catch (e) {
-                btn.disabled = false;
-                showToast("Submission failed", "failed");
-            }
-        }
-
-        function cancelQuiz() {
-            document.getElementById('quiz-view').style.display = 'none';
-            document.getElementById('course-list-view').style.display = 'block';
-            if (currentUser.role === 'admin' || currentUser.role === 'auditor') {
-                document.getElementById('admin-view').style.display = 'block';
-            }
-        }
-
-        async function loadComplianceReport() {
-            const r = await fetch('/api/training/compliance-report');
-            const data = await r.json();
-            const content = document.getElementById('reportContent');
-            content.innerHTML = data.employees.map(e => `
-                <tr>
-                    <td>
-                        <div style="font-weight:600;">${e.name}</div>
-                        <div style="color:var(--muted); font-size:11px;">${e.email}</div>
-                    </td>
-                    <td><span class="dot ${e.courses.aup}"></span></td>
-                    <td><span class="dot ${e.courses.password_policy}"></span></td>
-                    <td><span class="dot ${e.courses.phishing}"></span></td>
-                    <td><span class="dot ${e.courses.gdpr_basics}"></span></td>
-                    <td><span class="dot ${e.courses.incident_response}"></span></td>
-                    <td>
-                        <span style="color:${e.all_required_done ? 'var(--pass)' : 'var(--fail)'}; font-weight:700;">
-                            ${e.all_required_done ? 'COMPLIANT' : 'GAP'}
-                        </span>
-                    </td>
+    <!-- Admin: Compliance Report -->
+    <template x-if="isAdmin">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <h2 class="text-sm font-semibold text-zinc-100">Team Compliance Report</h2>
+          <span class="text-xs text-zinc-500" x-text="report.length + ' employees'"></span>
+        </div>
+        <template x-if="loadingReport">
+          <div class="p-5 space-y-3">
+            <template x-for="i in 4"><div class="animate-pulse bg-zinc-800 rounded h-12"></div></template>
+          </div>
+        </template>
+        <template x-if="!loadingReport && report.length === 0">
+          <div class="p-12 text-center text-zinc-500 text-sm">No employee data available.</div>
+        </template>
+        <div x-show="!loadingReport && report.length > 0" class="overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead><tr class="border-b border-zinc-800">
+              <th class="px-5 py-3 text-left text-xs font-medium text-zinc-500 uppercase tracking-wider">Employee</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">AUP</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">MFA</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">Phishing</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">GDPR</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">IR</th>
+              <th class="px-4 py-3 text-center text-xs font-medium text-zinc-500 uppercase tracking-wider">Status</th>
+            </tr></thead>
+            <tbody>
+              <template x-for="emp in report" :key="emp.email">
+                <tr class="border-b border-zinc-800/60 hover:bg-zinc-800/20 transition-colors">
+                  <td class="px-5 py-3">
+                    <div class="font-medium text-zinc-200" x-text="emp.name"></div>
+                    <div class="text-xs text-zinc-500" x-text="emp.email"></div>
+                  </td>
+                  <td class="px-4 py-3 text-center"><span class="inline-block w-2.5 h-2.5 rounded-full" :class="emp.courses.aup === 'passed' ? 'bg-emerald-400' : emp.courses.aup === 'failed' ? 'bg-red-400' : 'bg-zinc-600'"></span></td>
+                  <td class="px-4 py-3 text-center"><span class="inline-block w-2.5 h-2.5 rounded-full" :class="emp.courses.password_policy === 'passed' ? 'bg-emerald-400' : emp.courses.password_policy === 'failed' ? 'bg-red-400' : 'bg-zinc-600'"></span></td>
+                  <td class="px-4 py-3 text-center"><span class="inline-block w-2.5 h-2.5 rounded-full" :class="emp.courses.phishing === 'passed' ? 'bg-emerald-400' : emp.courses.phishing === 'failed' ? 'bg-red-400' : 'bg-zinc-600'"></span></td>
+                  <td class="px-4 py-3 text-center"><span class="inline-block w-2.5 h-2.5 rounded-full" :class="emp.courses.gdpr_basics === 'passed' ? 'bg-emerald-400' : emp.courses.gdpr_basics === 'failed' ? 'bg-red-400' : 'bg-zinc-600'"></span></td>
+                  <td class="px-4 py-3 text-center"><span class="inline-block w-2.5 h-2.5 rounded-full" :class="emp.courses.incident_response === 'passed' ? 'bg-emerald-400' : emp.courses.incident_response === 'failed' ? 'bg-red-400' : 'bg-zinc-600'"></span></td>
+                  <td class="px-4 py-3 text-center">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium" :class="emp.all_required_done ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-red-500/10 text-red-400 border border-red-500/30'" x-text="emp.all_required_done ? 'COMPLIANT' : 'GAPS'"></span>
+                  </td>
                 </tr>
-            `).join('');
-            
-            document.getElementById('overallStats').innerText = `${data.fully_compliant} / ${data.total_employees} employees fully compliant (${data.compliance_pct}%)`;
-        }
+              </template>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </template>
+  </main>
 
-        async function sendReminders() {
-            showToast("Sending Slack reminders...", "passed");
-            await fetch('/api/training/send-reminders', { method: 'POST' });
-            showToast("Reminders sent successfully", "passed");
-        }
+  <!-- Quiz View -->
+  <main class="flex-1 p-6" x-show="quizView" x-cloak>
+    <div class="max-w-2xl mx-auto">
+      <div class="bg-zinc-900 border border-zinc-800 rounded-xl">
+        <div class="px-5 py-4 border-b border-zinc-800 flex items-center justify-between">
+          <div>
+            <h2 class="text-sm font-semibold text-zinc-100" x-text="quizTitle"></h2>
+            <p class="text-xs text-zinc-500 mt-0.5" x-text="quizDesc"></p>
+          </div>
+          <button @click="cancelQuiz()" class="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-lg text-sm border border-zinc-700 inline-flex items-center gap-2 transition-colors">Cancel</button>
+        </div>
+        <div class="p-5 space-y-6">
+          <template x-for="(q, qi) in quizQuestions" :key="q.id">
+            <div>
+              <p class="text-sm font-medium text-zinc-200 mb-3"><span class="text-zinc-500 mr-1" x-text="(qi+1) + '.'"></span><span x-text="q.text"></span></p>
+              <div class="space-y-2">
+                <template x-for="(opt, oi) in q.options" :key="oi">
+                  <div @click="selectOption(q.id, oi)" class="flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors" :class="selectedAnswers[q.id] === oi ? 'border-indigo-500 bg-indigo-500/10' : 'border-zinc-700 bg-zinc-800/40 hover:border-zinc-600'">
+                    <div class="w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center" :class="selectedAnswers[q.id] === oi ? 'border-indigo-500' : 'border-zinc-600'">
+                      <div x-show="selectedAnswers[q.id] === oi" class="w-2 h-2 rounded-full bg-indigo-500"></div>
+                    </div>
+                    <span class="text-sm text-zinc-300" x-text="opt"></span>
+                  </div>
+                </template>
+              </div>
+            </div>
+          </template>
+          <div class="pt-2 flex justify-end">
+            <button @click="submitQuiz()" :disabled="submitting" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-medium transition-colors inline-flex items-center gap-2 disabled:opacity-50">
+              <span x-text="submitting ? 'Submitting…' : 'Submit Answers'"></span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
 
-        function showToast(msg, type) {
-            const t = document.getElementById('toast');
-            t.innerText = msg;
-            t.style.display = 'block';
-            t.style.borderColor = type === 'passed' ? 'var(--pass)' : 'var(--fail)';
-            setTimeout(() => { t.style.display = 'none'; }, 3000);
-        }
+<!-- Toast -->
+<div x-show="toast.show" x-transition class="fixed bottom-5 right-5 px-4 py-3 rounded-lg text-sm font-medium border z-50" :class="toast.type === 'success' ? 'bg-emerald-900/80 border-emerald-500/50 text-emerald-300' : 'bg-red-900/80 border-red-500/50 text-red-300'" x-text="toast.msg"></div>
 
-        window.onload = init;
-    </script>
+<script>
+function app() {
+  return {
+    user: null, loading: true, loadingReport: false, error: null,
+    courses: [], report: [], stats: {}, quizView: false,
+    quizTitle: '', quizDesc: '', quizQuestions: [], selectedAnswers: {},
+    currentCourseId: null, submitting: false, remindersLoading: false,
+    toast: { show: false, msg: '', type: 'success' },
+    get isAdmin() { return this.user?.role === 'admin' || this.user?.role === 'auditor'; },
+
+    async init() {
+      try {
+        const r = await fetch('/api/auth/me');
+        if (!r.ok) { location.href = '/login'; return; }
+        this.user = await r.json();
+      } catch { location.href = '/login'; return; }
+      await this.loadData();
+    },
+    async logout() { await fetch('/api/auth/logout', { method: 'POST' }); location.href = '/login'; },
+
+    async loadData() {
+      this.loading = true;
+      try {
+        const r = await fetch('/api/training/my-progress');
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        this.courses = await r.json();
+      } catch (e) { this.error = 'Failed to load courses: ' + e.message; }
+      this.loading = false;
+
+      if (this.isAdmin) {
+        this.loadingReport = true;
+        try {
+          const r = await fetch('/api/training/compliance-report');
+          if (r.ok) {
+            const data = await r.json();
+            this.report = data.employees || [];
+            this.stats = { total_employees: data.total_employees, fully_compliant: data.fully_compliant, compliance_pct: data.compliance_pct };
+          }
+        } catch {}
+        this.loadingReport = false;
+      }
+    },
+
+    getCourseDesc(id) {
+      const m = { aup: 'Proper use of company devices and IT resources.', password_policy: 'Password strength, MFA, and secure login habits.', phishing: 'Identifying email scams and social engineering.', gdpr_basics: 'EU data protection rules and handling personal data.', incident_response: 'How to report and handle security incidents.' };
+      return m[id] || '';
+    },
+
+    getStatusBadge(s) {
+      if (s === 'passed') return 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30';
+      if (s === 'failed') return 'bg-red-500/10 text-red-400 border border-red-500/30';
+      return 'bg-zinc-700/40 text-zinc-400 border border-zinc-700';
+    },
+
+    getCompletionColor(pct) {
+      if (pct == null) return 'text-zinc-100';
+      if (pct >= 90) return 'text-emerald-400';
+      if (pct >= 70) return 'text-amber-400';
+      return 'text-red-400';
+    },
+
+    async startCourse(courseId) {
+      this.currentCourseId = courseId;
+      this.selectedAnswers = {};
+      try {
+        const r = await fetch('/api/training/course/' + courseId);
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const course = await r.json();
+        this.quizTitle = course.title;
+        this.quizDesc = course.description;
+        this.quizQuestions = course.questions;
+        this.quizView = true;
+        window.scrollTo(0, 0);
+      } catch (e) { this.showToast('Failed to load course: ' + e.message, 'error'); }
+    },
+
+    selectOption(qId, optIdx) { this.selectedAnswers = { ...this.selectedAnswers, [qId]: optIdx }; },
+
+    cancelQuiz() { this.quizView = false; },
+
+    async submitQuiz() {
+      this.submitting = true;
+      try {
+        const r = await fetch('/api/training/course/' + this.currentCourseId + '/submit', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.selectedAnswers)
+        });
+        const res = await r.json();
+        if (res.passed) {
+          this.showToast('Congratulations! You passed with ' + res.score + '%!', 'success');
+        } else {
+          this.showToast('Score: ' + res.score + '%. Required: 80%. Try again!', 'error');
+        }
+        setTimeout(() => { this.quizView = false; this.loadData(); }, 1800);
+      } catch (e) {
+        this.showToast('Submission failed: ' + e.message, 'error');
+      }
+      this.submitting = false;
+    },
+
+    async sendReminders() {
+      this.remindersLoading = true;
+      try {
+        await fetch('/api/training/send-reminders', { method: 'POST' });
+        this.showToast('Reminders sent successfully', 'success');
+      } catch { this.showToast('Failed to send reminders', 'error'); }
+      this.remindersLoading = false;
+    },
+
+    showToast(msg, type = 'success') {
+      this.toast = { show: true, msg, type };
+      setTimeout(() => { this.toast.show = false; }, 3500);
+    }
+  };
+}
+</script>
 </body>
 </html>

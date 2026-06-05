@@ -25,7 +25,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ── Константы ────────────────────────────────────────────────────────────────
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 EVIDENCE_API_KEY     = os.getenv("EVIDENCE_API_KEY", "")
 CONTROLS_MAP_FILE    = "controls_map.json"
 
@@ -360,12 +360,8 @@ def _count_all_evidence() -> int:
 
 # ── Phase 2: Control Assessment ──────────────────────────────────────────────
 
-def assess_controls() -> dict:
-    """
-    Получает список контролей из Evidence Tracker.
-    Возвращает dict с полями: total, pass_count, fail_count, pending_count,
-    controls (список dict), top_failures (список dict).
-    """
+def _assess_controls_soc2() -> dict:
+    """SOC 2 path: fetch control statuses from Evidence Tracker API."""
     try:
         resp = requests.get(
             f"{EVIDENCE_TRACKER_URL}/api/v1/controls/?limit=100",
@@ -383,16 +379,15 @@ def assess_controls() -> dict:
             "pending_count": 0,
             "controls": [],
             "top_failures": [],
+            "framework_id": "soc2",
         }
 
     pass_count    = sum(1 for c in controls if str(c.get("status", "")).upper() == "PASS")
     fail_count    = sum(1 for c in controls if str(c.get("status", "")).upper() == "FAIL")
     pending_count = sum(1 for c in controls if str(c.get("status", "")).upper() not in ("PASS", "FAIL"))
 
-    # Топ FAIL контролей — берём первые 5
     fail_controls = [c for c in controls if str(c.get("status", "")).upper() == "FAIL"]
 
-    # Определяем severity для каждого FAIL-контроля по коду
     severity_map = {
         "CC6.1": "CRITICAL", "CC6.2": "HIGH", "CC6.3": "HIGH",
         "CC6.7": "HIGH",     "CC7.1": "HIGH", "CC7.2": "HIGH",
@@ -401,7 +396,6 @@ def assess_controls() -> dict:
     for ctrl in fail_controls:
         ctrl["_severity"] = severity_map.get(ctrl.get("code", ""), "MEDIUM")
 
-    # Сортируем: CRITICAL -> HIGH -> MEDIUM
     order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
     top_failures = sorted(fail_controls, key=lambda c: order.get(c["_severity"], 9))[:5]
 
@@ -412,7 +406,101 @@ def assess_controls() -> dict:
         "pending_count": pending_count,
         "controls":      controls,
         "top_failures":  top_failures,
+        "framework_id":  "soc2",
     }
+
+
+def _assess_controls_framework(framework_id: str) -> dict:
+    """Non-SOC2 path: load controls from FrameworkLibrary, evaluate via ComplianceEngine."""
+    from framework_library import get_library
+    from compliance_engine import get_compliance_engine
+
+    library = get_library()
+    engine  = get_compliance_engine()
+
+    try:
+        fw_controls = library.get_controls(framework_id, assessable_only=True)
+        meta        = library.get_meta(framework_id)
+    except ValueError as exc:
+        print(f"  [WARN] {exc}")
+        return {
+            "total": 0,
+            "pass_count": 0,
+            "fail_count": 0,
+            "pending_count": 0,
+            "controls": [],
+            "top_failures": [],
+            "framework_id": framework_id,
+        }
+
+    fw_name = meta.name if meta else framework_id
+    print(f"  Framework: {fw_name} ({len(fw_controls)} assessable controls)")
+
+    # Try to fetch any evidence from the tracker tagged with matching control codes.
+    # For frameworks other than SOC2 this will usually return empty lists, which
+    # makes evaluate_control return NEEDS_REVIEW — an honest representation.
+    evidence_by_ref: dict[str, list[dict]] = {c.ref_id: [] for c in fw_controls}
+    try:
+        resp = requests.get(
+            f"{EVIDENCE_TRACKER_URL}/api/v1/evidence/?limit=2000",
+            headers=_api_headers(),
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            for ev in resp.json():
+                code = str(ev.get("control_code") or ev.get("code") or "")
+                if code in evidence_by_ref:
+                    evidence_by_ref[code].append(ev)
+    except Exception:
+        pass
+
+    # Evaluate via ComplianceEngine
+    verdicts = engine.evaluate_framework(framework_id, evidence_by_ref)
+
+    # Map verdicts back to control metadata for the report
+    verdict_by_ref = {v.control_id: v for v in verdicts}
+    control_list: list[dict] = []
+    for ctrl in fw_controls:
+        v = verdict_by_ref.get(ctrl.ref_id)
+        control_list.append({
+            "code":        ctrl.ref_id,
+            "title":       ctrl.name or ctrl.ref_id,
+            "status":      v.status.value if v else "NEEDS_REVIEW",
+            "confidence":  v.confidence if v else 0.0,
+            "description": ctrl.description or "",
+        })
+
+    pass_count    = sum(1 for c in control_list if c["status"] == "PASS")
+    fail_count    = sum(1 for c in control_list if c["status"] == "FAIL")
+    pending_count = sum(1 for c in control_list if c["status"] not in ("PASS", "FAIL"))
+
+    return {
+        "total":         len(control_list),
+        "pass_count":    pass_count,
+        "fail_count":    fail_count,
+        "pending_count": pending_count,
+        "controls":      control_list,
+        "top_failures":  [],  # no severity mapping for arbitrary frameworks
+        "framework_id":  framework_id,
+        "framework_name": fw_name,
+    }
+
+
+def assess_controls(framework_id: str = "soc2") -> dict:
+    """
+    Оценивает контроли указанного фреймворка.
+
+    SOC 2: данные берутся из Evidence Tracker API.
+    Остальные фреймворки: контроли загружаются из FrameworkLibrary,
+    оцениваются через ComplianceEngine.evaluate_framework().
+
+    Returns:
+        dict с полями: total, pass_count, fail_count, pending_count,
+        controls, top_failures, framework_id.
+    """
+    if framework_id == "soc2":
+        return _assess_controls_soc2()
+    return _assess_controls_framework(framework_id)
 
 
 # ── Phase 3: Policy Drafts ───────────────────────────────────────────────────
@@ -605,6 +693,7 @@ def print_report(
     esign_res:    Optional[dict],
     phase_errors: list,
     run_mode:     str = "sequential",
+    framework_id: str = "soc2",
 ) -> None:
     """Выводит финальный отчёт в виде ASCII-блока."""
 
@@ -612,8 +701,9 @@ def print_report(
     now_str       = datetime.now(timezone.utc).strftime("%Y-%m-%d  %H:%M:%S")
     company       = os.getenv("COMPANY_NAME", "MARINESO")
 
-    # Заголовок
-    title_line  = f"{company} — SOC 2 AUDIT SIMULATION REPORT"
+    # Заголовок с именем фреймворка
+    fw_label   = ctrl_res.get("framework_name", framework_id.upper())
+    title_line = f"{company} — {fw_label} AUDIT SIMULATION REPORT"
     print()
     print("╔" + "═" * REPORT_WIDTH + "╗")
     print("║" + title_line.center(REPORT_WIDTH) + "║")
@@ -714,11 +804,21 @@ def main() -> None:
     """Точка входа: разбирает аргументы, запускает все фазы, выводит отчёт."""
 
     parser = argparse.ArgumentParser(
-        description="SOC 2 Audit Simulation — одна кнопка"
+        description="Compliance Audit Simulation — одна кнопка"
     )
     parser.add_argument("--skip-policy",      action="store_true", help="Пропустить фазу генерации политик")
     parser.add_argument("--skip-remediation", action="store_true", help="Пропустить фазу создания тикетов")
     parser.add_argument("--skip-esign",       action="store_true", help="Пропустить фазу e-подписи")
+    parser.add_argument(
+        "--framework",
+        type=str,
+        default="soc2",
+        help=(
+            "Фреймворк для оценки (default: soc2). "
+            "Примеры: nist-csf-2.0, iso27001-2022, gdpr, pci-dss-4.0, dora, nis2, cmmc-2.0. "
+            "Не-SOC2 фреймворки загружаются из FrameworkLibrary (data/frameworks/)."
+        ),
+    )
     parser.add_argument(
         "--parallel",
         action="store_true",
@@ -754,6 +854,7 @@ def main() -> None:
 
     start_time   = time.time()
     phase_errors: list = []
+    framework_id = args.framework.strip().lower()
 
     # Загружаем controls_map.json
     controls_map = _load_controls_map()
@@ -777,10 +878,10 @@ def main() -> None:
 
     # ── Phase 2: Control Assessment ──
     print("\n" + "=" * 60)
-    print(" PHASE 2: CONTROL ASSESSMENT")
+    print(f" PHASE 2: CONTROL ASSESSMENT  [framework: {framework_id}]")
     print("=" * 60)
     t_phase = time.time()
-    ctrl_results = assess_controls()
+    ctrl_results = assess_controls(framework_id)
 
     # Синхронизация Risk Register
     try:
@@ -873,6 +974,7 @@ def main() -> None:
         esign_res    = esign_results,
         phase_errors = phase_errors,
         run_mode     = mode_label,
+        framework_id = framework_id,
     )
 
     # ── Генерация HTML отчёта ──────────────────────────────────────────────────
