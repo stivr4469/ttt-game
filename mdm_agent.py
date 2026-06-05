@@ -8,7 +8,7 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-from evidence_client import EvidenceClient
+from base_compliance_agent import BaseComplianceAgent, AgentResult
 from log_config import get_logger
 from constants import CONTROLS_MAP_FILE, SEVERITY_HIGH, SEVERITY_CRITICAL
 
@@ -30,7 +30,7 @@ def _run_async(coro):
     except RuntimeError:
         return asyncio.run(coro)
 
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 POLICY = {
     "screen_lock_max_minutes": 10,
@@ -39,16 +39,18 @@ POLICY = {
     "require_os_current": True,
 }
 
-MDM_CONTROLS = {
-    "CC6.6": "Unauthorized Software Control",
-    "CC6.8": "Anti-Malware and Device Security",
-}
+class MDMAgent(BaseComplianceAgent):
+    CONTROLS = {
+        "CC6.6": "Unauthorized Software Control",
+        "CC6.8": "Anti-Malware and Device Security",
+    }
 
+    def authenticate(self) -> None:
+        self.devices = self.load_devices()
 
-class MDMAgent:
-    def __init__(self, base_url: str, controls_map: Optional[dict]):
-        self.evidence_client = EvidenceClient(base_url, agent_name="mdm")
-        self.controls_map = controls_map or {}
+    @property
+    def agent_name(self) -> str:
+        return "mdm"
 
     def load_devices(self) -> list:
         # 1. Jamf если настроен
@@ -223,8 +225,8 @@ class MDMAgent:
             "compliance_score": compliance_score,
         }
 
-    def run_checks(self) -> dict:
-        devices = self.load_devices()
+    def _scan_devices(self) -> dict:
+        devices = self.devices
         device_results = []
         all_violations = []
 
@@ -274,7 +276,8 @@ class MDMAgent:
             "devices": device_results,
         }
 
-    def _save_evidence(self, results: dict, controls_map: dict) -> None:
+    def run_checks(self) -> None:
+        results = self._scan_devices()
         content = json.dumps(results)
 
         edr_violations = [v for v in results["violations"] if v["check"] == "edr"]
@@ -282,36 +285,32 @@ class MDMAgent:
         filevault_violations = [v for v in results["violations"] if v["check"] == "filevault"]
         os_violations = [v for v in results["violations"] if v["check"] == "os_current"]
 
-        cc66_id = controls_map.get("CC6.6")
-        if cc66_id:
-            try:
-                self.evidence_client.create_evidence(
-                    control_id=cc66_id,
-                    title=f"[MDM] CC6.6 — EDR coverage scan ({results['total_devices']} devices)",
-                    content=content,
-                    source="AI_GENERATED",
-                )
-                status = "PASS" if len(edr_violations) == 0 else "FAIL"
-                self.evidence_client.update_control_status(cc66_id, status)
-                log.info("CC6.6 evidence saved", extra={"status": status, "edr_violations": len(edr_violations)})
-            except Exception as exc:
-                log.error("Failed to save CC6.6 evidence", extra={"error": str(exc)})
+        total = results["total_devices"]
 
-        cc68_id = controls_map.get("CC6.8")
-        if cc68_id:
-            try:
-                self.evidence_client.create_evidence(
-                    control_id=cc68_id,
-                    title=f"[MDM] CC6.8 — Device security scan ({results['total_devices']} devices)",
-                    content=content,
-                    source="AI_GENERATED",
-                )
-                cc68_fail = len(filevault_violations) > 0 or len(screen_lock_violations) > 0 or len(os_violations) > 0
-                status = "FAIL" if cc68_fail else "PASS"
-                self.evidence_client.update_control_status(cc68_id, status)
-                log.info("CC6.8 evidence saved", extra={"status": status})
-            except Exception as exc:
-                log.error("Failed to save CC6.8 evidence", extra={"error": str(exc)})
+        if edr_violations:
+            self._fail("CC6.6",
+                       f"[MDM] CC6.6 — EDR coverage scan ({total} devices)",
+                       json.loads(content),
+                       SEVERITY_HIGH,
+                       test_key="mdm.device.edr_coverage")
+        else:
+            self._pass("CC6.6",
+                       f"[MDM] CC6.6 — EDR coverage scan ({total} devices)",
+                       json.loads(content),
+                       test_key="mdm.device.edr_coverage")
+
+        cc68_fail = filevault_violations or screen_lock_violations or os_violations
+        if cc68_fail:
+            self._fail("CC6.8",
+                       f"[MDM] CC6.8 — Device security scan ({total} devices)",
+                       json.loads(content),
+                       SEVERITY_HIGH,
+                       test_key="mdm.device.security_posture")
+        else:
+            self._pass("CC6.8",
+                       f"[MDM] CC6.8 — Device security scan ({total} devices)",
+                       json.loads(content),
+                       test_key="mdm.device.security_posture")
 
 
 def main(controls_map: Optional[dict] = None) -> None:
@@ -322,36 +321,11 @@ def main(controls_map: Optional[dict] = None) -> None:
         with open(CONTROLS_MAP_FILE, "r") as f:
             controls_map = json.load(f)
 
-    agent = MDMAgent(EVIDENCE_TRACKER_URL, controls_map)
-    results = agent.run_checks()
-
-    edr_violations = [v for v in results["violations"] if v["check"] == "edr"]
-    filevault_violations = [v for v in results["violations"] if v["check"] == "filevault"]
-    screen_lock_violations = [v for v in results["violations"] if v["check"] == "screen_lock"]
-    os_violations = [v for v in results["violations"] if v["check"] == "os_current"]
-
-    print(
-        f"[MDM] Devices: {results['total_devices']} total, "
-        f"{results['compliant']} compliant ({results['compliance_rate_pct']}%), "
-        f"{results['non_compliant']} non-compliant"
-    )
-
-    cc66_status = "FAIL" if edr_violations else "PASS"
-    cc66_detail = f"{len(edr_violations)} devices without EDR" if edr_violations else "all devices have EDR"
-    print(f"[MDM] CC6.6: {cc66_status} — {cc66_detail}")
-
-    cc68_parts = []
-    if filevault_violations:
-        cc68_parts.append(f"{len(filevault_violations)} device(s) without FileVault")
-    if screen_lock_violations:
-        cc68_parts.append(f"{len(screen_lock_violations)} device(s) with screen lock > {POLICY['screen_lock_max_minutes']} min")
-    if os_violations:
-        cc68_parts.append(f"{len(os_violations)} device(s) with outdated OS")
-    cc68_status = "FAIL" if cc68_parts else "PASS"
-    cc68_detail = ", ".join(cc68_parts) if cc68_parts else "all devices meet security policy"
-    print(f"[MDM] CC6.8: {cc68_status} — {cc68_detail}")
-
-    agent._save_evidence(results, controls_map)
+    agent = MDMAgent(controls_map, EVIDENCE_TRACKER_URL)
+    result = agent.run()
+    for code, status in result.control_results.items():
+        icon = "✅" if status == "PASS" else "❌"
+        print(f"  {icon} {code}: {status} — {MDMAgent.CONTROLS[code]}")
 
 
 if __name__ == "__main__":

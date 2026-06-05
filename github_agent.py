@@ -11,9 +11,8 @@ import requests
 from datetime import datetime, timezone
 from typing import Optional
 from dotenv import load_dotenv
-from evidence_client import EvidenceClient
+from base_compliance_agent import BaseComplianceAgent, AgentResult
 from github_client import GitHubClient
-from slack_notifier import SlackNotifier
 from constants import CONTROLS_MAP_FILE, CI_STALE_DAYS
 from test_outcome import TestOutcome
 
@@ -24,19 +23,10 @@ logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s -
 from secret_store import get_connector_secret  # noqa: E402 — after load_dotenv
 GITHUB_TOKEN = get_connector_secret("GITHUB_TOKEN")
 GITHUB_REPO  = os.getenv("GITHUB_REPO")          # owner/repo
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 SLACK_WEBHOOK_URL    = os.getenv("SLACK_WEBHOOK_URL")
 COMPANY_NAME         = os.getenv("COMPANY_NAME", "Marineso")
 
-# Контроли, которые этот агент закрывает
-GITHUB_CONTROLS = {
-    "CC4.2": "Deficiency Communication — GitHub Issues for FAIL findings",
-    "CC5.3": "Change Management — CI/CD, branch protection, CODEOWNERS",
-    "CC6.4": "Logical Access Restrictions — deploy keys, environments",
-    "CC6.8": "Unauthorized Access Detection — secret scanning, dependabot",
-    "CC7.3": "Threat Identification — security advisories, dependabot alerts",
-    "CC7.5": "Breach Disclosure — security advisories process",
-}
 
 def _days_ago(iso: Optional[str]) -> int:
     if not iso:
@@ -45,44 +35,40 @@ def _days_ago(iso: Optional[str]) -> int:
     return (datetime.now(timezone.utc) - dt).days
 
 
-class GitHubAgent:
-    def __init__(self, controls_map: dict):
-        self.controls_map = controls_map
-        self.client  = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="github_agent")
-        self.gh      = GitHubClient(GITHUB_TOKEN)
-        self.notifier = SlackNotifier(SLACK_WEBHOOK_URL) if SLACK_WEBHOOK_URL else None
-        self.findings = []
-        self.results  = {code: "PASS" for code in GITHUB_CONTROLS}
-        # TestOutcome objects collected during the scan, ready for batch submission
-        self.outcomes: list[TestOutcome] = []
+class GitHubAgent(BaseComplianceAgent):
+    CONTROLS = {
+        "CC4.2": "Deficiency Communication — GitHub Issues for FAIL findings",
+        "CC5.3": "Change Management — CI/CD, branch protection, CODEOWNERS",
+        "CC6.4": "Logical Access Restrictions — deploy keys, environments",
+        "CC6.8": "Unauthorized Access Detection — secret scanning, dependabot",
+        "CC7.3": "Threat Identification — security advisories, dependabot alerts",
+        "CC7.5": "Breach Disclosure — security advisories process",
+    }
 
-    def _fail(self, code: str, title: str, content: dict, severity: str):
-        ctrl_id = self.controls_map.get(code)
-        if ctrl_id:
-            self.client.create_evidence(
-                control_id=ctrl_id,
-                title=title,
-                content=json.dumps({**content, "control": code, "severity": severity}),
-                source="GITHUB",
-            )
-            self.client.update_control_status(ctrl_id, "FAIL")
-        self.results[code] = "FAIL"
-        self.findings.append({"control": code, "title": title, "severity": severity})
-        icon = "🔴" if severity == "CRITICAL" else "🟠" if severity == "HIGH" else "🟡"
-        print(f"  {icon} [{code}] {title} ({severity})")
+    def authenticate(self) -> None:
+        if not GITHUB_TOKEN:
+            raise ValueError("[ERROR] GITHUB_TOKEN не задан в .env")
+        if not GITHUB_REPO:
+            raise ValueError("[ERROR] GITHUB_REPO не задан в .env")
+        self.gh = GitHubClient(GITHUB_TOKEN)
 
-    def _pass(self, code: str, title: str, content: dict):
-        ctrl_id = self.controls_map.get(code)
-        if ctrl_id:
-            self.client.create_evidence(
-                control_id=ctrl_id,
-                title=title,
-                content=json.dumps({**content, "control": code, "status": "PASS"}),
-                source="GITHUB",
-            )
-            self.client.update_control_status(ctrl_id, "PASS")
-        self.results[code] = "PASS"
-        print(f"  ✅ [{code}] {title}")
+    def run_checks(self) -> None:
+        self.check_ci_cd()
+        print()
+        self.check_codeowners()
+        print()
+        self.check_deploy_keys()
+        print()
+        self.check_environments()
+        print()
+        self.check_secret_scanning()
+        print()
+        self.check_dependabot()
+        print()
+        self.check_security_advisories()
+        print()
+        self.create_fail_issues()
+        print()
 
     # ──────────────────────────────────────────
     # 1. CI/CD Workflows → CC5.3
@@ -468,28 +454,6 @@ class GitHubAgent:
             self._pass("CC4.2", "All FAIL issues already tracked in GitHub",
                        {"existing": len(existing_titles)})
 
-    # ──────────────────────────────────────────
-    def notify_slack(self):
-        if not self.notifier:
-            return
-        total   = len(self.findings)
-        crit    = sum(1 for f in self.findings if f["severity"] == "CRITICAL")
-        high    = sum(1 for f in self.findings if f["severity"] == "HIGH")
-        fail_cc = [c for c, s in self.results.items() if s == "FAIL"]
-
-        lines = [
-            f"🐙 *GitHub Compliance Scan — {COMPANY_NAME}*",
-            f"Findings: {total} total | 🔴 CRITICAL: {crit} | 🟠 HIGH: {high}",
-        ]
-        if fail_cc:
-            lines.append(f"Failed controls: {', '.join(fail_cc)}")
-        else:
-            lines.append("✅ All GitHub controls PASS")
-        for f in self.findings[:8]:
-            icon = "🔴" if f["severity"] == "CRITICAL" else "🟠"
-            lines.append(f"  {icon} {f['title']}")
-        self.notifier.send({"text": "\n".join(lines)})
-
 
 def main(controls_map: dict | None = None) -> list[TestOutcome]:
     """Run the full GitHub compliance scan.
@@ -499,13 +463,6 @@ def main(controls_map: dict | None = None) -> list[TestOutcome]:
     ``test_outcome.submit_outcomes()`` to push results to the batch endpoint.
     The function returns an empty list on early-exit conditions (missing env vars).
     """
-    if not GITHUB_TOKEN:
-        print("[ERROR] GITHUB_TOKEN не задан в .env")
-        return []
-    if not GITHUB_REPO:
-        print("[ERROR] GITHUB_REPO не задан в .env")
-        return []
-
     # Load controls_map.json if not provided
     if controls_map is None:
         if not os.path.exists(CONTROLS_MAP_FILE):
@@ -519,45 +476,32 @@ def main(controls_map: dict | None = None) -> list[TestOutcome]:
     print(f" Repo: {GITHUB_REPO}")
     print(f"{'='*60}\n")
 
-    agent = GitHubAgent(controls_map)
+    agent = GitHubAgent(controls_map, EVIDENCE_TRACKER_URL, SLACK_WEBHOOK_URL)
 
-    agent.check_ci_cd()
-    print()
-    agent.check_codeowners()
-    print()
-    agent.check_deploy_keys()
-    print()
-    agent.check_environments()
-    print()
-    agent.check_secret_scanning()
-    print()
-    agent.check_dependabot()
-    print()
-    agent.check_security_advisories()
-    print()
-    agent.create_fail_issues()
-    print()
+    try:
+        result = agent.run()
+    except ValueError as e:
+        print(str(e))
+        return []
 
     print(f"{'='*60}")
     print(f" ИТОГ GITHUB AUDIT")
     print(f"{'='*60}")
-    for code, status in agent.results.items():
+    for code, status in result.control_results.items():
         icon = "✅" if status == "PASS" else "❌"
-        print(f"  {icon} {code}: {status} — {GITHUB_CONTROLS[code]}")
+        print(f"  {icon} {code}: {status} — {GitHubAgent.CONTROLS[code]}")
 
-    total = len(agent.findings)
-    crit  = sum(1 for f in agent.findings if f["severity"] == "CRITICAL")
-    high  = sum(1 for f in agent.findings if f["severity"] == "HIGH")
+    total = len(result.findings)
+    crit  = sum(1 for f in result.findings if f.severity == "CRITICAL")
+    high  = sum(1 for f in result.findings if f.severity == "HIGH")
     print(f"\n  Всего нарушений: {total}")
-    if agent.findings:
+    if result.findings:
         print(f"  CRITICAL: {crit} | HIGH: {high}")
     print(f"\n  Evidence → {EVIDENCE_TRACKER_URL}/docs (source=GITHUB)")
-    print(f"  TestOutcomes collected: {len(agent.outcomes)}")
+    print(f"  TestOutcomes collected: {len(result.outcomes)}")
     print(f"{'='*60}")
 
-    agent.notify_slack()
-
-    return agent.outcomes
+    return result.outcomes
 
 
 if __name__ == "__main__":

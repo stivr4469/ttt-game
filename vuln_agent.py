@@ -6,13 +6,14 @@ from typing import List, Dict, Optional
 
 from log_config import get_logger
 from base_http_client import BaseHTTPClient
+from base_compliance_agent import BaseComplianceAgent, AgentResult
 from evidence_client import EvidenceClient
 
 log = get_logger(__name__)
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN", "")
 GITHUB_REPO  = os.getenv("GITHUB_REPO", "stivr4469/compliance-sandbox")
-EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8000")
+EVIDENCE_TRACKER_URL = os.getenv("EVIDENCE_TRACKER_URL", "http://localhost:8080")
 
 SLA_HOURS = {
     "critical": 24,
@@ -33,12 +34,20 @@ MOCK_DEPENDABOT_ALERTS = [
    "created_at": (datetime.now(timezone.utc) - timedelta(days=40)).isoformat(), "fixed_in": "41.0.6"}
 ]
 
-class VulnAgent:
-    def __init__(self):
+class VulnAgent(BaseComplianceAgent):
+    CONTROLS = {
+        "CC6.8": "Unauthorized Access Detection — dependency vulnerability scanning",
+        "CC7.3": "Threat Identification — critical/high CVE alerts",
+    }
+
+    def authenticate(self) -> None:
         self.token = GITHUB_TOKEN
         self.repo = GITHUB_REPO
         self.client = BaseHTTPClient(base_url="https://api.github.com")
-        self._ec = EvidenceClient(EVIDENCE_TRACKER_URL, agent_name="vuln_agent")
+
+    @property
+    def agent_name(self) -> str:
+        return "vuln"
 
     def _gh_headers(self) -> dict:
         return {
@@ -97,22 +106,20 @@ class VulnAgent:
             "status": status
         }
 
-    def run(self, controls_map: Dict = None) -> Dict:
-        """Запускает полный цикл сканирования уязвимостей."""
+    def scan(self) -> Dict:
+        """Collect vulnerability data and return raw scan results."""
         alerts = self.fetch_dependabot_alerts()
-        advisories = self.fetch_security_advisories()
-        
+        self.fetch_security_advisories()
+
         processed_vulns = []
-        stats = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+        stats: Dict[str, int] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         sla_breached = 0
         sla_at_risk = 0
-        
+
         for alert in alerts:
             severity = alert.get("security_advisory", {}).get("severity", "medium").lower()
             created_at = alert.get("created_at")
-            
             sla = self.calculate_sla_status(created_at, severity)
-            
             vuln = {
                 "id": f"VULN-{str(alert.get('number')).zfill(3)}",
                 "source": "dependabot",
@@ -129,48 +136,48 @@ class VulnAgent:
                 "sla_status": sla["status"],
                 "hours_remaining": sla["remaining_h"],
                 "remediation": f"Update {alert.get('dependency', {}).get('package', {}).get('name')} to version {alert.get('fixed_in') or 'latest'}",
-                "jira_ticket": None
+                "jira_ticket": None,
             }
-            
             processed_vulns.append(vuln)
             stats[severity] = stats.get(severity, 0) + 1
-            if sla["status"] == "breached": sla_breached += 1
-            if sla["status"] == "at_risk": sla_at_risk += 1
-            
-        result = {
+            if sla["status"] == "breached":
+                sla_breached += 1
+            if sla["status"] == "at_risk":
+                sla_at_risk += 1
+
+        return {
             "total": len(processed_vulns),
             "by_severity": stats,
             "sla_breached": sla_breached,
             "sla_at_risk": sla_at_risk,
             "vulnerabilities": processed_vulns,
-            "collected_at": datetime.now(timezone.utc).isoformat()
+            "collected_at": datetime.now(timezone.utc).isoformat(),
         }
-        
-        # Evidence Collection
-        if controls_map:
-            # CC6.8 (Anti-Malware / Vulnerability Mgmt)
-            if "CC6.8" in controls_map:
-                self._ec.create_evidence(
-                    control_id=controls_map["CC6.8"],
-                    title="Vulnerability Management Scan Summary",
-                    content=json.dumps(result, indent=2),
-                    source="GITHUB"
-                )
-                # Если есть breached SLA для Critical/High — FAIL
-                if stats["critical"] > 0 or stats["high"] > 0:
-                     # В данном sandbox считаем FAIL если есть хоть один breach
-                     self._ec.update_control_status(controls_map["CC6.8"], "FAIL")
-                else:
-                     self._ec.update_control_status(controls_map["CC6.8"], "PASS")
 
-            # CC7.3 (Security Events)
-            if "CC7.3" in controls_map:
-                critical_high = [v for v in processed_vulns if v["severity"] in ("critical", "high")]
-                self._ec.create_evidence(
-                    control_id=controls_map["CC7.3"],
-                    title="Critical and High Vulnerability Alerts",
-                    content=json.dumps(critical_high, indent=2),
-                    source="GITHUB"
-                )
+    def run_checks(self) -> None:
+        result = self.scan()
+        stats = result["by_severity"]
+        critical_high = [v for v in result["vulnerabilities"] if v["severity"] in ("critical", "high")]
 
-        return result
+        cc68_fail = stats["critical"] > 0 or stats["high"] > 0
+        if cc68_fail:
+            self._fail("CC6.8",
+                       "Vulnerability Management Scan Summary",
+                       result,
+                       "CRITICAL" if stats["critical"] > 0 else "HIGH",
+                       test_key="vuln.findings.cc6_8_critical_high")
+        else:
+            self._pass("CC6.8",
+                       "Vulnerability Management Scan Summary",
+                       result,
+                       test_key="vuln.findings.cc6_8_critical_high")
+
+        if critical_high:
+            self._fail("CC7.3",
+                       f"Critical and High Vulnerability Alerts ({len(critical_high)} open)",
+                       {"critical_high": critical_high},
+                       "CRITICAL" if stats["critical"] > 0 else "HIGH")
+        else:
+            self._pass("CC7.3",
+                       "No critical/high vulnerability alerts",
+                       {"total_open": result["total"]})
