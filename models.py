@@ -1145,3 +1145,48 @@ class AgentSchedule(Base):
 
     def __repr__(self) -> str:
         return f"<AgentSchedule agent={self.agent_name} cadence={self.cadence_minutes}min enabled={self.enabled}>"
+
+
+# ── ScopeRule ─────────────────────────────────────────────────────────────────
+
+class ScopeRule(Base):
+    """
+    Determines which controls are in/out of scope for a given tenant + framework.
+
+    control_pattern: Python regex applied to control_id.
+      Examples: r"^A1\\.", r"^C1\\.", r"^CC[67]\\."
+    action:
+      "exclude"      — matching controls → OUT_OF_SCOPE (skipped)
+      "include_only" — controls NOT matching any include_only rule → OUT_OF_SCOPE
+
+    Evaluation order: rules sorted by priority DESC; first match wins per control.
+    """
+    __tablename__ = "scope_rule"
+
+    id: Mapped[str] = mapped_column(
+        String(36), primary_key=True, default=lambda: str(uuid.uuid4())
+    )
+    tenant_id: Mapped[str] = mapped_column(
+        String(36), ForeignKey("tenants.id"), nullable=False, index=True
+    )
+    framework_id: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    control_pattern: Mapped[str] = mapped_column(String(200), nullable=False)
+    action: Mapped[str] = mapped_column(String(20), nullable=False, default="exclude")
+    reason: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    priority: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    conditions: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, onupdate=_utcnow
+    )
+
+    __table_args__ = (
+        Index("ix_scope_rule_tenant_fw", "tenant_id", "framework_id"),
+    )
+
+    def __repr__(self) -> str:
+        return (
+            f"<ScopeRule tenant={self.tenant_id} fw={self.framework_id} "
+            f"pattern={self.control_pattern!r} action={self.action}>"
+        )

@@ -18,6 +18,7 @@ compliance_engine.py — Детерминированный движок соо�
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
@@ -32,6 +33,7 @@ class VerdictStatus(str, Enum):
     PASS         = "PASS"          # достаточно PASS-evidence, нет FAIL
     FAIL         = "FAIL"          # есть хотя бы одно FAIL-evidence
     NEEDS_REVIEW = "NEEDS_REVIEW"  # нет FAIL, но evidence недостаточно для PASS
+    OUT_OF_SCOPE = "OUT_OF_SCOPE"  # контрол исключён scope-правилом тенанта
 
 
 # ── Минимальный вес evidence для PASS ─────────────────────────────────────────
@@ -125,6 +127,78 @@ class ControlVerdict:
         }
 
 
+# ── Scope rules ────────────────────────────────────────────────────────────────
+
+@dataclass
+class ScopeRuleDTO:
+    """Lightweight representation of a ScopeRule used by ComplianceEngine."""
+    control_pattern: str    # Python regex
+    action: str             # "exclude" | "include_only"
+    priority: int = 0
+    reason: str = ""
+
+    def matches(self, control_id: str) -> bool:
+        try:
+            return bool(re.search(self.control_pattern, control_id))
+        except re.error:
+            return False
+
+
+class ScopeChecker:
+    """
+    Determines whether a control is in scope given a list of ScopeRuleDTOs.
+
+    Algorithm:
+      1. Sort rules by priority DESC.
+      2. "exclude" rules: first matching exclude rule → OUT_OF_SCOPE.
+      3. "include_only" rules: if any include_only rules exist, control must
+         match at least one — otherwise OUT_OF_SCOPE.
+      4. No rule matches → in scope.
+    """
+
+    def __init__(self, rules: list[ScopeRuleDTO]):
+        self._exclude = sorted(
+            [r for r in rules if r.action == "exclude"],
+            key=lambda r: r.priority, reverse=True,
+        )
+        self._include_only = sorted(
+            [r for r in rules if r.action == "include_only"],
+            key=lambda r: r.priority, reverse=True,
+        )
+
+    def is_in_scope(self, control_id: str) -> tuple[bool, str]:
+        """Return (in_scope, reason). reason is empty when in_scope=True."""
+        for rule in self._exclude:
+            if rule.matches(control_id):
+                return False, rule.reason or f"Excluded by pattern {rule.control_pattern!r}"
+
+        if self._include_only:
+            for rule in self._include_only:
+                if rule.matches(control_id):
+                    return True, ""
+            return False, "Not matched by any include_only rule"
+
+        return True, ""
+
+    @classmethod
+    def from_db_rows(cls, rows: list) -> "ScopeChecker":
+        """
+        Build from SQLAlchemy ScopeRule ORM rows (or any objects with
+        .control_pattern / .action / .priority / .reason attributes).
+        """
+        dtos = [
+            ScopeRuleDTO(
+                control_pattern=r.control_pattern,
+                action=r.action,
+                priority=r.priority,
+                reason=r.reason or "",
+            )
+            for r in rows
+            if r.is_active
+        ]
+        return cls(dtos)
+
+
 # ── Детерминированный движок ────────────────────────────────────────────────────
 
 class ComplianceEngine:
@@ -146,24 +220,39 @@ class ComplianceEngine:
         control_id: str,
         evidence_list: list[dict],
         framework_id: str = "soc2",
+        scope_checker: Optional["ScopeChecker"] = None,
     ) -> ControlVerdict:
         """
         Детерминированная оценка контроля на основе списка evidence.
 
         Args:
-            control_id:    код контроля ("CC6.1", "CC7.4", "ID.AM-1" ...)
-            evidence_list: список dict с ключами:
-                             - status: "PASS" | "FAIL" | "PENDING" (обязательно)
-                             - evidence_type: тип evidence (опционально)
-                             - title: заголовок (опционально)
-                             - source: источник (опционально)
-            framework_id:  идентификатор фреймворка (default "soc2").
-                           Для не-SOC2 фреймворков required_evidence_types не определены,
-                           поэтому оценка использует упрощённую логику (есть PASS → PASS).
+            control_id:     код контроля ("CC6.1", "CC7.4", "ID.AM-1" ...)
+            evidence_list:  список dict с ключами:
+                              - status: "PASS" | "FAIL" | "PENDING" (обязательно)
+                              - evidence_type: тип evidence (опционально)
+                              - title: заголовок (опционально)
+                              - source: источник (опционально)
+            framework_id:   идентификатор фреймворка (default "soc2").
+                            Для не-SOC2 фреймворков required_evidence_types не определены,
+                            поэтому оценка использует упрощённую логику (есть PASS → PASS).
+            scope_checker:  если передан, сначала проверяется скоп контроля.
+                            Контроли вне скопа получают статус OUT_OF_SCOPE без оценки.
 
         Returns:
             ControlVerdict с детерминированным статусом.
         """
+        if scope_checker is not None:
+            in_scope, oos_reason = scope_checker.is_in_scope(control_id)
+            if not in_scope:
+                log.debug("Контрол %s → OUT_OF_SCOPE (%s)", control_id, oos_reason)
+                return ControlVerdict(
+                    control_id=control_id,
+                    status=VerdictStatus.OUT_OF_SCOPE,
+                    confidence=1.0,
+                    reasons=[oos_reason],
+                    missing_evidence=[],
+                )
+
         reasons: list[str] = []
         missing: list[str] = []
 
@@ -282,6 +371,7 @@ class ComplianceEngine:
         self,
         framework_id: str,
         evidence_dict: dict[str, list[dict]],
+        scope_checker: Optional["ScopeChecker"] = None,
     ) -> list[ControlVerdict]:
         """
         Оценивает все assessable контроли указанного фреймворка.
@@ -290,13 +380,16 @@ class ComplianceEngine:
         evaluate_control для каждого контроля с соответствующим evidence.
 
         Args:
-            framework_id:  идентификатор фреймворка из FRAMEWORK_CATALOG
-                           ("nist-csf-2.0", "gdpr", "iso27001-2022" ...)
-            evidence_dict: словарь {ref_id: [evidence_list]}.
-                           Контроли без evidence получают пустой список.
+            framework_id:   идентификатор фреймворка из FRAMEWORK_CATALOG
+                            ("nist-csf-2.0", "gdpr", "iso27001-2022" ...)
+            evidence_dict:  словарь {ref_id: [evidence_list]}.
+                            Контроли без evidence получают пустой список.
+            scope_checker:  если передан, контроли вне скопа получают
+                            статус OUT_OF_SCOPE и не оцениваются по evidence.
 
         Returns:
-            Список ControlVerdict по всем assessable контролям фреймворка.
+            Список ControlVerdict по всем assessable контролям фреймворка
+            (включая OUT_OF_SCOPE).
 
         Raises:
             ValueError: если framework_id не найден в FrameworkLibrary.
@@ -309,7 +402,11 @@ class ComplianceEngine:
         verdicts: list[ControlVerdict] = []
         for ctrl in controls:
             ev_list = evidence_dict.get(ctrl.ref_id, [])
-            verdict = self.evaluate_control(ctrl.ref_id, ev_list, framework_id=framework_id)
+            verdict = self.evaluate_control(
+                ctrl.ref_id, ev_list,
+                framework_id=framework_id,
+                scope_checker=scope_checker,
+            )
             verdicts.append(verdict)
 
         log.info(
@@ -356,7 +453,7 @@ class ComplianceEngine:
         if not verdicts:
             return 0.0
 
-        # Числовые значения статусов
+        # Числовые значения статусов (OUT_OF_SCOPE исключается из расчёта)
         status_scores = {
             VerdictStatus.PASS:         1.0,
             VerdictStatus.NEEDS_REVIEW: 0.5,
@@ -367,6 +464,8 @@ class ComplianceEngine:
         weighted_sum = 0.0
 
         for verdict in verdicts:
+            if verdict.status == VerdictStatus.OUT_OF_SCOPE:
+                continue
             weight = self._get_weight(verdict.control_id)
             score  = status_scores.get(verdict.status, 0.0)
             weighted_sum += weight * score
